@@ -1,6 +1,6 @@
 [package]
 name = "boulder-estates-dining"
-version = "0.1.1"
+version = "0.1.2"
 description = "Boulder Estates dining room seating and setup sheets"
 authors = ["Joseph Lilleberg"]
 edition = "2024"
@@ -22,6 +22,8 @@ tauri-plugin-log = "2"
 # "bundled" compiles SQLite in, so the Windows build doesn't depend on a system copy.
 rusqlite = { version = "0.41.1", features = ["bundled", "backup"] }
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 
 [dev-dependencies]
 tempfile = "3"

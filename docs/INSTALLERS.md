@@ -10,6 +10,28 @@ The app ships with no residents. On first run, load them with Settings → Impor
 nothing syncs. To move data across, copy a backup file
 over and use Settings → Backups → Restore a backup (same format on both).
 
+## Releasing an update
+
+Installed apps check GitHub for a newer version at launch and show **Update to x.y.z** in
+the top bar. You can also check any time from the menu: **Boulder Estates Dining → Check for
+Updates…** on the Mac, **Help → Check for Updates…** on Windows (About shows the version).
+Updating downloads, installs and restarts; data and backups are kept.
+
+1. Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`.
+2. Commit and push.
+3. Run:
+
+   ```bash
+   npm run release -- "What changed, in a sentence or two"
+   ```
+
+   It runs the tests, builds both installers, signs the update files, checks that no resident
+   names got bundled, and publishes the GitHub release with `latest.json`.
+
+Updates are signed with the key at `~/.tauri/boulder-estates-dining.key` (public half in
+`tauri.conf.json`). **Keep a backup of that key file.** Installed apps only accept updates
+signed with it; if it's lost, every computer has to install the next version by hand.
+
 # Windows
 
 The app ships as one file, `Boulder Estates Dining_<version>_x64-setup.exe` (NSIS).
@@ -68,7 +90,7 @@ is ticked in the uninstaller (it starts unticked); the backups folder is never t
 
 ## Updating
 
-Run a newer `setup.exe` over the old one. Data and backups are kept; the app upgrades the
+Click **Update** in the app, or run a newer `setup.exe` over the old one. Data and backups are kept; the app upgrades the
 database on first launch.
 
 ## Code signing
@@ -99,7 +121,7 @@ daily backups go to `~/Documents/Boulder Estates Backups`.
 
 ## Updating
 
-Drag the newer app over the old one in Applications. Data and backups are kept.
+Click **Update** in the app, or drag the newer app over the old one in Applications. Data and backups are kept.
 
 ## Signing
 

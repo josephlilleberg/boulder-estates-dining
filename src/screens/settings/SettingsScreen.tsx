@@ -8,6 +8,7 @@ import { BACKUP_KEEP, localDate, runDailyBackup } from '../../state/backup';
 import { SCHEMA_VERSION } from '../../db/schema';
 import { setBackupDir } from '../../state/settingsActions';
 import { getStore, useStore } from '../../state/store';
+import { appVersion, checkForUpdate, installUpdate, useUpdateState } from '../../state/updates';
 import type { ScreenProps } from '../types';
 import { CupDialog, DrinkDialog, ExtraOptionDialog, MealSectionsDialog, RestoreDialog } from './dialogs';
 
@@ -36,6 +37,9 @@ export function SettingsScreen({ site }: ScreenProps) {
   const [defaultDir, setDefaultDir] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const desktop = isTauri();
+  const update = useUpdateState();
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => void appVersion().then(setVersion), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const [importNote, setImportNote] = useState<string | null>(null);
   const noResidents = !data.residents.some((r) => r.siteId === site.id);
@@ -191,6 +195,36 @@ export function SettingsScreen({ site }: ScreenProps) {
           {note && <p style={{ margin: '12px 0 0', fontSize: 13, color: '#374151' }}>{note}</p>}
         </section>
       </div>
+
+      <section className="card" style={{ padding: 18, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 220 }}>
+          <h2 className="h2" style={{ marginBottom: 4 }}>App updates</h2>
+          <p style={{ margin: 0, fontSize: 13, color: '#4B5563' }}>
+            {!desktop
+              ? 'Updates work in the installed app.'
+              : update.kind === 'checking'
+                ? 'Checking…'
+                : update.kind === 'current'
+                  ? `Version ${version ?? ''} is the latest.`
+                  : update.kind === 'available'
+                    ? `Version ${update.version} is available. Updating restarts the app; your data and backups are kept.`
+                    : update.kind === 'installing'
+                      ? `Updating${update.percent !== null ? ` (${update.percent}%)` : ''}… The app restarts when it’s done.`
+                      : update.kind === 'error'
+                        ? update.message
+                        : `Version ${version ?? ''}`}
+          </p>
+        </div>
+        {update.kind === 'available' || update.kind === 'installing' ? (
+          <button type="button" className="btn sm primary" disabled={update.kind === 'installing'} onClick={() => void installUpdate()}>
+            Update to {update.kind === 'available' ? update.version : '…'}
+          </button>
+        ) : (
+          <button type="button" className="btn sm" disabled={!desktop || update.kind === 'checking'} onClick={() => void checkForUpdate()}>
+            Check for updates
+          </button>
+        )}
+      </section>
 
       {open?.kind === 'drink' && <DrinkDialog site={site} drink={open.drink} onClose={() => setOpen(null)} />}
       {open?.kind === 'cup' && <CupDialog site={site} cup={open.cup} onClose={() => setOpen(null)} />}

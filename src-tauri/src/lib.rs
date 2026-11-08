@@ -7,7 +7,10 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            // Updates come from the GitHub release's latest.json, checked against the pubkey in tauri.conf.json.
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

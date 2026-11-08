@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Boulder Estates Dining",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "com.boulderestates.dining",
   "build": {
     "frontendDist": "../dist",
@@ -54,6 +54,18 @@
       },
       "webviewInstallMode": {
         "type": "embedBootstrapper"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVEMjY4REQ4RjVEOTEwRTMKUldUakVObjEySTBtWFJoaFFzRHMyMUVoRGhmSmF3emhhdm1yc0dVMTlKNzBteU9saEgxaGhOVE4K",
+      "endpoints": [
+        "https://github.com/josephlilleberg/boulder-estates-dining/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

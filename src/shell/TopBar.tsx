@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { SaveStatus } from '../state/store';
 import type { Screen } from './screens';
 import { SCREENS } from './screens';
+import { installUpdate, useUpdateState } from '../state/updates';
 import { CheckIcon, UndoIcon } from './icons';
 
 interface Props {
@@ -34,6 +35,7 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo }:
       </nav>
 
       <div className="topbar-right">
+        <UpdateButton />
         <SaveIndicator status={status} error={error} />
         <button
           type="button"
@@ -47,6 +49,24 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo }:
         </button>
       </div>
     </header>
+  );
+}
+
+// Not in the mockup: shown only when a newer version is on GitHub (checked at launch and in Settings).
+function UpdateButton() {
+  const u = useUpdateState();
+  if (u.kind === 'installing') {
+    return (
+      <button type="button" className="btn sm primary" disabled>
+        Updating{u.percent !== null ? ` ${u.percent}%` : '…'}
+      </button>
+    );
+  }
+  if (u.kind !== 'available') return null;
+  return (
+    <button type="button" className="btn sm primary" onClick={() => void installUpdate()} title={`Install version ${u.version} and restart. Your data is kept.`}>
+      Update to {u.version}
+    </button>
   );
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "boulder-estates-dining",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,13 +13,16 @@
     "tauri": "tauri",
     "app:dev": "tauri dev",
     "app:build": "tauri build",
-    "build:win": "LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 PATH=\"/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/lld/bin:$HOME/.cargo/bin:$PATH\" tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc",
-    "build:mac": "tauri build --target aarch64-apple-darwin --bundles app,dmg"
+    "build:win": "TAURI_SIGNING_PRIVATE_KEY=\"$(cat ~/.tauri/boulder-estates-dining.key)\" TAURI_SIGNING_PRIVATE_KEY_PASSWORD= LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 PATH=\"/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/lld/bin:$HOME/.cargo/bin:$PATH\" tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc",
+    "build:mac": "TAURI_SIGNING_PRIVATE_KEY=\"$(cat ~/.tauri/boulder-estates-dining.key)\" TAURI_SIGNING_PRIVATE_KEY_PASSWORD= tauri build --target aarch64-apple-darwin --bundles app,dmg",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "5.1.0",
     "@tauri-apps/api": "2.12.4",
     "@tauri-apps/plugin-dialog": "2.8.4",
+    "@tauri-apps/plugin-process": "2.4.0",
+    "@tauri-apps/plugin-updater": "2.14.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "sql.js": "1.15.1"

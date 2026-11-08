@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { attendanceSummary, drinkSubtitle, extraText, seatLabel } from '../../domain/labels';
-import { CHAIR_LABEL, fullName, type Chair, type Resident } from '../../domain/model';
+import { CHAIR_LABEL, fullName, pouredTogether, type Chair, type Resident } from '../../domain/model';
 import type { MealName } from '../../domain/sites';
 import { act } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -167,6 +167,11 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                   {drinks.map((d, i) => (
                     <DrinkRow key={d.id} label={`Drink ${i + 1}`} main={d.beverage} sub={drinkSubtitle(d, bev(d.beverage))} onClick={() => onDrink({ kind: 'edit', drinkId: d.id, meal: m })} />
                   ))}
+                  {pouredTogether(drinks) && (
+                    <div className="grow" style={{ cursor: 'default', fontSize: 13, color: '#374151', background: '#F0FDF4' }}>
+                      Both are {pouredTogether(drinks)}, so they’re poured together in one glass.
+                    </div>
+                  )}
                   {coffee.map((d) => (
                     <DrinkRow key={d.id} label="Breakfast coffee" main={d.beverage} sub={`${drinkSubtitle(d, bev(d.beverage))} · doesn’t count toward the 2`} onClick={() => onDrink({ kind: 'edit', drinkId: d.id, meal: m })} />
                   ))}

@@ -161,4 +161,13 @@ describe('Seat details', () => {
     const special = data().residents.find((x) => x.chair !== 'arm')!;
     expect(detailFacts(special, 'Dinner')[0]?.label).toBe('Chair');
   });
+
+  it('two of the same juice show as one row, poured together in a glass', () => {
+    const r = structuredClone(data().residents.find((x) => x.prefs.Dinner)!);
+    const jg = { slot: 'drink' as const, beverage: 'Cranberry Juice', tea: null, drinkware: 'Juice glass', amount: 'Full' as const, extraGlass: false, creamer: false };
+    r.prefs.Dinner!.drinks = [{ id: 'a', ...jg }, { id: 'b', ...jg }];
+    r.prefs.Dinner!.hotWater = false;
+    r.prefs.Dinner!.roWater = false;
+    expect(detailRows(r, 'Dinner', data().beverages).map((x) => [x.name, x.meta])).toEqual([['2 × Cranberry Juice', 'Glass · both poured together']]);
+  });
 });

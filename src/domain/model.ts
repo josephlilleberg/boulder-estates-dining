@@ -35,6 +35,18 @@ export interface Drink {
   creamer: boolean;
 }
 
+/**
+ * A juice glass holds half a glass, so when a resident's two drinks are the same thing
+ * in juice glasses (e.g. two cranberry juices), they're poured together in one glass.
+ * Returns that drink's name, or null. Every sheet and screen uses this one rule.
+ */
+export function pouredTogether(drinks: Drink[]): string | null {
+  const d = drinks.filter((x) => x.slot === 'drink');
+  const [a, b] = d;
+  if (d.length !== 2 || !a || !b) return null;
+  return a.beverage === b.beverage && a.drinkware === 'Juice glass' && b.drinkware === 'Juice glass' ? a.beverage : null;
+}
+
 export interface Extra {
   id: string;
   name: string;

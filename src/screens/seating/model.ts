@@ -1,6 +1,6 @@
 import { extraText } from '../../domain/labels';
 import type { Beverage, DiningTable, MealPrefs, Resident, SeatAssignment } from '../../domain/model';
-import { CHAIR_LABEL, fullName, shortName } from '../../domain/model';
+import { CHAIR_LABEL, fullName, pouredTogether, shortName } from '../../domain/model';
 import { footprint, seatPoints } from '../../domain/room';
 import { seatGeom } from '../../domain/tables';
 
@@ -244,7 +244,11 @@ export interface DetailRow {
 export function detailRows(r: Resident, meal: string, beverages: Beverage[]): DetailRow[] {
   const p = r.prefs[meal as never] as MealPrefs | undefined;
   if (!p) return [];
-  const rows: DetailRow[] = p.drinks.map((d) => {
+  // Two of the same juice are poured as one glass: show them as one row.
+  const together = pouredTogether(p.drinks);
+  const isPair = (d: (typeof p.drinks)[number]) => !!together && d.slot === 'drink' && d.beverage === together;
+  const drinks = p.drinks.filter((d) => !isPair(d) || d === p.drinks.find(isPair));
+  const rows: DetailRow[] = drinks.map((d) => {
     const bev = beverages.find((b) => b.siteId === r.siteId && b.name === d.beverage);
     const kind = bev?.kind ?? 'other';
     const meta =
@@ -253,7 +257,8 @@ export function detailRows(r: Resident, meal: string, beverages: Beverage[]): De
         : kind === 'tea'
           ? `${d.tea ?? 'Tea'} · mug`
           : (kind === 'juice' ? d.drinkware : (d.amount === 'Half' ? 'Half · ' : '') + d.drinkware) + (d.extraGlass ? ' · + water glass' : '');
-    return { name: d.beverage, meta, dot: kind === 'coffee' ? '#6F4E37' : (bev?.color ?? '#FFFFFF') };
+    const both = isPair(d);
+    return { name: both ? `2 × ${d.beverage}` : d.beverage, meta: both ? 'Glass · both poured together' : meta, dot: kind === 'coffee' ? '#6F4E37' : (bev?.color ?? '#FFFFFF') };
   });
   if (p.hotWater) rows.push({ name: 'Hot water', meta: 'Mug', dot: '#FFFFFF' });
   if (p.roWater) rows.push({ name: 'RO water', meta: 'Glass', dot: '#BFDBFE' });

@@ -1,5 +1,5 @@
 import type { Beverage, Chair, DiningTable, MealPrefs, Resident } from '../domain/model';
-import { fullName, shortName } from '../domain/model';
+import { fullName, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
 import { seatGeom } from '../domain/tables';
@@ -262,11 +262,19 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
   const p = prefsOf(r, meal);
   if (!p) return [];
   const items: Pill[] = [];
+  const together = pouredTogether(p.drinks);
+  let shown = false;
   for (const d of p.drinks) {
     const bev = beverages.find((b) => b.siteId === r.siteId && b.name === d.beverage);
     if (bev?.kind === 'coffee') continue;
+    // Two of the same juice: one pill, "2 Cran", since it's poured as one glass.
+    if (together && d.beverage === together && d.slot === 'drink') {
+      if (shown) continue;
+      shown = true;
+    }
+    const short = bev?.shortLabel || d.beverage;
     items.push({
-      cap: bev?.shortLabel || d.beverage,
+      cap: together && d.beverage === together && d.slot === 'drink' ? `2 ${short}` : short,
       bg: bev?.color ?? PLAIN,
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
       half: d.amount === 'Half' && bev?.kind !== 'juice', // juices are never marked half
@@ -340,8 +348,10 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   const p = prefsOf(r, meal);
   const dr = p?.drinks ?? [];
   const hasMug = dr.some((x) => x.drinkware === 'Mug') || !!p?.hotWater;
-  const extraGlass = dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0);
-  const juice = dr.filter((x) => x.drinkware === 'Juice glass').length;
+  // Two of the same juice go in one glass instead of two juice glasses.
+  const together = pouredTogether(dr) ? 1 : 0;
+  const extraGlass = dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0) + together;
+  const juice = dr.filter((x) => x.drinkware === 'Juice glass').length - 2 * together;
   const togo = dr.filter((x) => x.drinkware === 'To-go cup').length;
   const out: Change[] = [];
   const add = (n: number, word: string) => {

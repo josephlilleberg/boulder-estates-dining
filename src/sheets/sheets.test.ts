@@ -6,7 +6,7 @@ import type { Chair, DiningTable, Drink, MealPrefs, Resident } from '../domain/m
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { corners, edgeAngle, labelInkWidth, separation, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
+import { corners, edgeAngle, labelInkWidth, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -65,6 +65,20 @@ describe('Setup sheet rules', () => {
     expect(texts(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['+2 Juice', 'No Mug']);
     expect(texts(resident([coffee({ drinkware: 'To-go cup' })]))).toEqual(['+To-Go', 'No Mug']);
     for (const c of setupChanges(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner')) expect(c.bg).toBe(c.text === 'No Mug' ? '#FCA5A5' : '#86EFAC');
+  });
+
+  it('two of the same juice are poured together: +Glass instead of +2 Juice, one "2 Cran Juice" pill', () => {
+    const jg = { drinkware: 'Juice glass' };
+    // Both drinks are juice, so there's no coffee mug either.
+    const pair = resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]);
+    expect(texts(pair)).toEqual(['+Glass', 'No Mug']);
+    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cran Juice']);
+    // With an extra water glass too, the glasses add up.
+    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+2 Glasses']);
+    // Not the same juice, or not both in juice glasses: nothing is combined.
+    expect(texts(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]))).toEqual(['+2 Juice', 'No Mug']);
+    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+Juice', '+To-Go', 'No Mug']);
+    expect(serverPills(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]), 'Dinner', data().beverages)).toHaveLength(2);
   });
 
   it('No Mug only when there is no mug drink and no hot water', () => {

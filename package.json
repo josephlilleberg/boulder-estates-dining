@@ -1,0 +1,37 @@
+{
+  "name": "boulder-estates-dining",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:rust": "cd src-tauri && cargo test",
+    "tauri": "tauri",
+    "app:dev": "tauri dev",
+    "app:build": "tauri build",
+    "build:win": "LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 PATH=\"/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/lld/bin:$HOME/.cargo/bin:$PATH\" tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc",
+    "build:mac": "tauri build --target aarch64-apple-darwin --bundles app,dmg"
+  },
+  "dependencies": {
+    "@fontsource/inter": "5.1.0",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-dialog": "2.8.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sql.js": "1.15.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.3",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@types/sql.js": "1.4.11",
+    "@vitejs/plugin-react": "6.1.2",
+    "typescript": "5.6.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}

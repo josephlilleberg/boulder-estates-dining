@@ -1,0 +1,27 @@
+[package]
+name = "boulder-estates-dining"
+version = "0.1.0"
+description = "Boulder Estates dining room seating and setup sheets"
+authors = ["Joseph Lilleberg"]
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.12.4", features = [] }
+tauri-plugin-log = "2"
+# "bundled" compiles SQLite in, so the Windows build doesn't depend on a system copy.
+rusqlite = { version = "0.41.1", features = ["bundled", "backup"] }
+tauri-plugin-dialog = "2"
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,0 +1,12 @@
+node_modules
+dist
+.DS_Store
+src-tauri/target
+*.local
+*.sqlite3
+*.sqlite3-*
+
+# Local only: real resident data and the private spec/mockup (never published)
+src/db/seed/legacy-be.json
+Main.dc.html
+BRIEF.md

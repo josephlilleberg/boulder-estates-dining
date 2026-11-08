@@ -1,0 +1,38 @@
+/* App shell. Values lifted from the mockup's inline styles on <header>, the strip and <main>. */
+.app { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg-page); }
+
+.topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 10px 20px; background: #FFFFFF; border-bottom: 1px solid var(--card-border); }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: 6px; }
+.brand-mark { width: 34px; height: 34px; border-radius: 8px; background: var(--brand); color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+.brand-name { font-size: 15px; font-weight: 700; color: var(--text); }
+.brand-sub { font-size: 12px; color: var(--text-2); }
+.topnav { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; flex: none; margin-left: auto; }
+.saved { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--saved); }
+
+.strip { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 20px; background: var(--bg-strip); border-bottom: 1px solid var(--card-border); }
+
+.content { flex: 1; display: flex; flex-wrap: wrap; align-items: stretch; }
+.main { flex: 1 1 100%; min-width: 0; box-sizing: border-box; padding: 16px 20px; }
+
+/* Screen scaffolding shared by several screens. */
+.h1 { margin: 0; font-size: 20px; font-weight: 700; }
+.h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.sub { margin: 4px 0 12px; font-size: 13px; color: var(--text-2); }
+.row-wrap { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+
+/* Skeleton-only: marks where a later build step fills in. Remove as steps land. */
+.stub { display: flex; align-items: center; justify-content: center; min-height: 220px; border: 1.5px dashed #D1D5DB; border-radius: 10px; color: #9CA3AF; font-size: 13px; text-align: center; padding: 16px; }
+.saved.error { color: #B91C1C; font-weight: 600; }
+.saved.error > span[aria-hidden] { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #B91C1C; color: #FFFFFF; font-size: 11px; }
+
+/* Printing: only the sheets in .print-root reach the paper (see sheets/print.tsx). */
+.print-root { display: none; }
+@media print {
+  html, body { margin: 0; padding: 0; background: #FFFFFF; }
+  body > *:not(.print-root) { display: none !important; }
+  .print-root { display: block; }
+  .print-root .sheet-page { break-after: page; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-root .sheet-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-root .sheet-page:last-child { break-after: auto; }
+}

@@ -1,0 +1,27 @@
+/* Design tokens from BRIEF.md "Visual system". New CSS should use these;
+   mockup.css keeps the mockup's literal values so it can be diffed against the spec. */
+:root {
+  --bg-page: #F4F5F7;
+  --bg-strip: #F9FAFB;
+  --card-bg: #FFFFFF;
+  --card-border: #E5E7EB;
+  --card-radius: 12px;
+
+  --text: #111827;
+  --text-2: #4B5563;
+  --text-muted: #6B7280;
+
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --border-input: #D0D5DD;
+  --divider: #F0F1F3;
+
+  --nav-on-bg: #EFF6FF;
+  --nav-on-text: #1D4ED8;
+  --seg-track: #EEF0F3;
+
+  --saved: #166534;
+  --brand: #1E3A8A;
+}
+
+html, body, #root { height: 100%; }

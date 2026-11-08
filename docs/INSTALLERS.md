@@ -5,7 +5,9 @@
 | Windows x64 | `npm run build:win` | `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/…_x64-setup.exe` |
 | Mac (Apple Silicon only) | `npm run build:mac` | `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/…_aarch64.dmg` |
 
-Each computer keeps its own data; nothing syncs. To move data across, copy a backup file
+The app ships with no residents. On first run, load them with Settings → Import residents
+(your residents .json file; works once, in an empty app). Each computer keeps its own data;
+nothing syncs. To move data across, copy a backup file
 over and use Settings → Backups → Restore a backup (same format on both).
 
 # Windows

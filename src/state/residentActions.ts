@@ -98,6 +98,23 @@ export const archiveResident = (id: string) => (data: AppData): Op[] => {
 export const restoreResident = (id: string) => (data: AppData): Op[] =>
   resident(data, id).archived ? [patch('resident', { id }, { archived: 0 })] : [];
 
+/**
+ * Removes them and everything that's theirs (seats, drinks, extras, notes, meals) in one
+ * undo step. Children go first so foreign keys hold; Undo puts it all back.
+ */
+export const deleteResident = (id: string) => (data: AppData): Op[] => {
+  const r = resident(data, id);
+  const prefs = Object.entries(r.prefs) as [MealName, NonNullable<Resident['prefs'][MealName]>][];
+  return [
+    ...data.seating.filter((s) => s.residentId === id).map((s) => del('seating', { site_id: s.siteId, meal: s.meal, table_id: s.tableId, seat: s.seat })),
+    ...prefs.flatMap(([, p]) => [...p.drinks.map((d) => del('drink', { id: d.id })), ...p.extras.map((x) => del('extra', { id: x.id }))]),
+    ...r.notes.map((n) => del('resident_note', { id: n.id })),
+    ...r.attends.map((meal) => del('attendance', { resident_id: id, meal })),
+    ...prefs.map(([meal]) => del('meal_pref', { resident_id: id, meal })),
+    del('resident', { id }),
+  ];
+};
+
 // ---- Notes -----------------------------------------------------------------
 
 export const addNote = (residentId: string, text: string) => (data: AppData): Op[] => {
@@ -113,14 +130,21 @@ export const removeNote = (noteId: string) => (): Op[] => [del('resident_note', 
 
 export { setAttendance };
 
-export const setRoWater = (id: string, meal: MealName, on: boolean) => (data: AppData): Op[] => {
-  const r = resident(data, id);
-  return [...ensurePref(r, meal), patch('meal_pref', { resident_id: id, meal }, { ro_water: on ? 1 : 0 })];
-};
+export type SpecialWater = 'none' | 'ro' | 'hot';
+export const SPECIAL_WATER: { value: SpecialWater; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'ro', label: 'RO' },
+  { value: 'hot', label: 'Hot water' },
+];
 
-export const setHotWater = (id: string, meal: MealName, on: boolean) => (data: AppData): Op[] => {
+export const specialWaterOf = (p: { roWater: boolean; hotWater: boolean } | undefined): SpecialWater => (p?.hotWater ? 'hot' : p?.roWater ? 'ro' : 'none');
+
+/** One choice per meal: RO water, a hot water pitcher, or neither. */
+export const setSpecialWater = (id: string, meal: MealName, water: SpecialWater) => (data: AppData): Op[] => {
   const r = resident(data, id);
-  return [...ensurePref(r, meal), patch('meal_pref', { resident_id: id, meal }, { hot_water: on ? 1 : 0 })];
+  const cur = r.prefs[meal];
+  if (!!cur?.roWater === (water === 'ro') && !!cur?.hotWater === (water === 'hot')) return [];
+  return [...ensurePref(r, meal), patch('meal_pref', { resident_id: id, meal }, { ro_water: water === 'ro' ? 1 : 0, hot_water: water === 'hot' ? 1 : 0 })];
 };
 
 export const setPortion = (id: string, meal: MealName, portion: Portion) => (data: AppData): Op[] => {

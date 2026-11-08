@@ -30,3 +30,5 @@
 .linkbtn { border: 0; background: transparent; padding: 4px 0; font: inherit; font-size: 13px; font-weight: 600; color: #1D4ED8; cursor: pointer; }
 .linkbtn:hover { text-decoration: underline; }
 .check-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border: 0; background: transparent; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; text-align: left; }
+.btn.danger { background: #B91C1C; border-color: #B91C1C; color: #FFFFFF; }
+.btn.danger:hover { background: #991B1B; }

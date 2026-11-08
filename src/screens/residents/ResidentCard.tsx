@@ -7,7 +7,7 @@ import * as A from '../../state/residentActions';
 import { useStore } from '../../state/store';
 import { SwitchMark } from '../../ui/Switch';
 import type { ScreenProps } from '../types';
-import { ArchiveDialog, DrinkDialog, ExtraDialog, NameDialog, type DrinkTarget, type ExtraTarget } from './dialogs';
+import { ArchiveDialog, DeleteDialog, DrinkDialog, ExtraDialog, NameDialog, type DrinkTarget, type ExtraTarget } from './dialogs';
 
 interface Props extends ScreenProps {
   resident: Resident;
@@ -19,7 +19,7 @@ const CHAIRS: Chair[] = ['arm', 'no_arm', 'none'];
 export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props) {
   const data = useStore((s) => s.data);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dialog, setDialog] = useState<null | 'rename' | 'archive'>(null);
+  const [dialog, setDialog] = useState<null | 'rename' | 'archive' | 'delete'>(null);
   const [drink, setDrink] = useState<DrinkTarget | null>(null);
   const [extra, setExtra] = useState<ExtraTarget | null>(null);
 
@@ -57,6 +57,9 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                     Archive resident
                   </button>
                 )}
+                <button type="button" role="menuitem" className="danger" onClick={() => (setMenuOpen(false), setDialog('delete'))}>
+                  Delete resident
+                </button>
               </div>
             </>
           )}
@@ -117,6 +120,7 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
       </div>
 
       {dialog === 'rename' && <NameDialog mode="rename" site={site} resident={r} onClose={() => setDialog(null)} onSaved={() => setDialog(null)} />}
+      {dialog === 'delete' && <DeleteDialog resident={r} onClose={() => setDialog(null)} />}
       {dialog === 'archive' && <ArchiveDialog resident={r} seats={data.seating.filter((s) => s.residentId === r.id).length} onClose={() => setDialog(null)} />}
       {drink && <DrinkDialog target={drink} resident={r} onTarget={setDrink} onClose={() => setDrink(null)} />}
       {extra && <ExtraDialog target={extra} resident={r} onClose={() => setExtra(null)} />}
@@ -209,14 +213,16 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
 
               <div className="group">
                 <div className="ghead">Water &amp; portion</div>
-                <button type="button" className="grow" aria-pressed={!!p?.roWater} onClick={() => act(`RO water ${p?.roWater ? 'off' : 'on'}`, A.setRoWater(resident.id, m, !p?.roWater))}>
-                  <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>RO water glass</span>
-                  <SwitchMark on={!!p?.roWater} />
-                </button>
-                <button type="button" className="grow" aria-pressed={!!p?.hotWater} onClick={() => act(`Hot water ${p?.hotWater ? 'off' : 'on'}`, A.setHotWater(resident.id, m, !p?.hotWater))}>
-                  <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Cup of hot water</span>
-                  <SwitchMark on={!!p?.hotWater} />
-                </button>
+                <div className="grow" style={{ cursor: 'default', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                  <span style={{ fontSize: 14, color: '#111827' }}>Special water</span>
+                  <div className="segwrap" role="group" aria-label="Special water" style={{ display: 'flex', flexWrap: 'nowrap' }}>
+                    {A.SPECIAL_WATER.map(({ value, label }) => (
+                      <button key={value} type="button" style={{ flex: 1, whiteSpace: 'nowrap' }} className={A.specialWaterOf(p) === value ? 'seg on' : 'seg'} aria-pressed={A.specialWaterOf(p) === value} onClick={() => act(`Special water: ${label}`, A.setSpecialWater(resident.id, m, value))}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="grow" style={{ cursor: 'default' }}>
                   <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Portion</span>
                   <div className="segwrap" role="group" aria-label="Portion">

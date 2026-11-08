@@ -57,8 +57,8 @@ describe('every resident edit survives a restart and can be undone', () => {
   it('attendance on', () => checkEdit('R0', 'Supper', A.setAttendance('R0', 'Supper', true), (r) => expect(r.attends).toContain('Supper')));
 
   it('RO water, hot water, portion', async () => {
-    await checkEdit('R0', 'RO', A.setRoWater('R0', 'Dinner', true), (r) => expect(r.prefs.Dinner!.roWater).toBe(true));
-    await checkEdit('R0', 'Hot', A.setHotWater('R0', 'Dinner', true), (r) => expect(r.prefs.Dinner!.hotWater).toBe(true));
+    await checkEdit('R0', 'RO', A.setSpecialWater('R0', 'Dinner', 'ro'), (r) => expect([r.prefs.Dinner!.roWater, r.prefs.Dinner!.hotWater]).toEqual([true, false]));
+    await checkEdit('R0', 'Hot', A.setSpecialWater('R0', 'Dinner', 'hot'), (r) => expect([r.prefs.Dinner!.roWater, r.prefs.Dinner!.hotWater]).toEqual([false, true]));
     await checkEdit('R0', 'Half', A.setPortion('R0', 'Dinner', 'Half'), (r) => expect(r.prefs.Dinner!.portion).toBe('Half'));
   });
 
@@ -124,5 +124,41 @@ describe('resident rules', () => {
     const drinks = res(store, 'R0').prefs.Breakfast!.drinks;
     await store.change('Off', A.setAttendance('R0', 'Breakfast', false));
     expect(res(store, 'R0').prefs.Breakfast!.drinks).toEqual(drinks);
+  });
+});
+
+describe('deleting a resident', () => {
+  it('removes them and everything theirs in one step; Undo brings it all back', async () => {
+    await store.change('Note', A.addNote('R0', 'Nut allergy'));
+    const before = structuredClone(store.get().data);
+    const r0 = res(store, 'R0');
+    expect(before.seating.some((s) => s.residentId === 'R0')).toBe(true);
+    expect(Object.values(r0.prefs).some((p) => p!.drinks.length && p!.extras.length)).toBe(true);
+
+    await store.change('Delete', A.deleteResident('R0'));
+    const gone = (s: Store) => {
+      expect(s.get().data.residents.find((r) => r.id === 'R0')).toBeUndefined();
+      expect(s.get().data.seating.some((x) => x.residentId === 'R0')).toBe(false);
+    };
+    gone(store);
+    gone(await restart());
+    const left = await db.select<{ n: number }>(
+      `SELECT (SELECT COUNT(*) FROM drink WHERE resident_id='R0') + (SELECT COUNT(*) FROM extra WHERE resident_id='R0') + (SELECT COUNT(*) FROM resident_note WHERE resident_id='R0') + (SELECT COUNT(*) FROM attendance WHERE resident_id='R0') + (SELECT COUNT(*) FROM meal_pref WHERE resident_id='R0') AS n`,
+    );
+    expect(left[0]!.n).toBe(0);
+
+    await store.undoLast();
+    expect(res(store, 'R0')).toEqual(r0);
+    expect(store.get().data.seating).toEqual(before.seating);
+  });
+});
+
+describe('special water', () => {
+  it('is one choice: picking hot water turns RO off', async () => {
+    await store.change('RO', A.setSpecialWater('R0', 'Dinner', 'ro'));
+    await store.change('Hot', A.setSpecialWater('R0', 'Dinner', 'hot'));
+    expect(A.specialWaterOf(res(store, 'R0').prefs.Dinner)).toBe('hot');
+    expect(res(store, 'R0').prefs.Dinner!.roWater).toBe(false);
+    expect(A.setSpecialWater('R0', 'Dinner', 'hot')(store.get().data)).toEqual([]);
   });
 });

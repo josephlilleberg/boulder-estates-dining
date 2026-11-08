@@ -125,6 +125,37 @@ export function ArchiveDialog({ resident: r, seats, onClose }: { resident: Resid
   );
 }
 
+export function DeleteDialog({ resident: r, onClose }: { resident: Resident; onClose: () => void }) {
+  const name = fullName(r);
+  return (
+    <Dialog
+      title={`Delete ${name}?`}
+      onClose={onClose}
+      footer={
+        <>
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose} data-autofocus>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn danger"
+            onClick={async () => {
+              if (await act(`Delete ${name}`, A.deleteResident(r.id))) onClose();
+            }}
+          >
+            Delete
+          </button>
+        </>
+      }
+    >
+      <p style={{ margin: 0, fontSize: 14, color: '#374151', lineHeight: 1.5 }}>
+        This removes {name} with their drinks, extras, notes and seats. Undo (top right) brings them back. If they might return, Archive keeps everything instead.
+      </p>
+    </Dialog>
+  );
+}
+
 // ---- Drinks ----------------------------------------------------------------
 
 export type DrinkTarget = { kind: 'add'; meal: MealName } | { kind: 'edit'; meal: MealName; drinkId: string };

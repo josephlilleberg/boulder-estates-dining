@@ -56,10 +56,24 @@ export function pouredInto(drinks: Drink[]): 'Glass' | 'To-go cup' | null {
 /** The drink poured together (see pouredInto), or null. */
 export const pouredTogether = (drinks: Drink[]): string | null => (pouredInto(drinks) ? (drinks.find((x) => x.slot === 'drink')?.beverage ?? null) : null);
 
+/** Milk goes in a glass, juice glass, to-go cup or milk pitcher. */
+export const MILK_CUPS = ['Glass', 'Juice glass', 'To-go cup', 'Milk pitcher'];
+
+/**
+ * "Extra glass" (a second glass, for water) only makes sense beside a drink in a glass:
+ * one served in a Glass, or two of the same juice poured together into one glass.
+ */
+export function canHaveExtraGlass(d: Drink, drinks: Drink[]): boolean {
+  if (d.slot !== 'drink') return false;
+  return d.drinkware === 'Glass' || (pouredInto(drinks) === 'Glass' && d.beverage === pouredTogether(drinks));
+}
+
 export interface Extra {
   id: string;
   name: string;
   variant: string | null;
+  /** Second choice when the first kind isn't available ("Banana, else Apple"). */
+  backup: string | null;
   count: number;
 }
 

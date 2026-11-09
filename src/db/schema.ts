@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -114,6 +114,12 @@ export const MIGRATIONS: Record<number, string[]> = {
     `UPDATE OR IGNORE extra_option SET name = 'Soup Spoon' WHERE name = 'Big Spoon'`,
     `DELETE FROM extra_option WHERE name = 'Big Spoon'`,
     `UPDATE extra SET name = 'Soup Spoon' WHERE name = 'Big Spoon'`,
+  ],
+  // v5: a backup choice for an extra ("Banana, else Apple"), and Strawberry jelly.
+  5: [
+    `ALTER TABLE extra ADD COLUMN backup TEXT`,
+    `UPDATE extra_option SET variants = CASE WHEN variants = '' THEN 'Strawberry' ELSE variants || '|Strawberry' END
+       WHERE name = 'Jelly' AND ('|' || variants || '|') NOT LIKE '%|Strawberry|%'`,
   ],
 };
 

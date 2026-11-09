@@ -281,6 +281,6 @@ export function detailFacts(r: Resident, meal: string): { label: string; value: 
   const out: { label: string; value: string }[] = [];
   if (r.chair !== 'arm') out.push({ label: 'Chair', value: CHAIR_LABEL[r.chair] });
   if (p?.portion === 'Half') out.push({ label: 'Portion', value: 'Half' });
-  if (p?.extras.length) out.push({ label: 'Extras', value: p.extras.map(extraText).join(', ') });
+  if (p?.extras.length) out.push({ label: 'Extras', value: p.extras.map(extraText).join(' · ') });
   return out;
 }

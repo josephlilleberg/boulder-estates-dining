@@ -87,7 +87,7 @@ export const SEED_SITE_IDS = SITES.map((s) => s.id);
 // extras; Dinner and Supper are napkins only (mockup rule). Seeded by migration 2.
 const EXTRAS: [string, string[], boolean, boolean][] = [
   ['Napkins', [], true, true],
-  ['Jelly', ['Grape', 'Mixed Fruit'], false, true],
+  ['Jelly', ['Grape', 'Mixed Fruit', 'Strawberry'], false, true],
   ['Fruit', ['Banana', 'Orange', 'Apple'], false, false],
   ['Butter', [], false, true],
   ['Soup Spoon', [], false, true],

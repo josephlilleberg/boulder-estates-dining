@@ -22,10 +22,13 @@ export function drinkSubtitle(d: Drink, bev: Beverage | undefined): string {
   return parts.join(' · ');
 }
 
-/** Names as written in Settings: "Grape Jelly ×2", "Mixed Fruit Jelly", "Napkins ×2", "Soup Spoon". Fruit shows just the kind ("Banana"). */
-export function extraText(x: Pick<Extra, 'name' | 'variant' | 'count'>): string {
-  if (x.name === 'Fruit') return x.variant ?? 'Fruit';
-  return `${x.variant ? `${x.variant} ` : ''}${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`;
+/**
+ * Names as written in Settings: "Grape Jelly ×2", "Mixed Fruit Jelly", "Napkins ×2", "Soup Spoon".
+ * Fruit shows just the kind ("Banana"). A backup reads "Banana, else Apple".
+ */
+export function extraText(x: Pick<Extra, 'name' | 'variant' | 'count'> & { backup?: string | null }): string {
+  const main = x.name === 'Fruit' ? (x.variant ?? 'Fruit') : `${x.variant ? `${x.variant} ` : ''}${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`;
+  return x.variant && x.backup ? `${main}, else ${x.backup}` : main;
 }
 
 /** "Comes to Breakfast, Dinner" in the site's meal order. */

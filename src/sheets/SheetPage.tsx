@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CHAIR_PILL, type PrefRow, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { CHAIR_PILL, CUP_BAND_H, type PrefRow, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -51,10 +51,16 @@ function ServerBody({ room }: { room: ServerRoom }) {
               {l.items.map((it, k) => (
                 <div
                   key={k}
-                  style={{ boxSizing: 'border-box', height: 18, minWidth: 30, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', alignItems: 'stretch', justifyContent: 'center' }}
+                  style={{ boxSizing: 'border-box', minWidth: 30, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
                 >
-                  {it.half && <span style={{ display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
-                  <span style={{ display: 'flex', alignItems: 'center', padding: '0 6px' }}>{it.cap}</span>
+                  <div style={{ display: 'flex', height: 16, justifyContent: 'center' }}>
+                    {it.half && <span style={{ display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
+                    <span style={{ display: 'flex', alignItems: 'center', padding: '0 6px' }}>{it.cap}</span>
+                  </div>
+                  {/* Not the drink's usual cup: named in a dark band, the same dark as the ½ tab. */}
+                  {it.cup && (
+                    <div style={{ height: CUP_BAND_H, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 8, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
+                  )}
                 </div>
               ))}
             </div>

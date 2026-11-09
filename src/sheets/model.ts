@@ -89,7 +89,15 @@ export interface Pill {
   color: string;
   /** Half glass of milk: a dark ½ tab in front. */
   half: boolean;
+  /** Not the drink's usual cup (its default in Settings): named in a dark band under the drink. */
+  cup?: string | null;
 }
+
+/** Short names for the cup band on server sheets. */
+const CUP_TAG: Record<string, string> = { 'To-go cup': 'To-go', 'Milk pitcher': 'Pitcher', 'Juice glass': 'Juice glass', Glass: 'Glass', Mug: 'Mug' };
+export const cupTag = (drinkware: string) => CUP_TAG[drinkware] ?? drinkware;
+/** Extra height a cup band adds to a pill. */
+export const CUP_BAND_H = 9;
 
 export interface TableDraw {
   id: string;
@@ -138,20 +146,21 @@ const FIT_LH = 14 + 2 + 2 * 20;
 
 type Spot = { x: number; y: number };
 
-function serverShapes(t: DiningTable, p: Spot): (RotBox & { body?: boolean })[] {
+function serverShapes(t: DiningTable, p: Spot, lh: (seat: number) => number = () => FIT_LH): (RotBox & { body?: boolean })[] {
   const round = t.shape === 'round';
   const a = (t.rotation * Math.PI) / 180;
   const c = Math.cos(a);
   const s = Math.sin(a);
   const out: (RotBox & { body?: boolean })[] = [{ cx: p.x, cy: p.y, hw: ((round ? 92 : 182) * SG) / 2, hh: (92 * SG) / 2, ang: t.rotation, body: true }];
-  for (const g of seatGeom(t.shape)) {
+  seatGeom(t.shape).forEach((g, i) => {
+    const h = lh(i);
     const sx = p.x + (g[0] * c - g[1] * s) * SG;
     const sy = p.y + (g[0] * s + g[1] * c) * SG;
     const nx = g[2] * c - g[3] * s;
     const ny = g[2] * s + g[3] * c;
-    const off = -13 * SG + 3 + FIT_LH / 2;
-    out.push({ cx: sx + nx * off, cy: sy + ny * off, hw: FIT_HW, hh: FIT_LH / 2, ang: edgeAngle(nx, ny) });
-  }
+    const off = -13 * SG + 3 + h / 2;
+    out.push({ cx: sx + nx * off, cy: sy + ny * off, hw: FIT_HW, hh: h / 2, ang: edgeAngle(nx, ny) });
+  });
   return out;
 }
 
@@ -160,14 +169,16 @@ function serverShapes(t: DiningTable, p: Spot): (RotBox & { body?: boolean })[] 
  * fill the page, then any two tables whose labels would touch are nudged apart a
  * few px at a time, staying on the page. The room layout itself never changes.
  */
-export function serverFit(T: DiningTable[]): Map<string, Spot> {
+export function serverFit(T: DiningTable[], labelH: (t: DiningTable, seat: number) => number = () => FIT_LH): Map<string, Spot> {
+  // Room kept for each seat's label: two drinks by default, more where cup bands make it taller.
+  const lhOf = new Map(T.map((t) => [t.id, (seat: number) => Math.max(FIT_LH, labelH(t, seat))]));
   const bbox = (spx: number, spy: number) => {
     let x0 = 1e9;
     let y0 = 1e9;
     let x1 = -1e9;
     let y1 = -1e9;
     for (const t of T) {
-      for (const r of serverShapes(t, { x: t.x * spx, y: t.y * spy })) {
+      for (const r of serverShapes(t, { x: t.x * spx, y: t.y * spy }, lhOf.get(t.id))) {
         for (const [x, y] of corners(r)) {
           x0 = Math.min(x0, x);
           x1 = Math.max(x1, x);
@@ -198,7 +209,7 @@ export function serverFit(T: DiningTable[]): Map<string, Spot> {
 
   for (let it = 0; it < 120; it++) {
     let moved = false;
-    const S = T.map((t, i) => serverShapes(t, pos[i]!));
+    const S = T.map((t, i) => serverShapes(t, pos[i]!, lhOf.get(t.id)));
     for (let i = 0; i < T.length; i++) {
       for (let j = i + 1; j < T.length; j++) {
         for (const A of S[i]!) {
@@ -221,7 +232,7 @@ export function serverFit(T: DiningTable[]): Map<string, Spot> {
       let y0 = 1e9;
       let x1 = -1e9;
       let y1 = -1e9;
-      for (const r of serverShapes(t, pos[i]!)) {
+      for (const r of serverShapes(t, pos[i]!, lhOf.get(t.id))) {
         for (const [x, y] of corners(r)) {
           x0 = Math.min(x0, x);
           x1 = Math.max(x1, x);
@@ -257,7 +268,7 @@ export const ALERT_W = 14;
  */
 export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { alert?: boolean }): number {
   const name = l.name.length * CHAR_W + (l.alert ? ALERT_W : 0);
-  const pills = l.items.map((p) => Math.max(30, 2 + 12 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0)));
+  const pills = l.items.map((p) => Math.max(30, 2 + 12 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 : 0));
   return Math.min(l.w, Math.max(name, ...pills));
 }
 
@@ -277,11 +288,15 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       shown = true;
     }
     const short = bev?.shortLabel || d.beverage;
+    const pair = !!together && d.beverage === together && d.slot === 'drink';
+    // The cup it's actually served in (a poured-together pair goes into one glass or to-go cup).
+    const served = pair ? pouredInto(p.drinks)! : d.drinkware;
     items.push({
-      cap: together && d.beverage === together && d.slot === 'drink' ? `2 ${short}` : short,
+      cap: pair ? `2 ${short}` : short,
       bg: bev?.color ?? PLAIN,
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
       half: d.amount === 'Half' && bev?.kind !== 'juice', // juices are never marked half
+      cup: bev && served !== bev.defaultDrinkware ? cupTag(served) : null,
     });
   }
   if (p.hotWater) items.push({ cap: 'Hot water', bg: PLAIN, color: '#111827', half: false });
@@ -290,7 +305,11 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
 }
 
 export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[]): ServerRoom {
-  const at = serverFit(T);
+  const labelH = (p: Pill[]) => 14 + (p.length ? 2 + p.reduce((h, x) => h + 20 + (x.cup ? CUP_BAND_H : 0), 0) : 0);
+  const at = serverFit(T, (t, seat) => {
+    const r = occupant(t.id, seat);
+    return r ? labelH(serverPills(r, meal, beverages)) : 0;
+  });
   const tables: TableDraw[] = [];
   const labels: ServerLabel[] = [];
   for (const t of T) {
@@ -311,7 +330,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const ang = edgeAngle(nx, ny);
       const items = serverPills(r, meal, beverages);
       const hw = items.some((x) => x.half) ? 46 : 42;
-      const H = 14 + (items.length ? 2 + items.length * 20 : 0);
+      const H = labelH(items);
       const off = -13 * SG + 3 + H / 2;
       const ar = (ang * Math.PI) / 180;
       const outUp = nx * Math.sin(ar) - ny * Math.cos(ar) > 0;
@@ -358,6 +377,7 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   const extraGlass = dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0) + (into === 'Glass' ? 1 : 0);
   const juice = dr.filter((x) => x.drinkware === 'Juice glass').length - (into === 'Glass' ? 2 : 0);
   const togo = dr.filter((x) => x.drinkware === 'To-go cup').length - (into === 'To-go cup' ? 1 : 0);
+  const pitcher = dr.filter((x) => x.drinkware === 'Milk pitcher').length;
   const out: Change[] = [];
   const add = (n: number, word: string) => {
     if (n > 0) out.push({ text: `+${n > 1 ? `${n} ` : ''}${word}`, bg: '#86EFAC' });
@@ -365,6 +385,7 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   add(extraGlass, extraGlass > 1 ? 'Glasses' : 'Glass');
   add(juice, 'Juice');
   add(togo, 'To-Go');
+  add(pitcher, 'Pitcher');
   if (!hasMug) out.push({ text: 'No Mug', bg: '#FCA5A5' });
   return out;
 }

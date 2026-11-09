@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extraText } from '../../domain/labels';
-import { fullName, hasAmount, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
+import { canHaveExtraGlass, fullName, hasAmount, MILK_CUPS, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { act, actUndoable } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -297,23 +297,30 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
           <Seg options={A.TEAS} value={drink.tea ?? ''} onPick={(tea) => set(`Tea: ${tea}`, { tea })} label="Tea" />
         </Field>
       )}
-      <Field label="Cup">
-        {/* Chips, not pills: five options wrap badly in a segmented track. */}
-        <div className="chips" role="group" aria-label="Cup">
-          {drinkware.map((w) => (
-            <button key={w} type="button" className={w === drink.drinkware ? 'chipbtn on' : 'chipbtn'} aria-pressed={w === drink.drinkware} onClick={() => w !== drink.drinkware && set(`Cup: ${w}`, { drinkware: w })}>
-              {w}
-            </button>
-          ))}
-        </div>
-      </Field>
+      {kind === 'coffee' ? (
+        <Field label="Cup">
+          <p style={{ margin: 0, fontSize: 14, color: '#374151' }}>Mug. Coffee always goes in a mug.</p>
+        </Field>
+      ) : (
+        <Field label="Cup">
+          {/* Chips, not pills: five options wrap badly in a segmented track. */}
+          <div className="chips" role="group" aria-label="Cup">
+            {(kind === 'milk' ? drinkware.filter((w) => MILK_CUPS.includes(w) || w === drink.drinkware) : drinkware).map((w) => (
+              <button key={w} type="button" className={w === drink.drinkware ? 'chipbtn on' : 'chipbtn'} aria-pressed={w === drink.drinkware} onClick={() => w !== drink.drinkware && set(`Cup: ${w}`, { drinkware: w })}>
+                {w}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
       {/* Only a glass or to-go cup has Full / Half; a juice glass or mug is one serving. */}
       {hasAmount(drink.drinkware) && (
         <Field label="Amount">
           <Seg options={['Full', 'Half']} value={drink.amount} onPick={(a) => set(`${a} ${drink.beverage}`, { amount: a as 'Full' | 'Half' })} label="Amount" />
         </Field>
       )}
-      {(kind === 'coffee' || kind === 'milk' || kind === 'juice' || kind === 'other') && (
+      {/* Creamer for coffee; "Extra glass" only beside a drink in a glass (or a pair of juices poured into one). */}
+      {(kind === 'coffee' || canHaveExtraGlass(drink, drinks)) && (
         <div className="group">
           {kind === 'coffee' ? (
             <button type="button" className="grow" aria-pressed={drink.creamer} onClick={() => set(`Creamer ${drink.creamer ? 'off' : 'on'}`, { creamer: !drink.creamer })}>
@@ -375,6 +382,7 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
   const [pick, setPick] = useState<string>(existing ? (startKnown ? existing.name : OTHER) : onlyOne ? names[0]! : '');
   const [custom, setCustom] = useState(existing && !startKnown ? existing.name : '');
   const [variant, setVariant] = useState<string | null>(existing?.variant ?? null);
+  const [backup, setBackup] = useState<string | null>(existing?.backup ?? null);
   const [count, setCount] = useState(existing?.count ?? (isBk ? 1 : 2));
 
   const name = pick === OTHER ? custom.trim() : pick;
@@ -383,7 +391,9 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
   const needsVariant = !!opt?.variants.length;
   const showCount = opt?.counted ?? true;
   const ok = !!name && (!needsVariant || !!variant);
-  const input = { name, variant: variants.length || pick === OTHER ? variant : null, count: showCount ? count : 1 };
+  const chosen = variants.length || pick === OTHER ? variant : null;
+  const backups = chosen ? variants.filter((v) => v !== chosen) : [];
+  const input = { name, variant: chosen, backup: chosen && backup !== chosen ? backup : null, count: showCount ? count : 1 };
 
   const save = async () => {
     if (!ok) return;
@@ -438,6 +448,7 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
                 onClick={() => {
                   setPick(n);
                   setVariant(null);
+                  setBackup(null);
                 }}
               >
                 {n}
@@ -461,7 +472,32 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
         <Field label={name === 'Fruit' ? 'Which fruit' : 'Kind'}>
           <div className="chips">
             {variants.map((v) => (
-              <button key={v} type="button" className={variant === v ? 'chipbtn on' : 'chipbtn'} aria-pressed={variant === v} onClick={() => setVariant(v)}>
+              <button
+                key={v}
+                type="button"
+                className={variant === v ? 'chipbtn on' : 'chipbtn'}
+                aria-pressed={variant === v}
+                onClick={() => {
+                  setVariant(v);
+                  if (backup === v) setBackup(null);
+                }}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+
+      {/* A second choice, for when the kitchen is out of the first: "Banana, else Apple". */}
+      {backups.length > 0 && (
+        <Field label={`If there’s no ${chosen}`}>
+          <div className="chips" role="group" aria-label="Backup">
+            <button type="button" className={!backup ? 'chipbtn on' : 'chipbtn'} aria-pressed={!backup} onClick={() => setBackup(null)}>
+              Nothing
+            </button>
+            {backups.map((v) => (
+              <button key={v} type="button" className={backup === v ? 'chipbtn on' : 'chipbtn'} aria-pressed={backup === v} onClick={() => setBackup(v)}>
                 {v}
               </button>
             ))}

@@ -258,3 +258,65 @@ describe('no duplicate residents', () => {
     expect(() => again.ops(store.get().data)).toThrow(/archived.*Restore/);
   });
 });
+
+describe('coffee cup', () => {
+  it('coffee always goes in a mug: new coffee, switching to coffee, and no other cup allowed', async () => {
+    const { id, ops } = A.addDrink('R0', 'Supper', 'drink', '2% Milk');
+    await store.change('Add', ops);
+    await store.change('Cup', A.updateDrink(id, { drinkware: 'To-go cup' }));
+    await store.change('Coffee', A.updateDrink(id, { beverage: 'Coffee' }));
+    const d = () => res(store, 'R0').prefs.Supper!.drinks.find((x) => x.id === id)!;
+    expect([d().beverage, d().drinkware]).toEqual(['Coffee', 'Mug']);
+    expect(() => A.updateDrink(id, { drinkware: 'Glass' })(store.get().data)).toThrow(/mug/);
+    const bk = res(store, 'R0').prefs.Breakfast?.drinks.find((x) => x.slot === 'coffee');
+    if (bk) expect(() => A.updateDrink(bk.id, { drinkware: 'To-go cup' })(store.get().data)).toThrow(/mug/);
+  });
+});
+
+describe('extra glass and milk cups', () => {
+  const jg = (id: string) => res(store, 'R0').prefs.Supper!.drinks.find((x) => x.id === id)!;
+
+  it('only beside a drink in a glass, or a pair of the same juice; dropped when that stops', async () => {
+    const a = A.addDrink('R0', 'Supper', 'drink', 'Cranberry Juice');
+    await store.change('Add', a.ops);
+    expect(() => A.updateDrink(a.id, { extraGlass: true })(store.get().data)).toThrow(/glass/); // one juice glass
+    const b = A.addDrink('R0', 'Supper', 'drink', 'Cranberry Juice');
+    // Supper starts with coffee as drink 1 for new residents only; R0 may have up to 2, so make room.
+    const others = res(store, 'R0').prefs.Supper!.drinks.filter((x) => x.slot === 'drink' && x.id !== a.id);
+    for (const o of others) await store.change('Remove', A.removeDrink(o.id));
+    await store.change('Add', b.ops);
+    await store.change('Extra', A.updateDrink(a.id, { extraGlass: true })); // pair → one glass, + water glass
+    expect(jg(a.id).extraGlass).toBe(true);
+    await store.change('Remove', A.removeDrink(b.id)); // pair split: the extra glass goes too
+    expect(jg(a.id).extraGlass).toBe(false);
+  });
+
+  it('milk goes in a glass, juice glass, to-go cup or pitcher; moving it out of the glass drops the extra glass', async () => {
+    const m = A.addDrink('R0', 'Supper', 'drink', '2% Milk');
+    for (const o of res(store, 'R0').prefs.Supper?.drinks.filter((x) => x.slot === 'drink') ?? []) await store.change('Remove', A.removeDrink(o.id));
+    await store.change('Add', m.ops);
+    await store.change('Extra', A.updateDrink(m.id, { extraGlass: true }));
+    expect(() => A.updateDrink(m.id, { drinkware: 'Mug' })(store.get().data)).toThrow(/milk pitcher/);
+    await store.change('To-go', A.updateDrink(m.id, { drinkware: 'To-go cup' }));
+    expect([jg(m.id).drinkware, jg(m.id).extraGlass]).toEqual(['To-go cup', false]);
+  });
+});
+
+describe('extra backups', () => {
+  it('a kind can have a second choice: saved, shown as "Banana, else Apple", undoable', async () => {
+    const { extraText } = await import('../domain/labels');
+    expect(extraText({ name: 'Fruit', variant: 'Banana', backup: 'Apple', count: 1 })).toBe('Banana, else Apple');
+    expect(extraText({ name: 'Jelly', variant: 'Grape', backup: 'Strawberry', count: 2 })).toBe('Grape Jelly ×2, else Strawberry');
+    await checkEdit('R0', 'Fruit', A.addExtra('R0', 'Breakfast', { name: 'Fruit', variant: 'Banana', backup: 'Apple', count: 1 }), (r) =>
+      expect(r.prefs.Breakfast!.extras.map(extraText)).toContain('Banana, else Apple'),
+    );
+  });
+
+  it('no backup without a kind, and never the same as the first choice', async () => {
+    await store.change('Add', A.addExtra('R0', 'Breakfast', { name: 'Fruit', variant: 'Banana', backup: 'banana', count: 1 }));
+    await store.change('Add', A.addExtra('R0', 'Breakfast', { name: 'Soup Spoon', variant: null, backup: 'Apple', count: 1 }));
+    const xs = res(store, 'R0').prefs.Breakfast!.extras;
+    expect(xs.find((x) => x.variant === 'Banana')!.backup).toBeNull();
+    expect(xs.filter((x) => x.name === 'Soup Spoon').every((x) => x.backup === null)).toBe(true);
+  });
+});

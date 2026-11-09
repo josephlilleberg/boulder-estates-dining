@@ -37,7 +37,7 @@ describe('Drinks: a new drink works without code changes', () => {
     const { ops } = addDrink(r.id, 'Dinner', 'drink', 'Grape Juice');
     await store.change('Give', ops);
     const after = data().residents.find((x) => x.id === r.id)!;
-    expect(serverPills(after, 'Dinner', data().beverages)).toContainEqual({ cap: 'Grape', bg: '#F29BE0', color: '#111827', half: false });
+    expect(serverPills(after, 'Dinner', data().beverages)).toContainEqual({ cap: 'Grape', bg: '#F29BE0', color: '#111827', half: false, cup: null });
     expect(setupChanges(after, 'Dinner').map((c) => c.text)).toContain('+Juice');
   });
 
@@ -85,7 +85,7 @@ describe('Cups', () => {
     await store.change('Add', S.addDrinkware('BE', 'Sippy cup'));
     expect(data().drinkware.map((w) => w.name)).toContain('Sippy cup');
     const r = someone();
-    const { id, ops } = addDrink(r.id, 'Dinner', 'drink', '2% Milk');
+    const { id, ops } = addDrink(r.id, 'Dinner', 'drink', 'Orange Juice'); // milk only goes in a glass or to-go cup
     await store.change('Give', ops);
     await store.change('Cup', updateDrink(id, { drinkware: 'Sippy cup' }));
     expect(() => S.removeDrinkware('BE', 'Sippy cup')(data())).toThrow(/uses/);
@@ -159,7 +159,7 @@ describe('Backups setting and upgrades', () => {
 
   it('a version 1 database (or restored backup) upgrades to the current schema', async () => {
     // Make it a true v1 database: no extras list, no nickname column.
-    await db.batch([{ sql: 'DROP TABLE extra_option' }, { sql: 'ALTER TABLE resident DROP COLUMN nickname' }, { sql: "UPDATE meta SET value = '1' WHERE key = 'schema_version'" }]);
+    await db.batch([{ sql: 'DROP TABLE extra_option' }, { sql: 'ALTER TABLE resident DROP COLUMN nickname' }, { sql: 'ALTER TABLE extra DROP COLUMN backup' }, { sql: "UPDATE meta SET value = '1' WHERE key = 'schema_version'" }]);
     expect(await migrate(db)).toEqual({ seeded: false, upgradedFrom: 1 });
     const [v] = await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'");
     expect(Number(v!.value)).toBe(SCHEMA_VERSION);
@@ -172,6 +172,7 @@ describe('Backups setting and upgrades', () => {
     await db.batch([
       { sql: "UPDATE extra_option SET name = 'Big Spoon' WHERE name = 'Soup Spoon'" },
       { sql: "UPDATE extra SET name = 'Big Spoon' WHERE name = 'Soup Spoon'" },
+      { sql: 'ALTER TABLE extra DROP COLUMN backup' }, // a true v3 database
       { sql: "UPDATE meta SET value = '3' WHERE key = 'schema_version'" },
     ]);
     const before = (await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM extra WHERE name = 'Big Spoon'"))[0]!.n;
@@ -180,6 +181,18 @@ describe('Backups setting and upgrades', () => {
     expect((await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM extra WHERE name = 'Soup Spoon'"))[0]!.n).toBe(before);
     expect(await db.select("SELECT 1 FROM extra_option WHERE name = 'Big Spoon'")).toHaveLength(0);
     expect(await db.select("SELECT 1 FROM extra_option WHERE name = 'Soup Spoon'")).toHaveLength(2); // one per site
+  });
+
+  it('upgrading to v5 adds Strawberry jelly once and keeps the other kinds', async () => {
+    await db.batch([
+      { sql: "UPDATE extra_option SET variants = 'Grape|Mixed Fruit' WHERE name = 'Jelly'" },
+      { sql: 'ALTER TABLE extra DROP COLUMN backup' },
+      { sql: "UPDATE meta SET value = '4' WHERE key = 'schema_version'" },
+    ]);
+    await migrate(db);
+    expect(data().extraOptions.length).toBeGreaterThan(0);
+    const rows = await db.select<{ variants: string }>("SELECT variants FROM extra_option WHERE name = 'Jelly'");
+    for (const r of rows) expect(r.variants).toBe('Grape|Mixed Fruit|Strawberry');
   });
 
   it('refuses a newer database', async () => {

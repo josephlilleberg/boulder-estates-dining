@@ -100,10 +100,13 @@ The list (sortable by last or first name, searchable) and each resident's card.
   - Up to **2 drinks**, picked by type first (Milk, Juice, Coffee, Tea), then the drink.
     Coffee is the default for anyone new to a meal: at Breakfast it's a **Coffee** switch
     that doesn't count toward the 2, and at Dinner and Supper it's their first drink.
-  - Extras (napkins, jelly, fruit…).
+  - Extras (napkins, jelly, fruit…). An extra with kinds can have a backup for when the
+    kitchen is out of the first choice: "Banana, else Apple".
   - **Special water** (None / RO / Hot water) and portion (Full / Half).
-- **Drinks** have a cup, an optional extra glass, and creamer for coffee. Only a glass or a
-  to-go cup comes in Full or Half; a juice moved into one starts at Half. Two halves of the
+- **Drinks** have a cup, and creamer for coffee. Coffee always goes in a mug; milk goes in a
+  glass, juice glass, to-go cup or milk pitcher. **Extra glass** (one for water) is offered beside a drink in a glass,
+  or beside two of the same juice poured into one glass. Only a glass or a to-go cup comes in
+  Full or Half; a juice moved into one starts at Half. Two halves of the
   same drink are **poured together**: two juice glasses become one glass, and two half to-go
   cups become one. The card says so, and the sheets follow.
 - The **⋯** menu offers rename, **Archive** (hides them everywhere but keeps their details,
@@ -146,8 +149,8 @@ label shows what it will undo. The history is cleared when the app closes or aft
 
 | Sheet | Paper | For | Shows |
 | --- | --- | --- | --- |
-| **Setup** | 11×17 | Setting the tables | Every section on one page. At each seat, only what differs from the usual setting (a glass and a coffee mug): **+Glass**, **+Juice**, **+To-Go**, **No Mug**. A seat pill shows the chair type. Tables where anyone takes creamer are tinted. |
-| **Server** | Letter, one per section | Pouring drinks | Each resident's name with coloured drink pills (short names from Settings), plus Hot water and RO. Half milk gets a ½ tab, and two of the same juice show as one "2 …" pill. |
+| **Setup** | 11×17 | Setting the tables | Every section on one page. At each seat, only what differs from the usual setting (a glass and a coffee mug): **+Glass**, **+Juice**, **+To-Go**, **+Pitcher**, **No Mug**. A seat pill shows the chair type. Tables where anyone takes creamer are tinted. |
+| **Server** | Letter, one per section | Pouring drinks | Each resident's name with coloured drink pills (short names from Settings), plus Hot water and RO. A dark ½ tab means half; a dark band under a drink names its cup when it isn't the usual one (PITCHER, TO-GO). Two of the same juice show as one "2 …" pill. A red ! marks allergies or notes. |
 | **Allergies & notes** | Letter | Everyone | Only residents with notes or a half portion, grouped by section. |
 
 Each page footer shows the paper size, the print date and the page number.

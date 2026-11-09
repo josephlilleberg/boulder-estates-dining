@@ -1,5 +1,5 @@
 import type { AppData } from '../db/repo';
-import { hasAmount, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
+import { canHaveExtraGlass, hasAmount, MILK_CUPS, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { defaultCoffeeRow, setAttendance } from './actions';
 import { del, patch, put, type Op } from './ops';
@@ -184,10 +184,13 @@ export const setPortion = (id: string, meal: MealName, portion: Portion) => (dat
 export const TEAS = ['Chamomile', 'Black Tea', 'Green Tea'];
 
 /** Field values a drink takes when its beverage is (re)chosen. */
+/** Coffee always goes in a mug. */
+export const COFFEE_CUP = 'Mug';
+
 function drinkDefaults(b: Beverage) {
   return {
     beverage: b.name,
-    drinkware: b.defaultDrinkware,
+    drinkware: b.kind === 'coffee' ? COFFEE_CUP : b.defaultDrinkware,
     tea: b.kind === 'tea' ? TEAS[0]! : null,
     amount: 'Full' as Portion,
     creamer: 0,
@@ -249,10 +252,12 @@ export const updateDrink = (drinkId: string, p: DrinkPatch) => (data: AppData): 
   }
   if (p.tea !== undefined) set.tea = p.tea;
   if (p.drinkware !== undefined && p.drinkware !== d.drinkware) {
+    const kind = beverage(data, r.siteId, String(set.beverage ?? d.beverage)).kind;
+    if (kind === 'coffee' && p.drinkware !== COFFEE_CUP) throw new Error('Coffee always goes in a mug');
+    if (kind === 'milk' && !MILK_CUPS.includes(p.drinkware)) throw new Error('Milk goes in a glass, juice glass, to-go cup or milk pitcher');
     set.drinkware = p.drinkware;
     // Only a glass or to-go cup has Full / Half. A juice poured into one starts at half
     // (a juice serving is half a glass); anything else starts full.
-    const kind = beverage(data, r.siteId, String(set.beverage ?? d.beverage)).kind;
     set.amount = hasAmount(p.drinkware) && kind === 'juice' ? 'Half' : 'Full';
   }
   if (p.amount !== undefined) {
@@ -261,12 +266,37 @@ export const updateDrink = (drinkId: string, p: DrinkPatch) => (data: AppData): 
   }
   if (p.extraGlass !== undefined) set.extra_glass = p.extraGlass ? 1 : 0;
   if (p.creamer !== undefined) set.creamer = p.creamer ? 1 : 0;
-  return Object.keys(set).length ? [patch('drink', { id: drinkId }, set)] : [];
+  if (!Object.keys(set).length) return [];
+  // The drinks as they'll be, to drop any "extra glass" that no longer has a glass beside it
+  // (e.g. moved to a to-go cup, or a pair of juices split up).
+  const meal = r.prefs[findDrink(data, drinkId).meal]!;
+  const after = meal.drinks.map((x) =>
+    x.id !== drinkId
+      ? x
+      : {
+          ...x,
+          beverage: String(set.beverage ?? x.beverage),
+          drinkware: String(set.drinkware ?? x.drinkware),
+          amount: (set.amount ?? x.amount) as Portion,
+          extraGlass: set.extra_glass !== undefined ? set.extra_glass === 1 : x.extraGlass,
+        },
+  );
+  const self = after.find((x) => x.id === drinkId)!;
+  if (p.extraGlass && !canHaveExtraGlass(self, after)) throw new Error('An extra glass goes with a drink in a glass');
+  const stale = staleExtraGlass(after);
+  if (stale.includes(drinkId)) set.extra_glass = 0;
+  return [patch('drink', { id: drinkId }, set), ...stale.filter((id) => id !== drinkId).map((id) => patch('drink', { id }, { extra_glass: 0 }))];
 };
 
+/** Drinks whose "extra glass" no longer has a glass beside it (see canHaveExtraGlass). */
+function staleExtraGlass(after: Drink[]): string[] {
+  return after.filter((x) => x.extraGlass && !canHaveExtraGlass(x, after)).map((x) => x.id);
+}
+
 export const removeDrink = (drinkId: string) => (data: AppData): Op[] => {
-  findDrink(data, drinkId);
-  return [del('drink', { id: drinkId })];
+  const { r, meal } = findDrink(data, drinkId);
+  const after = r.prefs[meal]!.drinks.filter((x) => x.id !== drinkId);
+  return [del('drink', { id: drinkId }), ...staleExtraGlass(after).map((id) => patch('drink', { id }, { extra_glass: 0 }))];
 };
 
 // ---- Extras ----------------------------------------------------------------
@@ -274,15 +304,19 @@ export const removeDrink = (drinkId: string) => (data: AppData): Op[] => {
 export interface ExtraInput {
   name: string;
   variant: string | null;
+  /** Second choice if the first kind runs out; only with a kind, and never the same one. */
+  backup?: string | null;
   count: number;
 }
 
-function checkExtra(x: ExtraInput): ExtraInput {
+function checkExtra(x: ExtraInput): ExtraInput & { backup: string | null } {
   const name = clean(x.name);
   const variant = x.variant ? clean(x.variant) || null : null;
+  const b = x.backup ? clean(x.backup) || null : null;
+  const backup = variant && b && b.toLowerCase() !== variant.toLowerCase() ? b : null;
   const count = Math.max(1, Math.min(9, Math.round(x.count)));
   if (!name) throw new Error('An extra needs a name');
-  return { name, variant, count };
+  return { name, variant, backup, count };
 }
 
 export const addExtra = (residentId: string, meal: MealName, x: ExtraInput) => (data: AppData): Op[] => {
@@ -290,14 +324,14 @@ export const addExtra = (residentId: string, meal: MealName, x: ExtraInput) => (
   const v = checkExtra(x);
   return [
     ...ensurePref(r, meal),
-    put('extra', { id: newId(), resident_id: residentId, meal, sort: nextSort(r.prefs[meal]?.extras ?? []), name: v.name, variant: v.variant, count: v.count }),
+    put('extra', { id: newId(), resident_id: residentId, meal, sort: nextSort(r.prefs[meal]?.extras ?? []), name: v.name, variant: v.variant, backup: v.backup, count: v.count }),
   ];
 };
 
 export const updateExtra = (extraId: string, x: ExtraInput) => (data: AppData): Op[] => {
   findExtra(data, extraId);
   const v = checkExtra(x);
-  return [patch('extra', { id: extraId }, { name: v.name, variant: v.variant, count: v.count })];
+  return [patch('extra', { id: extraId }, { name: v.name, variant: v.variant, backup: v.backup, count: v.count })];
 };
 
 export const removeExtra = (extraId: string) => (data: AppData): Op[] => {

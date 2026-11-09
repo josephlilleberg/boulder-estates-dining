@@ -134,12 +134,22 @@ describe('Setup sheet rules', () => {
 const stress = stressOccupant('Dinner');
 
 describe('Server sheet spacing (stress test: two drinks at every seat)', () => {
-  for (const meal of ['Dinner', 'Breakfast', 'Supper'] as MealName[]) {
-    it(`${meal}: 0 label overlaps and 0 off-page labels on every server sheet`, () => {
+  // A realistic extra: one seat per table also has its drink in an unusual cup (a band).
+  const withBands = (meal: MealName) => {
+    const base = stressOccupant(meal);
+    return (tableId: string, s: number): Resident | null => {
+      const r = base(tableId, s);
+      if (!r || s !== 0) return r;
+      const p = r.prefs[meal]!;
+      return { ...r, prefs: { [meal]: { ...p, drinks: p.drinks.map((d) => (d.beverage === 'Chocolate Milk' ? { ...d, drinkware: 'Milk pitcher', extraGlass: false } : d)) } } };
+    };
+  };
+  for (const [meal, bands] of [['Dinner', false], ['Breakfast', false], ['Supper', false], ['Dinner', true], ['Breakfast', true], ['Supper', true]] as [MealName, boolean][]) {
+    it(`${meal}${bands ? ' with a cup band at every table' : ''}: 0 label overlaps and 0 off-page labels on every server sheet`, () => {
       const opening = getOpening(site(), meal);
       for (const sec of opening.sections) {
         const T = layoutTables().filter((t) => t.section === sec.section);
-        const room = serverRoom(T, stressOccupant(meal), meal, data().beverages);
+        const room = serverRoom(T, bands ? withBands(meal) : stressOccupant(meal), meal, data().beverages);
         expect(room.labels).toHaveLength(T.reduce((n, t) => n + (t.shape === 'round' ? 4 : 6), 0));
         const rotated = new Set(T.filter((t) => t.rotation % 90 !== 0).map((t) => t.id)); // exempt from the automatic check
         const boxes: (RotBox & { table: string; label: boolean })[] = [
@@ -235,6 +245,23 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows[0]).toMatchObject({ head: true });
     for (const r of rows) if (!r.head) expect(r.notes !== '' || r.portion === 'Half portion').toBe(true);
+  });
+});
+
+describe('cup bands', () => {
+  it('a drink not in its usual cup gets a band naming the cup; the usual cup gets none', () => {
+    const caps = (r: Resident) => serverPills(r, 'Dinner', data().beverages).map((p) => [p.cap, p.cup ?? null]);
+    expect(caps(resident([drink('2% Milk')]))).toEqual([['2% Milk', null]]);
+    expect(caps(resident([drink('2% Milk', { drinkware: 'Milk pitcher' })]))).toEqual([['2% Milk', 'Pitcher']]);
+    expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]))).toEqual([['OJ', null]]);
+    expect(caps(resident([drink('Orange Juice', { drinkware: 'To-go cup' })]))).toEqual([['OJ', 'To-go']]);
+    // Two of the same juice poured into one glass: the glass is named.
+    const jg = { drinkware: 'Juice glass' };
+    expect(caps(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]))).toEqual([['2 Cran Juice', 'Glass']]);
+  });
+
+  it('the setup sheet sets a pitcher: +Pitcher', () => {
+    expect(texts(resident([coffee(), drink('2% Milk', { drinkware: 'Milk pitcher' })]))).toEqual(['+Pitcher']);
   });
 });
 

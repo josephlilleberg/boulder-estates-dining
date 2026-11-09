@@ -39,7 +39,7 @@ export async function loadAll(db: Db): Promise<AppData> {
     db.select<{ id: string; resident_id: string; meal: MealName; slot: 'drink' | 'coffee'; beverage: string; tea: string | null; drinkware: string; amount: Portion; extra_glass: number; creamer: number }>(
       `SELECT * FROM drink ORDER BY resident_id, meal, sort`,
     ),
-    db.select<{ id: string; resident_id: string; meal: MealName; name: string; variant: string | null; count: number }>(`SELECT * FROM extra ORDER BY resident_id, meal, sort`),
+    db.select<{ id: string; resident_id: string; meal: MealName; name: string; variant: string | null; backup: string | null; count: number }>(`SELECT * FROM extra ORDER BY resident_id, meal, sort`),
     db.select<{ site_id: SiteId; meal: MealName; table_id: string; seat: number; resident_id: string }>(`SELECT * FROM seating ORDER BY site_id, meal, table_id, seat`),
     db.select<{ key: string; value: string }>(`SELECT * FROM meta`),
   ]);
@@ -71,7 +71,7 @@ export async function loadAll(db: Db): Promise<AppData> {
   for (const d of drinks) {
     pref(d.resident_id, d.meal)?.drinks.push({ id: d.id, slot: d.slot, beverage: d.beverage, tea: d.tea, drinkware: d.drinkware, amount: d.amount, extraGlass: bool(d.extra_glass), creamer: bool(d.creamer) });
   }
-  for (const x of extras) pref(x.resident_id, x.meal)?.extras.push({ id: x.id, name: x.name, variant: x.variant, count: x.count });
+  for (const x of extras) pref(x.resident_id, x.meal)?.extras.push({ id: x.id, name: x.name, variant: x.variant, backup: x.backup || null, count: x.count });
 
   return {
     sites: siteList,

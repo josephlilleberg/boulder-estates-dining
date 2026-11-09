@@ -9,8 +9,8 @@ import { seatGeom } from './tables';
 export const ROOM_W = 1040;
 export const ROOM_H = 800;
 
-/** Screen pixels per room unit for a container width: fills the card, within 0.45–0.74. */
-export const roomScale = (width: number) => (width ? Math.max(0.45, Math.min(0.74, (width - 16) / ROOM_W)) : 0.74);
+/** Screen pixels per room unit: the whole room fits the space (w × h, from useFitBox), within 0.45–1. */
+export const roomScale = (w: number, h = Infinity) => (w ? Math.max(0.45, Math.min(1, (w - 16) / ROOM_W, (h - 4) / ROOM_H)) : 0.74);
 
 /** Drawn table size at rotation 0 (room units). Round tables are 92 across; rectangles 182 × 92. */
 export const tableSize = (shape: Shape): [number, number] => (shape === 'round' ? [92, 92] : [182, 92]);

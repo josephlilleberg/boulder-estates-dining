@@ -5,7 +5,7 @@ import { act } from '../../state/act';
 import { useStore } from '../../state/store';
 import * as T from '../../state/tableActions';
 import { Dialog } from '../../ui/Dialog';
-import { useWidth } from '../../ui/useWidth';
+import { useFitBox } from '../../ui/useFitBox';
 import { Segmented } from '../../shell/Segmented';
 import type { ScreenProps } from '../types';
 import { DesignRoom } from './DesignRoom';
@@ -32,7 +32,7 @@ export function DesignerScreen({ site }: ScreenProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menu, setMenu] = useState<'add' | 'layout' | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DiningTable | null>(null);
-  const [roomRef, roomW] = useWidth<HTMLDivElement>();
+  const [roomRef, roomFit] = useFitBox<HTMLDivElement>(40);
 
   const tables = siteTables.filter((t) => t.section === section);
   const warnings = useMemo(() => overlapWarnings(siteTables), [siteTables]);
@@ -148,10 +148,10 @@ export function DesignerScreen({ site }: ScreenProps) {
             style={{ marginBottom: 10 }}
           />
         )}
-        <div ref={roomRef} style={{ overflowX: 'auto', padding: 2 }}>
+        <div ref={roomRef} style={{ overflowX: 'auto', padding: 2, display: 'grid', justifyContent: 'safe center' }}>
           <DesignRoom
             tables={tables}
-            scale={roomScale(roomW)}
+            scale={roomScale(roomFit.w, roomFit.h)}
             selectedId={sel?.id ?? null}
             warnings={warnings}
             onSelect={setSelectedId}

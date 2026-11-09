@@ -14,7 +14,7 @@ over and use Settings → Backups → Restore a backup (same format on both).
 
 Installed apps check GitHub for a newer version at launch and show **Update to x.y.z** in
 the top bar. You can also check any time from the menu: **Boulder Estates Dining → Check for
-Updates…** on the Mac, **Help → Check for Updates…** on Windows (About shows the version).
+Updates…** on the Mac, **File → Check for Updates…** on Windows (About shows the version).
 Updating downloads, installs and restarts; data and backups are kept.
 
 1. Bump the version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`.

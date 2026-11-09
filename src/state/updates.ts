@@ -25,6 +25,26 @@ function set(next: UpdateState) {
 export const updatesSupported = isTauri;
 export const getUpdateState = () => state;
 
+/** Calls `fn` now and on every change; returns an unsubscribe. */
+export function onUpdateState(fn: (s: UpdateState) => void): () => void {
+  const l = () => fn(state);
+  listeners.add(l);
+  l();
+  return () => listeners.delete(l);
+}
+
+/** How often a running app looks for a new version (it may stay open all day). */
+export const RECHECK_MS = 4 * 60 * 60 * 1000;
+
+/** Checks at launch, then every few hours, quietly. */
+export function watchForUpdates(): void {
+  if (!isTauri()) return;
+  void checkForUpdate({ quiet: true });
+  window.setInterval(() => {
+    if (state.kind !== 'available' && state.kind !== 'installing') void checkForUpdate({ quiet: true });
+  }, RECHECK_MS);
+}
+
 export function useUpdateState(): UpdateState {
   return useSyncExternalStore(
     (l) => (listeners.add(l), () => listeners.delete(l)),

@@ -30,7 +30,10 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
     <section className="card" style={{ flex: '999 1 520px', minWidth: 0, height, overflowY: 'auto' }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16, padding: '18px 24px', background: '#FFFFFF', borderBottom: '1px solid #E5E7EB' }}>
         <div style={{ flex: '1 1 220px', minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>{name}</h2>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
+            {name}
+            {r.nickname && <span style={{ fontSize: 15, fontWeight: 500, color: '#4B5563' }}> · goes by {r.nickname}</span>}
+          </h2>
           <div style={{ fontSize: 13, color: '#4B5563', marginTop: 3 }}>{attendanceSummary(r, site)}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
@@ -172,26 +175,24 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                       Both are {pouredTogether(drinks)}, so they’re poured together in one glass.
                     </div>
                   )}
-                  {coffee.map((d) => (
-                    <DrinkRow key={d.id} label="Breakfast coffee" main={d.beverage} sub={`${drinkSubtitle(d, bev(d.beverage))} · doesn’t count toward the 2`} onClick={() => onDrink({ kind: 'edit', drinkId: d.id, meal: m })} />
-                  ))}
                   {drinks.length < A.MAX_DRINKS && (
                     <button type="button" className="grow" onClick={() => onDrink({ kind: 'add', meal: m })} style={{ color: '#1D4ED8', fontSize: 14, fontWeight: 600 }}>
                       + Add a drink
                     </button>
                   )}
-                  {isBk && coffee.length === 0 && (
-                    <button
-                      type="button"
-                      className="grow"
-                      onClick={async () => {
-                        const { id, ops } = A.addDrink(resident.id, m, 'coffee', 'Coffee');
-                        if (await act('Add breakfast coffee', ops)) onDrink({ kind: 'edit', drinkId: id, meal: m });
-                      }}
-                      style={{ color: '#1D4ED8', fontSize: 14, fontWeight: 600 }}
-                    >
-                      + Add breakfast coffee
-                    </button>
+                  {isBk && (
+                    <>
+                      <button type="button" className="grow" aria-pressed={coffee.length > 0} onClick={() => act(`Breakfast coffee ${coffee.length ? 'off' : 'on'}`, A.setBreakfastCoffee(resident.id, !coffee.length))}>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 14, color: '#111827' }}>Coffee</span>
+                          <span style={{ display: 'block', fontSize: 12, color: '#4B5563', marginTop: 2 }}>Doesn’t count toward the 2</span>
+                        </span>
+                        <SwitchMark on={coffee.length > 0} />
+                      </button>
+                      {coffee.map((d) => (
+                        <DrinkRow key={d.id} label="Coffee" main={d.beverage} sub={drinkSubtitle(d, bev(d.beverage))} onClick={() => onDrink({ kind: 'edit', drinkId: d.id, meal: m })} />
+                      ))}
+                    </>
                   )}
                 </div>
 

@@ -32,6 +32,25 @@ function assertSeatExists(data: AppData, s: SeatRef) {
 }
 
 /** Turn "comes to <meal>" on or off. Off also clears their seat at that meal. */
+/**
+ * Coffee is the default: someone new to a meal starts with a mug of coffee. At Breakfast
+ * it's the separate "Coffee" switch (doesn't count toward the 2); at Dinner and Supper
+ * it's their first drink, which can be changed or removed like any other.
+ */
+export const defaultCoffeeRow = (residentId: string, meal: MealName) => ({
+  id: crypto.randomUUID(),
+  resident_id: residentId,
+  meal,
+  slot: meal === 'Breakfast' ? 'coffee' : 'drink',
+  sort: 0,
+  beverage: 'Coffee',
+  tea: null,
+  drinkware: 'Mug',
+  amount: 'Full',
+  extra_glass: 0,
+  creamer: 0,
+});
+
 export const setAttendance = (residentId: string, meal: MealName, comes: boolean) => (data: AppData): Op[] => {
   const r = data.residents.find((x) => x.id === residentId);
   if (!r) throw new Error(`Unknown resident ${residentId}`);
@@ -39,7 +58,10 @@ export const setAttendance = (residentId: string, meal: MealName, comes: boolean
   if (comes) {
     const ops: Op[] = [put('attendance', { resident_id: residentId, meal })];
     // Keep existing prefs if they came before; otherwise start with defaults.
-    if (!r.prefs[meal]) ops.push(put('meal_pref', { resident_id: residentId, meal, ro_water: 0, hot_water: 0, portion: 'Full' }));
+    if (!r.prefs[meal]) {
+      ops.push(put('meal_pref', { resident_id: residentId, meal, ro_water: 0, hot_water: 0, portion: 'Full' }));
+      ops.push(put('drink', defaultCoffeeRow(residentId, meal)));
+    }
     return ops;
   }
   const seat = seatOf(data, r.siteId, meal, residentId);

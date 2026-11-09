@@ -1,7 +1,7 @@
 import type { AppData } from '../db/repo';
-import type { Beverage, Chair, Drink, Extra, Portion, Resident } from '../domain/model';
+import { tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
-import { setAttendance } from './actions';
+import { defaultCoffeeRow, setAttendance } from './actions';
 import { del, patch, put, type Op } from './ops';
 
 // Resident edits as (data) → ops. Each one is a single undo step.
@@ -50,35 +50,40 @@ export interface NewResident {
   siteId: SiteId;
   first: string;
   last: string;
+  nickname?: string;
   meals: MealName[];
 }
 
 /** Returns the ops and the new id, so the screen can select the new resident. */
 export function addResident(n: NewResident): { id: string; ops: (data: AppData) => Op[] } {
   const id = newId();
-  const first = clean(n.first);
-  const last = clean(n.last);
+  const first = tidyName(n.first);
+  const last = tidyName(n.last);
+  const nickname = tidyName(n.nickname ?? '') || null;
   return {
     id,
     ops: () => {
       if (!first || !last) throw new Error('First and last name are both needed');
       return [
-        put('resident', { id, site_id: n.siteId, first, last, chair: 'arm', archived: 0 }),
+        put('resident', { id, site_id: n.siteId, first, last, nickname, chair: 'arm', archived: 0 }),
         ...n.meals.flatMap((meal) => [
           put('attendance', { resident_id: id, meal }),
           put('meal_pref', { resident_id: id, meal, ro_water: 0, hot_water: 0, portion: 'Full' }),
+          put('drink', defaultCoffeeRow(id, meal)),
         ]),
       ];
     },
   };
 }
 
-export const renameResident = (id: string, first: string, last: string) => (data: AppData): Op[] => {
+/** Names are tidied (lowercase words capitalized). Leave the nickname out to keep it; '' clears it. */
+export const renameResident = (id: string, first: string, last: string, nickname?: string) => (data: AppData): Op[] => {
   const r = resident(data, id);
-  const f = clean(first);
-  const l = clean(last);
+  const f = tidyName(first);
+  const l = tidyName(last);
+  const n = nickname === undefined ? r.nickname : tidyName(nickname) || null;
   if (!f || !l) throw new Error('First and last name are both needed');
-  return f === r.first && l === r.last ? [] : [patch('resident', { id }, { first: f, last: l })];
+  return f === r.first && l === r.last && n === r.nickname ? [] : [patch('resident', { id }, { first: f, last: l, nickname: n })];
 };
 
 export const setChair = (id: string, chair: Chair) => (data: AppData): Op[] =>
@@ -196,6 +201,14 @@ export function addDrink(residentId: string, meal: MealName, slot: Drink['slot']
     },
   };
 }
+
+/** The Breakfast "Coffee" switch: a mug of coffee that doesn't count toward the 2 drinks. */
+export const setBreakfastCoffee = (residentId: string, on: boolean) => (data: AppData): Op[] => {
+  const r = resident(data, residentId);
+  const coffee = (r.prefs.Breakfast?.drinks ?? []).filter((d) => d.slot === 'coffee');
+  if (on) return coffee.length ? [] : [...ensurePref(r, 'Breakfast'), put('drink', defaultCoffeeRow(residentId, 'Breakfast'))];
+  return coffee.map((d) => del('drink', { id: d.id }));
+};
 
 export interface DrinkPatch {
   beverage?: string;

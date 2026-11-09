@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { fitScale } from '../../sheets/model';
+import { fitPage } from '../../sheets/model';
 import { printPages } from '../../sheets/print';
 import { ScaledPage } from '../../sheets/SheetPage';
 import { useSheets } from '../../sheets/useSheets';
 import { PrintIcon } from '../../shell/icons';
-import { useWidth } from '../../ui/useWidth';
+import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 
 const Tick = () => (
@@ -20,7 +20,7 @@ export function PrintScreen({ site, meal, opening }: ScreenProps) {
   const [pick, setPick] = useState(0);
   const [zoom, setZoom] = useState<'fit' | 'full'>('fit');
   const [busy, setBusy] = useState(false);
-  const [boxRef, boxW] = useWidth<HTMLDivElement>();
+  const [boxRef, box] = useFitBox<HTMLDivElement>(32 + 40);
 
   const chosen = sheets.filter((s) => !off.has(s.key));
   const idx = Math.min(pick, Math.max(chosen.length - 1, 0));
@@ -103,7 +103,7 @@ export function PrintScreen({ site, meal, opening }: ScreenProps) {
           <p style={{ margin: 0, padding: 40, textAlign: 'center', fontSize: 14, color: '#4B5563' }}>Tick at least one page on the left to see a preview.</p>
         ) : (
           <div ref={boxRef} style={{ overflow: 'auto', background: '#E5E7EB', borderRadius: 8, padding: 16 }}>
-            <ScaledPage page={pg} k={zoom === 'full' ? 1 : fitScale(boxW || 772, pg.w)} />
+            <ScaledPage page={pg} k={zoom === 'full' ? 1 : fitPage(box.w || 772, box.h || 600, pg.w, pg.h)} />
           </div>
         )}
       </section>

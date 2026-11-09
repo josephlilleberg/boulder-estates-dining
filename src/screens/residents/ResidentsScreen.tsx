@@ -111,7 +111,8 @@ export function ResidentsScreen(props: ScreenProps) {
         <NameDialog
           mode="add"
           site={site}
-          defaultMeal={props.meal}
+          // New residents start at Dinner, whatever meal is showing.
+          defaultMeal={props.site.meals.some((m) => m.meal === 'Dinner') ? 'Dinner' : props.meal}
           onClose={() => setAdding(false)}
           onSaved={(id) => {
             setAdding(false);

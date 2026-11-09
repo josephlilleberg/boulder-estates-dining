@@ -38,8 +38,9 @@ const coffee = (p: Partial<Drink> = {}) => drink('Coffee', { drinkware: 'Mug', .
 const resident = (drinks: Drink[], p: Partial<MealPrefs> = {}, chair: Chair = 'arm'): Resident => ({
   id: 'x',
   siteId: 'BE',
-  first: 'Margaret',
+  first: 'Agatha',
   last: 'H',
+  nickname: null,
   chair,
   archived: false,
   notes: [],

@@ -13,8 +13,9 @@ const collator = new Intl.Collator('en', { sensitivity: 'base' });
 export function buildList(residents: Resident[], query: string, sort: SortKey): { groups: ListGroup[]; ids: string[] } {
   const q = query.trim().toLowerCase();
   const key = (r: Resident) => (sort === 'first' ? `${r.first} ${r.last}` : `${r.last} ${r.first}`);
-  const label = (r: Resident) => (sort === 'first' ? `${r.first} ${r.last}` : `${r.last}, ${r.first}`);
-  const matches = (r: Resident) => !q || `${r.first} ${r.last} ${r.last}, ${r.first}`.toLowerCase().includes(q);
+  const nick = (r: Resident) => (r.nickname ? ` (${r.nickname})` : '');
+  const label = (r: Resident) => (sort === 'first' ? `${r.first} ${r.last}` : `${r.last}, ${r.first}`) + nick(r);
+  const matches = (r: Resident) => !q || `${r.first} ${r.last} ${r.last}, ${r.first} ${r.nickname ?? ''}`.toLowerCase().includes(q);
 
   const list = residents.filter(matches).sort((a, b) => collator.compare(key(a), key(b)));
   const groups: ListGroup[] = [];

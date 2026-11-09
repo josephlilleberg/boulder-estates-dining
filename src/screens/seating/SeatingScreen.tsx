@@ -6,25 +6,16 @@ import { Segmented } from '../../shell/Segmented';
 import { act } from '../../state/act';
 import { clearSeat, seatResident, type SeatRef } from '../../state/actions';
 import { useStore } from '../../state/store';
-import { useWidth } from '../../ui/useWidth';
+import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 import { cropOf, detailFacts, detailRows, mealRoster, parseSeatKey, pickerList, pickerPosition, seatingScale, seatKey, seatRoom, shortWhere, type SeatKey, type SeatLabel } from './model';
 import { SeatRoomView } from './SeatRoomView';
 
-function useWindowHeight() {
-  const [h, setH] = useState(() => window.innerHeight);
-  useEffect(() => {
-    const on = () => setH(window.innerHeight);
-    window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
-  }, []);
-  return h;
-}
-
 export function SeatingScreen({ site, meal, opening, onResident, navigate }: ScreenProps) {
   const data = useStore((s) => s.data);
-  const [wrapRef, wrapW] = useWidth<HTMLDivElement>();
-  const winH = useWindowHeight();
+  // Card padding + page padding below the map.
+  const [wrapRef, fit] = useFitBox<HTMLDivElement>(40);
+  const wrapW = fit.w;
 
   const tabs = opening.sections;
   const [sectionPick, setSection] = useState(tabs[0]?.section ?? 1);
@@ -46,7 +37,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
   const roster = useMemo(() => mealRoster(data.residents, data.seating, site.id, meal), [data.residents, data.seating, site.id, meal]);
 
   const crop = cropOf(tables);
-  const sc = seatingScale(crop, wrapW, winH);
+  const sc = seatingScale(crop, fit.w, fit.h);
   const room = seatRoom(tables, sc, crop, (k) => roster.bySeat.get(k) ?? null, !!cur.pick);
 
   const totalSeats = openTables.reduce((n, t) => n + seatCount(t.shape), 0);
@@ -140,7 +131,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
           }}
           style={{ marginBottom: 10 }}
         />
-        <div ref={wrapRef} style={{ overflowX: 'auto', padding: 2 }}>
+        <div ref={wrapRef} style={{ overflowX: 'auto', padding: 2, display: 'grid', justifyContent: 'safe center' }}>
           {wrapW > 0 && (
             <SeatRoomView room={room} selectedKey={cur.sel ?? (pickFrom ? seatKey(pickFrom.tableId, pickFrom.seat) : null)} picking={!!cur.pick} onSeatClick={onSeatClick} onDrop={(rid, k) => void seat(k, rid)}>
               {popLab && popPos && picker && (

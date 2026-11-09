@@ -66,12 +66,14 @@ The rooms and tables for Boulder Estates' three sections come built in.
 
 ## Using the app
 
-Pick the **meal** (Breakfast, Dinner, Supper) in the strip under the top bar. Most screens
-show that meal.
+The top bar runs in shift order: **Seating · Residents · View · Print**, then the setup
+screens, **Room Designer · Settings**. Pick the **meal** (Breakfast, Dinner, Supper) in the
+strip under the top bar. Most screens show that meal.
 
 ### Seating
 
-A map of the dining room, one tab per open section.
+A map of the dining room, one tab per open section. The map, the Room Designer and the
+sheet previews scale to fit the window, so nothing needs scrolling.
 
 - Click a **+** on an empty seat to seat someone. The picker lists who's not seated yet.
 - Drag a name onto another seat to move them. Drop it on someone else to swap.
@@ -82,10 +84,14 @@ A map of the dining room, one tab per open section.
 
 The list (sortable by last or first name, searchable) and each resident's card.
 
+- **Name:** first, last and an optional **nickname**. The nickname is what shows on the
+  seating map and server sheets ("Bobby F."). Names typed in lowercase are capitalized.
 - **Every meal:** chair (Arm chair, Armless chair, No chair) and allergies & notes.
 - **Per meal:**
   - Whether they come.
-  - Up to **2 drinks**, plus coffee at Breakfast.
+  - Up to **2 drinks**, picked by type first (Milk, Juice, Coffee, Tea), then the drink.
+    Coffee is the default for anyone new to a meal: at Breakfast it's a **Coffee** switch
+    that doesn't count toward the 2, and at Dinner and Supper it's their first drink.
   - Extras (napkins, jelly, fruit…).
   - **Special water** (None / RO / Hot water) and portion (Full / Half).
 - **Drinks** have a cup, an amount, an optional extra water glass, and creamer for coffee.
@@ -94,6 +100,13 @@ The list (sortable by last or first name, searchable) and each resident's card.
 - The **⋯** menu offers rename, **Archive** (hides them everywhere but keeps their details,
   and can be restored) and **Delete** (removes them; Undo brings them back).
 
+### View and Print
+
+- **View** shows each sheet exactly as it will print.
+- **Print** lets you tick the sheets you want, preview them, and print or save as PDF. The
+  setup sheet prints on 11×17 and the others on Letter, so the app opens one print dialog
+  per paper size.
+
 ### Room Designer
 
 The room layout used by every screen and sheet.
@@ -101,13 +114,6 @@ The room layout used by every screen and sheet.
 - Add tables (round seats 4, rectangle seats 6), and duplicate, move, rotate or delete them.
 - **Even out spacing** tidies rows.
 - Deleting a table frees its seats at every meal, in one undoable step.
-
-### View and Print
-
-- **View** shows each sheet exactly as it will print.
-- **Print** lets you tick the sheets you want, preview them, and print or save as PDF. The
-  setup sheet prints on 11×17 and the others on Letter, so the app opens one print dialog
-  per paper size.
 
 ### Settings
 
@@ -156,13 +162,14 @@ Each page footer shows the paper size, the print date and the page number.
 
 ## Updates
 
-When a newer version is published, the app shows **Update to x.y.z** in the top bar.
+The app looks for a newer version when it opens and every 4 hours while it's open. When
+one is published, the top bar shows **Update to x.y.z**, and the menu item changes to match.
 Clicking it downloads the update, installs it and restarts the app. Your data is kept.
 
 You can also check at any time:
 
 - **Mac:** Boulder Estates Dining menu → **Check for Updates…** (**About** shows the version)
-- **Windows:** **Help → Check for Updates…**
+- **Windows:** **File → Check for Updates…** (**About** is there too)
 - **Either:** Settings → **App updates**
 
 Updates are cryptographically signed. The app only installs updates signed with this

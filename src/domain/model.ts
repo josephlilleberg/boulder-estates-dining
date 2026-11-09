@@ -84,6 +84,8 @@ export interface Resident {
   siteId: SiteId;
   first: string;
   last: string;
+  /** What they go by; shown on the seating map and server sheets instead of the first name. */
+  nickname: string | null;
   chair: Chair;
   archived: boolean;
   notes: Note[];
@@ -119,5 +121,20 @@ export interface SeatAssignment {
   residentId: string;
 }
 
-export const shortName = (r: Pick<Resident, 'first' | 'last'>) => `${r.first} ${r.last.charAt(0)}.`;
+/** The name on diagrams (seating map, server sheets): nickname if they have one, plus last initial. */
+export const shortName = (r: Pick<Resident, 'first' | 'last'> & { nickname?: string | null }) => `${r.nickname || r.first} ${r.last.charAt(0)}.`;
+
+/**
+ * Tidies a typed name: trims, single spaces, and capitalizes words typed all in lowercase
+ * ("ella mae" → "Ella Mae", "st. clair" → "St. Clair", "o'neil" → "O'Neil"). Words with any
+ * capitals are left as typed, so "McAllister" and "LaVerne" stay right.
+ */
+export function tidyName(raw: string): string {
+  return raw
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map((w) => (w && w === w.toLowerCase() ? w.replace(/(^|[-'’.])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase()) : w))
+    .join(' ');
+}
 export const fullName = (r: Pick<Resident, 'first' | 'last'>) => `${r.first} ${r.last}`;

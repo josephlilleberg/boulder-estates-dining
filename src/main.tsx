@@ -14,7 +14,7 @@ import { migrate } from './db/migrate';
 import { openDb } from './db/openDb';
 import { backupBeforeUpgrade, scheduleBackups } from './state/backup';
 import { Store, setStore } from './state/store';
-import { checkForUpdate } from './state/updates';
+import { watchForUpdates } from './state/updates';
 import { installAppMenu } from './shell/appMenu';
 
 const root = createRoot(document.getElementById('root')!);
@@ -32,7 +32,7 @@ async function boot() {
     </StrictMode>,
   );
   void installAppMenu().catch((e) => console.error('Menu failed', e));
-  void checkForUpdate({ quiet: true });
+  watchForUpdates();
 }
 
 boot().catch((e) => {

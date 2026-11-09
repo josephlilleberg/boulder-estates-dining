@@ -162,3 +162,67 @@ describe('special water', () => {
     expect(A.setSpecialWater('R0', 'Dinner', 'hot')(store.get().data)).toEqual([]);
   });
 });
+
+describe('breakfast coffee switch', () => {
+  const bkCoffee = (s: Store, id: string) => (res(s, id).prefs.Breakfast?.drinks ?? []).filter((d) => d.slot === 'coffee');
+
+  it('turns coffee off and on, one undo step each', async () => {
+    const id = store.get().data.residents.find((r) => bkCoffee(store, r.id).length === 1)!.id;
+    await checkEdit(id, 'Off', A.setBreakfastCoffee(id, false), (r) => expect(r.prefs.Breakfast!.drinks.some((d) => d.slot === 'coffee')).toBe(false));
+    await store.change('Off', A.setBreakfastCoffee(id, false));
+    await checkEdit(id, 'On', A.setBreakfastCoffee(id, true), (r) => expect(r.prefs.Breakfast!.drinks.filter((d) => d.slot === 'coffee').map((d) => [d.beverage, d.drinkware])).toEqual([['Coffee', 'Mug']]));
+    expect(A.setBreakfastCoffee(id, false)(store.get().data)).toEqual([]); // already off
+  });
+
+  it('is on by default for a new resident or someone new to Breakfast; Dinner and Supper start with coffee as drink 1', async () => {
+    const { id, ops } = A.addResident({ siteId: 'BE', first: 'Test', last: 'Person', meals: ['Breakfast', 'Dinner', 'Supper'] });
+    await store.change('Add', ops);
+    expect(bkCoffee(store, id)).toHaveLength(1);
+    for (const meal of ['Dinner', 'Supper'] as const) expect(res(store, id).prefs[meal]!.drinks.map((d) => [d.slot, d.beverage, d.drinkware])).toEqual([['drink', 'Coffee', 'Mug']]);
+    const newToDinner = store.get().data.residents.find((r) => !r.prefs.Dinner)!.id;
+    await store.change('Comes', A.setAttendance(newToDinner, 'Dinner', true));
+    expect(res(store, newToDinner).prefs.Dinner!.drinks.map((d) => d.beverage)).toEqual(['Coffee']);
+
+    const newcomer = store.get().data.residents.find((r) => !r.prefs.Breakfast)!.id;
+    await store.change('Comes', A.setAttendance(newcomer, 'Breakfast', true));
+    expect(bkCoffee(store, newcomer)).toHaveLength(1);
+  });
+});
+
+describe('extra wording', () => {
+  it('uses the names as written in Settings, capitalized, with a count only above 1', async () => {
+    const { extraText } = await import('../domain/labels');
+    expect(extraText({ name: 'Jelly', variant: 'Mixed Fruit', count: 1 })).toBe('Mixed Fruit Jelly');
+    expect(extraText({ name: 'Jelly', variant: 'Grape', count: 2 })).toBe('Grape Jelly ×2');
+    expect(extraText({ name: 'Napkins', variant: null, count: 2 })).toBe('Napkins ×2');
+    expect(extraText({ name: 'Fruit', variant: 'Banana', count: 1 })).toBe('Banana');
+  });
+});
+
+describe('names', () => {
+  it('capitalizes words typed in lowercase and leaves the rest as typed', async () => {
+    const { tidyName } = await import('../domain/model');
+    expect(tidyName('  ella   mae ')).toBe('Ella Mae');
+    expect(tidyName('st. clair')).toBe('St. Clair');
+    expect(tidyName("o'neil-smith")).toBe("O'Neil-Smith");
+    expect(tidyName('McAllister')).toBe('McAllister');
+    expect(tidyName('LaVerne')).toBe('LaVerne');
+  });
+
+  it('a new resident typed in lowercase is saved capitalized, with an optional nickname', async () => {
+    const { id, ops } = A.addResident({ siteId: 'BE', first: 'robert', last: 'fenwick', nickname: 'bobby', meals: ['Dinner'] });
+    await store.change('Add', ops);
+    expect(res(store, id)).toMatchObject({ first: 'Robert', last: 'Fenwick', nickname: 'Bobby' });
+  });
+
+  it('a nickname replaces the first name on diagrams; it survives a restart, can be cleared and undone', async () => {
+    const { shortName } = await import('../domain/model');
+    await checkEdit('R0', 'Nickname', A.renameResident('R0', res(store, 'R0').first, res(store, 'R0').last, 'Sunny'), (r) => {
+      expect(r.nickname).toBe('Sunny');
+      expect(shortName(r)).toBe(`Sunny ${r.last.charAt(0)}.`);
+    });
+    await store.change('Nickname', A.renameResident('R0', res(store, 'R0').first, res(store, 'R0').last, 'Sunny'));
+    await store.change('Clear', A.renameResident('R0', res(store, 'R0').first, res(store, 'R0').last, ''));
+    expect(res(store, 'R0').nickname).toBeNull();
+  });
+});

@@ -6,7 +6,9 @@
 .brand-mark { width: 34px; height: 34px; border-radius: 8px; background: var(--brand); color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
 .brand-name { font-size: 15px; font-weight: 700; color: var(--text); }
 .brand-sub { font-size: 12px; color: var(--text-2); }
-.topnav { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 8px; }
+.topnav { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: 8px; }
+/* Between the daily screens and the setup ones. */
+.navsep { width: 1px; height: 22px; margin: 0 6px; background: #D1D5DB; }
 .topbar-right { display: flex; align-items: center; gap: 12px; flex: none; margin-left: auto; }
 .saved { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--saved); }
 

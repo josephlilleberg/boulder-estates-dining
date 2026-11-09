@@ -32,7 +32,7 @@ export async function loadAll(db: Db): Promise<AppData> {
     ),
     db.select<{ site_id: SiteId; name: string; sort: number }>(`SELECT * FROM drinkware ORDER BY site_id, sort`),
     db.select<{ site_id: SiteId; name: string; variants: string; all_meals: number; counted: number; sort: number }>(`SELECT * FROM extra_option ORDER BY site_id, sort`),
-    db.select<{ id: string; site_id: SiteId; first: string; last: string; chair: Chair; archived: number }>(`SELECT * FROM resident ORDER BY last, first`),
+    db.select<{ id: string; site_id: SiteId; first: string; last: string; nickname: string | null; chair: Chair; archived: number }>(`SELECT * FROM resident ORDER BY last, first`),
     db.select<{ id: string; resident_id: string; text: string }>(`SELECT * FROM resident_note ORDER BY resident_id, sort`),
     db.select<{ resident_id: string; meal: MealName }>(`SELECT a.* FROM attendance a JOIN site_meal m ON m.meal = a.meal JOIN resident r ON r.id = a.resident_id AND r.site_id = m.site_id ORDER BY a.resident_id, m.sort`),
     db.select<{ resident_id: string; meal: MealName; ro_water: number; hot_water: number; portion: Portion }>(`SELECT * FROM meal_pref`),
@@ -59,7 +59,7 @@ export async function loadAll(db: Db): Promise<AppData> {
 
   const byId = new Map<string, Resident>();
   for (const r of res) {
-    byId.set(r.id, { id: r.id, siteId: r.site_id, first: r.first, last: r.last, chair: r.chair, archived: bool(r.archived), notes: [], attends: [], prefs: {} });
+    byId.set(r.id, { id: r.id, siteId: r.site_id, first: r.first, last: r.last, nickname: r.nickname || null, chair: r.chair, archived: bool(r.archived), notes: [], attends: [], prefs: {} });
   }
   const pref = (rid: string, meal: MealName): MealPrefs | undefined => byId.get(rid)?.prefs[meal];
   for (const n of notes) byId.get(n.resident_id)?.notes.push({ id: n.id, text: n.text });

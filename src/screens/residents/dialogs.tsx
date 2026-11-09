@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extraText } from '../../domain/labels';
-import { fullName, type Resident } from '../../domain/model';
+import { fullName, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { act } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -21,15 +21,16 @@ export function NameDialog(props: NameProps) {
   const r = props.mode === 'rename' ? props.resident : null;
   const [first, setFirst] = useState(r?.first ?? '');
   const [last, setLast] = useState(r?.last ?? '');
+  const [nickname, setNickname] = useState(r?.nickname ?? '');
   const [meals, setMeals] = useState<MealName[]>(props.mode === 'add' ? [props.defaultMeal] : []);
   const ok = first.trim() && last.trim();
 
   const submit = async () => {
     if (!ok) return;
     if (props.mode === 'add') {
-      const { id, ops } = A.addResident({ siteId: props.site.id, first, last, meals });
-      if (await act(`Add ${first.trim()} ${last.trim()}`, ops)) props.onSaved(id);
-    } else if (await act('Edit name', A.renameResident(r!.id, first, last))) {
+      const { id, ops } = A.addResident({ siteId: props.site.id, first, last, nickname, meals });
+      if (await act(`Add ${tidyName(first)} ${tidyName(last)}`, ops)) props.onSaved(id);
+    } else if (await act('Edit name', A.renameResident(r!.id, first, last, nickname))) {
       props.onSaved(r!.id);
     }
   };
@@ -66,6 +67,12 @@ export function NameDialog(props: NameProps) {
             <input className="text-input" value={last} onChange={(e) => setLast(e.target.value)} autoComplete="off" />
           </Field>
         </div>
+        <Field label="Nickname (optional)">
+          <input className="text-input" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="off" placeholder="What they go by" />
+          <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: '#4B5563' }}>
+            Shown on the seating map and server sheets{first.trim() || last.trim() ? `, as “${shortName({ first: tidyName(first) || 'First', last: tidyName(last) || 'L', nickname: tidyName(nickname) || null })}”` : ''}.
+          </span>
+        </Field>
         {props.mode === 'add' && props.site.meals.length > 1 && (
           <Field label="Comes to">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
@@ -160,6 +167,63 @@ export function DeleteDialog({ resident: r, onClose }: { resident: Resident; onC
 
 export type DrinkTarget = { kind: 'add'; meal: MealName } | { kind: 'edit'; meal: MealName; drinkId: string };
 
+/** Drink types in the order they're picked; only types that have a drink are shown. */
+const DRINK_TYPES: { kind: BeverageKind; label: string }[] = [
+  { kind: 'milk', label: 'Milk' },
+  { kind: 'juice', label: 'Juice' },
+  { kind: 'coffee', label: 'Coffee' },
+  { kind: 'tea', label: 'Tea' },
+  { kind: 'other', label: 'Other' },
+];
+
+/**
+ * Top-down drink choice: pick the type (Milk, Juice, Coffee…), then the drink within it
+ * (2% Milk, Skim Milk…). A type with only one drink, like Coffee, is picked in one click.
+ */
+function DrinkPicker({ beverages, value, onPick }: { beverages: Beverage[]; value?: string; onPick: (name: string) => void }) {
+  const current = beverages.find((b) => b.name === value);
+  const [kind, setKind] = useState<BeverageKind | null>(current?.kind ?? null);
+  const types = DRINK_TYPES.filter((t) => beverages.some((b) => b.kind === t.kind));
+  const options = beverages.filter((b) => b.kind === kind);
+  return (
+    <>
+      <Field label="Type">
+        <div className="chips" role="group" aria-label="Drink type">
+          {types.map((t, i) => {
+            const inType = beverages.filter((b) => b.kind === t.kind);
+            return (
+              <button
+                key={t.kind}
+                type="button"
+                className={kind === t.kind ? 'chipbtn on' : 'chipbtn'}
+                aria-pressed={kind === t.kind}
+                data-autofocus={(!current && i === 0) || undefined}
+                onClick={() => {
+                  setKind(t.kind);
+                  if (inType.length === 1 && inType[0]!.name !== value) onPick(inType[0]!.name);
+                }}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+      {kind && options.length > 1 && (
+        <Field label={DRINK_TYPES.find((t) => t.kind === kind)!.label}>
+          <div className="chips" role="group" aria-label="Drink">
+            {options.map((b) => (
+              <button key={b.name} type="button" className={b.name === value ? 'chipbtn on' : 'chipbtn'} aria-pressed={b.name === value} onClick={() => b.name !== value && onPick(b.name)}>
+                {b.name}
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+    </>
+  );
+}
+
 export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target: DrinkTarget; resident: Resident; onTarget: (t: DrinkTarget) => void; onClose: () => void }) {
   const data = useStore((s) => s.data);
   const beverages = data.beverages.filter((b) => b.siteId === r.siteId);
@@ -176,24 +240,13 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
   if (target.kind === 'add') {
     return (
       <Dialog title="Add a drink" subtitle={`${fullName(r)} · ${target.meal}`} onClose={onClose}>
-        <Field label="Drink">
-          <div className="chips">
-            {beverages.map((b, i) => (
-              <button
-                key={b.name}
-                type="button"
-                className="chipbtn"
-                data-autofocus={i === 0 || undefined}
-                onClick={async () => {
-                  const { id, ops } = A.addDrink(r.id, target.meal, 'drink', b.name);
-                  if (await act(`Add ${b.name}`, ops)) onTarget({ kind: 'edit', meal: target.meal, drinkId: id });
-                }}
-              >
-                {b.name}
-              </button>
-            ))}
-          </div>
-        </Field>
+        <DrinkPicker
+          beverages={beverages}
+          onPick={async (name) => {
+            const { id, ops } = A.addDrink(r.id, target.meal, 'drink', name);
+            if (await act(`Add ${name}`, ops)) onTarget({ kind: 'edit', meal: target.meal, drinkId: id });
+          }}
+        />
         <div />
       </Dialog>
     );
@@ -230,17 +283,7 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
         </>
       }
     >
-      {!isCoffeeSlot && (
-        <Field label="Drink">
-          <div className="chips">
-            {beverages.map((b) => (
-              <button key={b.name} type="button" className={b.name === drink.beverage ? 'chipbtn on' : 'chipbtn'} aria-pressed={b.name === drink.beverage} onClick={() => set(`Drink: ${b.name}`, { beverage: b.name })}>
-                {b.name}
-              </button>
-            ))}
-          </div>
-        </Field>
-      )}
+      {!isCoffeeSlot && <DrinkPicker key={drink.id} beverages={beverages} value={drink.beverage} onPick={(name) => set(`Drink: ${name}`, { beverage: name })} />}
       {kind === 'tea' && (
         <Field label="Tea">
           <Seg options={A.TEAS} value={drink.tea ?? ''} onPick={(tea) => set(`Tea: ${tea}`, { tea })} label="Tea" />

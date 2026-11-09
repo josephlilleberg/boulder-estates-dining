@@ -34,12 +34,12 @@ export function cropOf(tables: DiningTable[]): Crop | null {
   return { x0, y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** Fill the card's width; a tall section may scroll a little. `roomW` is the wrapper's content width. */
-export function seatingScale(crop: Crop | null, roomW: number, windowH: number): number {
+/** Fits the section's tables into the space below the tabs (w × h, from useFitBox), so the map never scrolls. */
+export function seatingScale(crop: Crop | null, w: number, h: number): number {
   if (!crop) return 0.74;
-  const availW = (roomW || 790) - 8;
-  const availH = Math.max(420, windowH - 230);
-  return Math.max(0.45, Math.min(1.1, availW / crop.w, (Math.max(availH, 640) * 1.25) / crop.h));
+  const availW = (w || 790) - 8;
+  const availH = (h || 640) - 4;
+  return Math.max(0.45, Math.min(1.3, availW / crop.w, availH / crop.h));
 }
 
 export interface TableBox {
@@ -186,7 +186,7 @@ export interface PickerList {
 /** "Who sits here?" lists: up to 5 waiting (8 while searching), then up to 8 seated elsewhere. */
 export function pickerList(roster: MealRoster, query: string, excludeId?: string): PickerList {
   const q = query.trim().toLowerCase();
-  const match = (r: Resident) => !q || fullName(r).toLowerCase().includes(q);
+  const match = (r: Resident) => !q || `${fullName(r)} ${r.nickname ?? ''}`.toLowerCase().includes(q);
   const waitingAll = [...roster.waiting].sort(byLastName).filter(match);
   const others = q ? roster.coming.filter((r) => roster.seatOf.has(r.id) && r.id !== excludeId && match(r)).sort(byLastName) : [];
   return { waiting: waitingAll.slice(0, q ? 8 : 5), others: others.slice(0, 8), waitingTotal: waitingAll.length };

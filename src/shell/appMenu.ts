@@ -1,8 +1,8 @@
 import { isTauri } from '../db/tauriDb';
-import { appVersion, checkForUpdate, getUpdateState, installUpdate } from '../state/updates';
+import { appVersion, checkForUpdate, getUpdateState, installUpdate, onUpdateState } from '../state/updates';
 
 // The native menu bar: on the Mac the app menu (About, Check for Updates…, Quit) plus
-// the standard Edit and Window menus; on Windows a File and Help menu under the title bar.
+// the standard Edit and Window menus; on Windows a File menu under the title bar.
 
 const APP_NAME = 'Boulder Estates Dining';
 
@@ -35,7 +35,9 @@ export async function installAppMenu(): Promise<void> {
     text: `About ${APP_NAME}`,
     item: { About: { name: APP_NAME, version, comments: 'Seating, setup sheets and server sheets for the dining room.' } },
   });
-  const checkUpdates = () => MenuItem.new({ text: 'Check for Updates…', action: () => void checkForUpdatesFromMenu() });
+  const checkUpdates = await MenuItem.new({ text: 'Check for Updates…', action: () => void checkForUpdatesFromMenu() });
+  // When a newer version is found (at launch or by the periodic check), the menu says so.
+  onUpdateState((u) => void checkUpdates.setText(u.kind === 'available' ? `Update to ${u.version}…` : 'Check for Updates…'));
   const sep = () => PredefinedMenuItem.new({ item: 'Separator' });
   const isMac = navigator.userAgent.includes('Mac');
 
@@ -46,7 +48,7 @@ export async function installAppMenu(): Promise<void> {
             text: APP_NAME,
             items: [
               about,
-              await checkUpdates(),
+              checkUpdates,
               await sep(),
               await PredefinedMenuItem.new({ item: 'Services' }),
               await sep(),
@@ -84,8 +86,7 @@ export async function installAppMenu(): Promise<void> {
       })
     : await Menu.new({
         items: [
-          await Submenu.new({ text: 'File', items: [await PredefinedMenuItem.new({ item: 'Quit', text: 'Exit' })] }),
-          await Submenu.new({ text: 'Help', items: [await checkUpdates(), await sep(), about] }),
+          await Submenu.new({ text: 'File', items: [checkUpdates, about, await sep(), await PredefinedMenuItem.new({ item: 'Quit', text: 'Exit' })] }),
         ],
       });
   await menu.setAsAppMenu();

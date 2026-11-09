@@ -19,8 +19,8 @@ export const PAGE: Record<Paper, { w: number; h: number; name: string }> = {
   tabloid: { w: 1632, h: 1056, name: '11 × 17' },
 };
 
-/** Preview scale: fit the page into the grey backdrop, never above 100%. */
-export const fitScale = (contentW: number, pageW: number) => Math.min(1, Math.floor(((contentW - 32) / pageW) * 100) / 100);
+/** Scale that fits a whole page inside a w × h box (content size, no padding), never above 100%. */
+export const fitPage = (w: number, h: number, pageW: number, pageH: number) => Math.max(0.1, Math.min(1, Math.floor(Math.min(w / pageW, h / pageH) * 100) / 100));
 
 export const printedDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -605,8 +605,9 @@ export function stressOccupant(meal: string): Occupant {
   const r: Resident = {
     id: '__stress',
     siteId: 'BE',
-    first: 'Margaret',
+    first: 'Agatha',
     last: 'H',
+    nickname: null,
     chair: 'arm',
     archived: false,
     notes: [],

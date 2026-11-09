@@ -158,11 +158,13 @@ describe('Backups setting and upgrades', () => {
   });
 
   it('a version 1 database (or restored backup) upgrades to the current schema', async () => {
-    await db.batch([{ sql: 'DROP TABLE extra_option' }, { sql: "UPDATE meta SET value = '1' WHERE key = 'schema_version'" }]);
+    // Make it a true v1 database: no extras list, no nickname column.
+    await db.batch([{ sql: 'DROP TABLE extra_option' }, { sql: 'ALTER TABLE resident DROP COLUMN nickname' }, { sql: "UPDATE meta SET value = '1' WHERE key = 'schema_version'" }]);
     expect(await migrate(db)).toEqual({ seeded: false, upgradedFrom: 1 });
     const [v] = await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'");
     expect(Number(v!.value)).toBe(SCHEMA_VERSION);
     expect(await db.select('SELECT * FROM extra_option')).toHaveLength(12); // 6 per site
+    expect(await db.select('SELECT nickname FROM resident')).not.toHaveLength(0); // v3 column, residents kept
   });
 
   it('refuses a newer database', async () => {

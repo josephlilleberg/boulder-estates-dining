@@ -1,6 +1,6 @@
 import { extraText } from '../../domain/labels';
 import type { Beverage, DiningTable, MealPrefs, Resident, SeatAssignment } from '../../domain/model';
-import { CHAIR_LABEL, fullName, pouredTogether, shortName } from '../../domain/model';
+import { CHAIR_LABEL, fullName, pouredInto, pouredTogether, shortName } from '../../domain/model';
 import { footprint, seatPoints } from '../../domain/room';
 import { seatGeom } from '../../domain/tables';
 
@@ -34,12 +34,22 @@ export function cropOf(tables: DiningTable[]): Crop | null {
   return { x0, y0, w: x1 - x0, h: y1 - y0 };
 }
 
-/** Fits the section's tables into the space below the tabs (w × h, from useFitBox), so the map never scrolls. */
+/** Fits the section's tables into a frame of w × h (from useFitBox), so the map never scrolls. */
 export function seatingScale(crop: Crop | null, w: number, h: number): number {
   if (!crop) return 0.74;
-  const availW = (w || 790) - 8;
+  const availW = (w || 790) - 4;
   const availH = (h || 640) - 4;
-  return Math.max(0.45, Math.min(1.3, availW / crop.w, availH / crop.h));
+  return Math.max(0.45, Math.min(1.5, availW / crop.w, availH / crop.h));
+}
+
+/**
+ * Grows the crop (centered) to fill a frame of w × h at scale `sc`, so every section draws
+ * in the same full-size frame with its tables in the middle.
+ */
+export function frameCrop(crop: Crop, sc: number, w: number, h: number): Crop {
+  const fw = Math.max(crop.w, (w - 4) / sc);
+  const fh = Math.max(crop.h, (h - 4) / sc);
+  return { x0: crop.x0 - (fw - crop.w) / 2, y0: crop.y0 - (fh - crop.h) / 2, w: fw, h: fh };
 }
 
 export interface TableBox {
@@ -256,9 +266,9 @@ export function detailRows(r: Resident, meal: string, beverages: Beverage[]): De
         ? (d.amount === 'Half' ? 'Half mug' : 'Mug') + (d.creamer ? ' · creamer' : '')
         : kind === 'tea'
           ? `${d.tea ?? 'Tea'} · mug`
-          : (kind === 'juice' ? d.drinkware : (d.amount === 'Half' ? 'Half · ' : '') + d.drinkware) + (d.extraGlass ? ' · + water glass' : '');
+          : (kind === 'juice' ? d.drinkware : (d.amount === 'Half' ? 'Half · ' : '') + d.drinkware) + (d.extraGlass ? ' · + extra glass' : '');
     const both = isPair(d);
-    return { name: both ? `2 × ${d.beverage}` : d.beverage, meta: both ? 'Glass · both poured together' : meta, dot: kind === 'coffee' ? '#6F4E37' : (bev?.color ?? '#FFFFFF') };
+    return { name: both ? `2 × ${d.beverage}` : d.beverage, meta: both ? `${pouredInto(p.drinks)} · both poured together` : meta, dot: kind === 'coffee' ? '#6F4E37' : (bev?.color ?? '#FFFFFF') };
   });
   if (p.hotWater) rows.push({ name: 'Hot water', meta: 'Mug', dot: '#FFFFFF' });
   if (p.roWater) rows.push({ name: 'RO water', meta: 'Glass', dot: '#BFDBFE' });

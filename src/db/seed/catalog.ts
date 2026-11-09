@@ -90,7 +90,7 @@ const EXTRAS: [string, string[], boolean, boolean][] = [
   ['Jelly', ['Grape', 'Mixed Fruit'], false, true],
   ['Fruit', ['Banana', 'Orange', 'Apple'], false, false],
   ['Butter', [], false, true],
-  ['Big Spoon', [], false, true],
+  ['Soup Spoon', [], false, true],
   ['Brown Sugar', [], false, true],
 ];
 

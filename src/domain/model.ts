@@ -35,17 +35,26 @@ export interface Drink {
   creamer: boolean;
 }
 
+/** Only these cups come in Full or Half; a juice glass or a mug is always one serving. */
+export const HALF_CUPS = ['Glass', 'To-go cup'];
+export const hasAmount = (drinkware: string) => HALF_CUPS.includes(drinkware);
+
 /**
- * A juice glass holds half a glass, so when a resident's two drinks are the same thing
- * in juice glasses (e.g. two cranberry juices), they're poured together in one glass.
- * Returns that drink's name, or null. Every sheet and screen uses this one rule.
+ * Two halves make one: when a resident's two drinks are the same thing in juice glasses
+ * (a juice glass is half a glass), or in half to-go cups, they're poured together into one
+ * glass or one to-go cup. Returns that cup, or null. Every sheet and screen uses this rule.
  */
-export function pouredTogether(drinks: Drink[]): string | null {
+export function pouredInto(drinks: Drink[]): 'Glass' | 'To-go cup' | null {
   const d = drinks.filter((x) => x.slot === 'drink');
   const [a, b] = d;
-  if (d.length !== 2 || !a || !b) return null;
-  return a.beverage === b.beverage && a.drinkware === 'Juice glass' && b.drinkware === 'Juice glass' ? a.beverage : null;
+  if (d.length !== 2 || !a || !b || a.beverage !== b.beverage) return null;
+  if (a.drinkware === 'Juice glass' && b.drinkware === 'Juice glass') return 'Glass';
+  if (a.drinkware === 'To-go cup' && b.drinkware === 'To-go cup' && a.amount === 'Half' && b.amount === 'Half') return 'To-go cup';
+  return null;
 }
+
+/** The drink poured together (see pouredInto), or null. */
+export const pouredTogether = (drinks: Drink[]): string | null => (pouredInto(drinks) ? (drinks.find((x) => x.slot === 'drink')?.beverage ?? null) : null);
 
 export interface Extra {
   id: string;

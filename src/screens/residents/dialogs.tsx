@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extraText } from '../../domain/labels';
-import { fullName, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
+import { fullName, hasAmount, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { act } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -23,7 +23,10 @@ export function NameDialog(props: NameProps) {
   const [last, setLast] = useState(r?.last ?? '');
   const [nickname, setNickname] = useState(r?.nickname ?? '');
   const [meals, setMeals] = useState<MealName[]>(props.mode === 'add' ? [props.defaultMeal] : []);
-  const ok = first.trim() && last.trim();
+  const residents = useStore((s) => s.data.residents);
+  // Caught as you type, so the button never saves a second copy of someone.
+  const dup = A.duplicateMessage(A.duplicateOf({ residents }, props.site.id, first, last, r?.id));
+  const ok = first.trim() && last.trim() && !dup;
 
   const submit = async () => {
     if (!ok) return;
@@ -67,6 +70,11 @@ export function NameDialog(props: NameProps) {
             <input className="text-input" value={last} onChange={(e) => setLast(e.target.value)} autoComplete="off" />
           </Field>
         </div>
+        {dup && (
+          <p role="alert" style={{ margin: '-6px 0 0', fontSize: 13, color: '#9A3412' }}>
+            {dup}
+          </p>
+        )}
         <Field label="Nickname (optional)">
           <input className="text-input" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="off" placeholder="What they go by" />
           <span style={{ display: 'block', marginTop: 6, fontSize: 12, color: '#4B5563' }}>
@@ -299,7 +307,8 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
           ))}
         </div>
       </Field>
-      {kind !== 'juice' && (
+      {/* Only a glass or to-go cup has Full / Half; a juice glass or mug is one serving. */}
+      {hasAmount(drink.drinkware) && (
         <Field label="Amount">
           <Seg options={['Full', 'Half']} value={drink.amount} onPick={(a) => set(`${a} ${drink.beverage}`, { amount: a as 'Full' | 'Half' })} label="Amount" />
         </Field>
@@ -312,8 +321,8 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
               <SwitchMark on={drink.creamer} />
             </button>
           ) : (
-            <button type="button" className="grow" aria-pressed={drink.extraGlass} onClick={() => set(`Extra water glass ${drink.extraGlass ? 'off' : 'on'}`, { extraGlass: !drink.extraGlass })}>
-              <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Extra water glass</span>
+            <button type="button" className="grow" aria-pressed={drink.extraGlass} onClick={() => set(`Extra glass ${drink.extraGlass ? 'off' : 'on'}`, { extraGlass: !drink.extraGlass })}>
+              <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Extra glass</span>
               <SwitchMark on={drink.extraGlass} />
             </button>
           )}

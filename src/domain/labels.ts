@@ -22,7 +22,7 @@ export function drinkSubtitle(d: Drink, bev: Beverage | undefined): string {
   return parts.join(' · ');
 }
 
-/** Names as written in Settings: "Grape Jelly ×2", "Mixed Fruit Jelly", "Napkins ×2", "Big Spoon". Fruit shows just the kind ("Banana"). */
+/** Names as written in Settings: "Grape Jelly ×2", "Mixed Fruit Jelly", "Napkins ×2", "Soup Spoon". Fruit shows just the kind ("Banana"). */
 export function extraText(x: Pick<Extra, 'name' | 'variant' | 'count'>): string {
   if (x.name === 'Fruit') return x.variant ?? 'Fruit';
   return `${x.variant ? `${x.variant} ` : ''}${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`;

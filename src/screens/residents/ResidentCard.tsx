@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { attendanceSummary, drinkSubtitle, extraText, seatLabel } from '../../domain/labels';
-import { CHAIR_LABEL, fullName, pouredTogether, type Chair, type Resident } from '../../domain/model';
+import { CHAIR_LABEL, fullName, pouredInto, pouredTogether, type Chair, type Resident } from '../../domain/model';
 import type { MealName } from '../../domain/sites';
 import { act } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -172,7 +172,7 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                   ))}
                   {pouredTogether(drinks) && (
                     <div className="grow" style={{ cursor: 'default', fontSize: 13, color: '#374151', background: '#F0FDF4' }}>
-                      Both are {pouredTogether(drinks)}, so they’re poured together in one glass.
+                      Both are {pouredTogether(drinks)}, so they’re poured together in one {pouredInto(drinks) === 'Glass' ? 'glass' : 'to-go cup'}.
                     </div>
                   )}
                   {drinks.length < A.MAX_DRINKS && (

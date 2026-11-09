@@ -41,6 +41,8 @@ const CHAIR: Record<LegacyResident['chair'], Chair> = { Arms: 'arm', 'No arms': 
 
 // The old app said "V8"; the catalog name is "V8 Juice" (BRIEF.md drink list).
 const BEVERAGE_RENAME: Record<string, string> = { V8: 'V8 Juice' };
+// The old app's "Big Spoon" is now called "Soup Spoon".
+const EXTRA_RENAME: Record<string, string> = { 'Big Spoon': 'Soup Spoon' };
 
 const flag = (list: MealName[], meal: MealName) => (list.includes(meal) ? 1 : 0);
 
@@ -84,7 +86,7 @@ export function importLegacy(data: LegacyData): Stmt[] {
         ),
       );
       (r.extras[meal] ?? []).forEach((x, i) =>
-        out.push(insert('extra', { id: `${r.id}-${meal}-x${i}`, resident_id: r.id, meal, sort: i, name: x.n, variant: x.v ?? null, count: x.c ?? 1 })),
+        out.push(insert('extra', { id: `${r.id}-${meal}-x${i}`, resident_id: r.id, meal, sort: i, name: EXTRA_RENAME[x.n] ?? x.n, variant: x.v ?? null, count: x.c ?? 1 })),
       );
     }
   }

@@ -55,7 +55,7 @@ describe('Setup sheet rules', () => {
     expect(texts(resident([coffee(), drink('2% Milk')]))).toEqual([]);
   });
 
-  it('+Glass for an extra water glass or RO water; +2 Glasses for both', () => {
+  it('+Glass for an extra glass or RO water; +2 Glasses for both', () => {
     expect(texts(resident([coffee(), drink('2% Milk', { extraGlass: true })]))).toEqual(['+Glass']);
     expect(texts(resident([coffee()], { roWater: true }))).toEqual(['+Glass']);
     expect(texts(resident([coffee(), drink('2% Milk', { extraGlass: true })], { roWater: true }))).toEqual(['+2 Glasses']);
@@ -74,12 +74,21 @@ describe('Setup sheet rules', () => {
     const pair = resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]);
     expect(texts(pair)).toEqual(['+Glass', 'No Mug']);
     expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cran Juice']);
-    // With an extra water glass too, the glasses add up.
+    // With an extra glass too, the glasses add up.
     expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+2 Glasses']);
     // Not the same juice, or not both in juice glasses: nothing is combined.
     expect(texts(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]))).toEqual(['+2 Juice', 'No Mug']);
     expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+Juice', '+To-Go', 'No Mug']);
     expect(serverPills(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]), 'Dinner', data().beverages)).toHaveLength(2);
+  });
+
+  it('two half to-go cups of the same drink become one to-go cup', () => {
+    const half = { drinkware: 'To-go cup', amount: 'Half' as const };
+    const pair = resident([drink('Cranberry Juice', half), drink('Cranberry Juice', half)]);
+    expect(texts(pair)).toEqual(['+To-Go', 'No Mug']);
+    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cran Juice']);
+    // Full to-go cups aren't combined.
+    expect(texts(resident([drink('Cranberry Juice', { drinkware: 'To-go cup' }), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+2 To-Go', 'No Mug']);
   });
 
   it('No Mug only when there is no mug drink and no hot water', () => {

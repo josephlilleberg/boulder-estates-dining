@@ -114,7 +114,7 @@ describe('room drawing', () => {
     const crop = cropOf(sectionTables(1))!;
     expect(crop.w).toBeGreaterThan(0);
     const sc = seatingScale(crop, 900, 860);
-    expect(crop.w * sc).toBeLessThanOrEqual(892);
+    expect(crop.w * sc).toBeLessThanOrEqual(896);
     expect(sc).toBeGreaterThanOrEqual(0.45);
   });
 

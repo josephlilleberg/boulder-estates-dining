@@ -8,7 +8,7 @@ import { clearSeat, seatResident, type SeatRef } from '../../state/actions';
 import { useStore } from '../../state/store';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
-import { cropOf, detailFacts, detailRows, mealRoster, parseSeatKey, pickerList, pickerPosition, seatingScale, seatKey, seatRoom, shortWhere, type SeatKey, type SeatLabel } from './model';
+import { cropOf, frameCrop, detailFacts, detailRows, mealRoster, parseSeatKey, pickerList, pickerPosition, seatingScale, seatKey, seatRoom, shortWhere, type SeatKey, type SeatLabel } from './model';
 import { SeatRoomView } from './SeatRoomView';
 
 export function SeatingScreen({ site, meal, opening, onResident, navigate }: ScreenProps) {
@@ -38,7 +38,9 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
 
   const crop = cropOf(tables);
   const sc = seatingScale(crop, fit.w, fit.h);
-  const room = seatRoom(tables, sc, crop, (k) => roster.bySeat.get(k) ?? null, !!cur.pick);
+  // Every section fills the same full-size frame, tables centered.
+  const view = crop && fit.w ? frameCrop(crop, sc, fit.w, fit.h) : crop;
+  const room = seatRoom(tables, sc, view, (k) => roster.bySeat.get(k) ?? null, !!cur.pick);
 
   const totalSeats = openTables.reduce((n, t) => n + seatCount(t.shape), 0);
   const seatedAt = (ts: typeof openTables) => ts.reduce((n, t) => n + Array.from({ length: seatCount(t.shape) }, (_, i) => seatKey(t.id, i)).filter((k) => roster.bySeat.has(k)).length, 0);
@@ -103,13 +105,24 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
   return (
     <div className="row-wrap">
       <section className="card" style={{ flex: '999 1 720px', minWidth: 0, padding: '16px 14px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 12 }}>
+        {/* One compact row (title, counts, section tabs) leaves the rest of the card to the map. */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 14px', marginBottom: 10 }}>
           <h1 className="h1">Seating · {meal}</h1>
           <span style={{ fontSize: 13, color: '#4B5563' }}>
             {nSeated} seated · {roster.waiting.length} not seated · {totalSeats - nSeated} empty seats
           </span>
+          <div style={{ flex: '1 1 0' }} />
+          <Segmented
+            label="Section"
+            role="tablist"
+            options={tabs.map((t) => ({ value: String(t.section), label: `${t.label} · ${seatedIn(t.section)}` }))}
+            value={String(section)}
+            onChange={(v) => {
+              setSection(Number(v));
+              setCur({ sel: null, pop: null });
+            }}
+          />
         </div>
-        <p className="sub">Click a + to seat someone. Drag a name onto another seat to move or swap.</p>
         {pickRes && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, padding: '8px 12px', borderRadius: 8, background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: 14, color: '#1E3A8A' }}>
             <span style={{ flex: 1 }}>
@@ -120,17 +133,6 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
             </button>
           </div>
         )}
-        <Segmented
-          label="Section"
-          role="tablist"
-          options={tabs.map((t) => ({ value: String(t.section), label: `${t.label} · ${seatedIn(t.section)}` }))}
-          value={String(section)}
-          onChange={(v) => {
-            setSection(Number(v));
-            setCur({ sel: null, pop: null });
-          }}
-          style={{ marginBottom: 10 }}
-        />
         <div ref={wrapRef} style={{ overflowX: 'auto', padding: 2, display: 'grid', justifyContent: 'safe center' }}>
           {wrapW > 0 && (
             <SeatRoomView room={room} selectedKey={cur.sel ?? (pickFrom ? seatKey(pickFrom.tableId, pickFrom.seat) : null)} picking={!!cur.pick} onSeatClick={onSeatClick} onDrop={(rid, k) => void seat(k, rid)}>
@@ -185,6 +187,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
             <>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 4 }}>Seat details</div>
               <p style={{ margin: 0, fontSize: 13, color: '#6B7280', lineHeight: 1.5 }}>Click a name to see their drinks for {meal} and any notes.</p>
+              <p style={{ margin: '10px 0 0', fontSize: 13, color: '#6B7280', lineHeight: 1.5 }}>Click a + to seat someone. Drag a name onto another seat to move or swap.</p>
             </>
           ) : (
             <>

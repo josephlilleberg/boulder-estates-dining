@@ -94,7 +94,7 @@ describe('Cups', () => {
 
 describe('Extras list', () => {
   it('is seeded with the resident card’s old choices; Dinner and Supper offer napkins only', () => {
-    expect(data().extraOptions.filter((x) => x.siteId === 'BE').map((x) => x.name)).toEqual(['Napkins', 'Jelly', 'Fruit', 'Butter', 'Big Spoon', 'Brown Sugar']);
+    expect(data().extraOptions.filter((x) => x.siteId === 'BE').map((x) => x.name)).toEqual(['Napkins', 'Jelly', 'Fruit', 'Butter', 'Soup Spoon', 'Brown Sugar']);
     expect(S.extrasFor(data(), 'BE', 'Dinner').map((x) => x.name)).toEqual(['Napkins']);
     expect(S.extrasFor(data(), 'BE', 'Breakfast')).toHaveLength(6);
     expect(data().extraOptions.find((x) => x.name === 'Fruit')).toMatchObject({ variants: ['Banana', 'Orange', 'Apple'], counted: false });
@@ -165,6 +165,21 @@ describe('Backups setting and upgrades', () => {
     expect(Number(v!.value)).toBe(SCHEMA_VERSION);
     expect(await db.select('SELECT * FROM extra_option')).toHaveLength(12); // 6 per site
     expect(await db.select('SELECT nickname FROM resident')).not.toHaveLength(0); // v3 column, residents kept
+    expect(await db.select("SELECT 1 FROM extra WHERE name = 'Big Spoon'")).toHaveLength(0); // v4 rename
+  });
+
+  it('upgrading renames Big Spoon to Soup Spoon on the list and on residents', async () => {
+    await db.batch([
+      { sql: "UPDATE extra_option SET name = 'Big Spoon' WHERE name = 'Soup Spoon'" },
+      { sql: "UPDATE extra SET name = 'Big Spoon' WHERE name = 'Soup Spoon'" },
+      { sql: "UPDATE meta SET value = '3' WHERE key = 'schema_version'" },
+    ]);
+    const before = (await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM extra WHERE name = 'Big Spoon'"))[0]!.n;
+    expect(before).toBeGreaterThan(0);
+    await migrate(db);
+    expect((await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM extra WHERE name = 'Soup Spoon'"))[0]!.n).toBe(before);
+    expect(await db.select("SELECT 1 FROM extra_option WHERE name = 'Big Spoon'")).toHaveLength(0);
+    expect(await db.select("SELECT 1 FROM extra_option WHERE name = 'Soup Spoon'")).toHaveLength(2); // one per site
   });
 
   it('refuses a newer database', async () => {

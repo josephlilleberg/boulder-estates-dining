@@ -84,8 +84,8 @@ describe('every resident edit survives a restart and can be undone', () => {
     await checkEdit('R0', 'Extra', A.addExtra('R0', 'Dinner', { name: 'Napkins', variant: null, count: 2 }), (r) =>
       expect(r.prefs.Dinner!.extras.map((x) => [x.name, x.count])).toEqual([['Napkins', 2]]),
     );
-    const id = res(store, 'R0').prefs.Breakfast!.extras[0]!.id; // Big Spoon
-    await checkEdit('R0', 'Edit', A.updateExtra(id, { name: 'Big Spoon', variant: null, count: 2 }), (r) => expect(r.prefs.Breakfast!.extras[0]!.count).toBe(2));
+    const id = res(store, 'R0').prefs.Breakfast!.extras[0]!.id; // Soup Spoon
+    await checkEdit('R0', 'Edit', A.updateExtra(id, { name: 'Soup Spoon', variant: null, count: 2 }), (r) => expect(r.prefs.Breakfast!.extras[0]!.count).toBe(2));
     await checkEdit('R0', 'Remove', A.removeExtra(id), (r) => expect(r.prefs.Breakfast!.extras.map((x) => x.name)).not.toContain('Big Spoon'));
   });
 
@@ -224,5 +224,37 @@ describe('names', () => {
     await store.change('Nickname', A.renameResident('R0', res(store, 'R0').first, res(store, 'R0').last, 'Sunny'));
     await store.change('Clear', A.renameResident('R0', res(store, 'R0').first, res(store, 'R0').last, ''));
     expect(res(store, 'R0').nickname).toBeNull();
+  });
+});
+
+describe('cups and amounts', () => {
+  it('only a glass or to-go cup has Half; a juice moved into one starts at Half', async () => {
+    const { id, ops } = A.addDrink('R0', 'Supper', 'drink', 'Cranberry Juice');
+    await store.change('Add', ops);
+    const d = () => res(store, 'R0').prefs.Supper!.drinks.find((x) => x.id === id)!;
+    expect([d().drinkware, d().amount]).toEqual(['Juice glass', 'Full']);
+    expect(() => A.updateDrink(id, { amount: 'Half' })(store.get().data)).toThrow(/glass or to-go/);
+    await store.change('Cup', A.updateDrink(id, { drinkware: 'To-go cup' }));
+    expect([d().drinkware, d().amount]).toEqual(['To-go cup', 'Half']);
+    await store.change('Cup', A.updateDrink(id, { drinkware: 'Glass' }));
+    expect(d().amount).toBe('Half');
+    await store.change('Full', A.updateDrink(id, { amount: 'Full' }));
+    expect(d().amount).toBe('Full');
+    await store.change('Cup', A.updateDrink(id, { drinkware: 'Juice glass' }));
+    expect(d().amount).toBe('Full');
+  });
+});
+
+describe('no duplicate residents', () => {
+  it('refuses the same first and last name, whatever the capitals or spacing, archived included', async () => {
+    const r0 = res(store, 'R0');
+    const again = A.addResident({ siteId: 'BE', first: ` ${r0.first.toLowerCase()} `, last: r0.last.toUpperCase(), meals: ['Dinner'] });
+    expect(() => again.ops(store.get().data)).toThrow(/already a resident/);
+    // Renaming someone else to that name is refused too; keeping your own name is fine.
+    const r1 = res(store, 'R1');
+    expect(() => A.renameResident('R1', r0.first, r0.last)(store.get().data)).toThrow(/already a resident/);
+    expect(A.renameResident('R1', r1.first, r1.last, 'Sunny')(store.get().data)).toHaveLength(1);
+    await store.change('Archive', A.archiveResident('R0'));
+    expect(() => again.ops(store.get().data)).toThrow(/archived.*Restore/);
   });
 });

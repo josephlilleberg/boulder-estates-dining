@@ -85,7 +85,8 @@ sheet previews scale to fit the window, so nothing needs scrolling.
 The list (sortable by last or first name, searchable) and each resident's card.
 
 - **Name:** first, last and an optional **nickname**. The nickname is what shows on the
-  seating map and server sheets ("Bobby F."). Names typed in lowercase are capitalized.
+  seating map and server sheets ("Bobby F."). Names typed in lowercase are capitalized,
+  and the same first and last name can't be added twice (archived residents included).
 - **Every meal:** chair (Arm chair, Armless chair, No chair) and allergies & notes.
 - **Per meal:**
   - Whether they come.
@@ -94,15 +95,17 @@ The list (sortable by last or first name, searchable) and each resident's card.
     that doesn't count toward the 2, and at Dinner and Supper it's their first drink.
   - Extras (napkins, jelly, fruit…).
   - **Special water** (None / RO / Hot water) and portion (Full / Half).
-- **Drinks** have a cup, an amount, an optional extra water glass, and creamer for coffee.
-  When both drinks are the same juice (for example two cranberry juices), they're
-  **poured together in one glass**. The card says so, and the sheets follow.
+- **Drinks** have a cup, an optional extra glass, and creamer for coffee. Only a glass or a
+  to-go cup comes in Full or Half; a juice moved into one starts at Half. Two halves of the
+  same drink are **poured together**: two juice glasses become one glass, and two half to-go
+  cups become one. The card says so, and the sheets follow.
 - The **⋯** menu offers rename, **Archive** (hides them everywhere but keeps their details,
   and can be restored) and **Delete** (removes them; Undo brings them back).
 
 ### View and Print
 
-- **View** shows each sheet exactly as it will print.
+- **View** shows each sheet exactly as it will print. **Fit width** (the default) makes the
+  sheet as large as the window allows and scrolls down. **Whole page** shows all of it at once.
 - **Print** lets you tick the sheets you want, preview them, and print or save as PDF. The
   setup sheet prints on 11×17 and the others on Letter, so the app opens one print dialog
   per paper size.

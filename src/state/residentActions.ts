@@ -1,5 +1,5 @@
 import type { AppData } from '../db/repo';
-import { tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
+import { hasAmount, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { defaultCoffeeRow, setAttendance } from './actions';
 import { del, patch, put, type Op } from './ops';
@@ -54,6 +54,23 @@ export interface NewResident {
   meals: MealName[];
 }
 
+/**
+ * Someone else at the site with the same first and last name (ignoring capitals and
+ * spacing), archived residents included. Nicknames don't count.
+ */
+export function duplicateOf(data: Pick<AppData, 'residents'>, siteId: SiteId, first: string, last: string, exceptId?: string): Resident | undefined {
+  const key = (f: string, l: string) => `${tidyName(f)} ${tidyName(l)}`.toLowerCase();
+  const k = key(first, last);
+  return data.residents.find((r) => r.siteId === siteId && r.id !== exceptId && key(r.first, r.last) === k);
+}
+
+/** Why a name can't be used, or null. */
+export function duplicateMessage(dup: Resident | undefined): string | null {
+  if (!dup) return null;
+  const name = `${dup.first} ${dup.last}`;
+  return dup.archived ? `${name} is already a resident (archived). Restore them from Archived residents instead.` : `${name} is already a resident.`;
+}
+
 /** Returns the ops and the new id, so the screen can select the new resident. */
 export function addResident(n: NewResident): { id: string; ops: (data: AppData) => Op[] } {
   const id = newId();
@@ -62,8 +79,10 @@ export function addResident(n: NewResident): { id: string; ops: (data: AppData) 
   const nickname = tidyName(n.nickname ?? '') || null;
   return {
     id,
-    ops: () => {
+    ops: (data) => {
       if (!first || !last) throw new Error('First and last name are both needed');
+      const dup = duplicateMessage(duplicateOf(data, n.siteId, first, last));
+      if (dup) throw new Error(dup);
       return [
         put('resident', { id, site_id: n.siteId, first, last, nickname, chair: 'arm', archived: 0 }),
         ...n.meals.flatMap((meal) => [
@@ -83,6 +102,8 @@ export const renameResident = (id: string, first: string, last: string, nickname
   const l = tidyName(last);
   const n = nickname === undefined ? r.nickname : tidyName(nickname) || null;
   if (!f || !l) throw new Error('First and last name are both needed');
+  const dup = duplicateMessage(duplicateOf(data, r.siteId, f, l, r.id));
+  if (dup) throw new Error(dup);
   return f === r.first && l === r.last && n === r.nickname ? [] : [patch('resident', { id }, { first: f, last: l, nickname: n })];
 };
 
@@ -227,8 +248,17 @@ export const updateDrink = (drinkId: string, p: DrinkPatch) => (data: AppData): 
     Object.assign(set, drinkDefaults(beverage(data, r.siteId, p.beverage)));
   }
   if (p.tea !== undefined) set.tea = p.tea;
-  if (p.drinkware !== undefined) set.drinkware = p.drinkware;
-  if (p.amount !== undefined) set.amount = p.amount;
+  if (p.drinkware !== undefined && p.drinkware !== d.drinkware) {
+    set.drinkware = p.drinkware;
+    // Only a glass or to-go cup has Full / Half. A juice poured into one starts at half
+    // (a juice serving is half a glass); anything else starts full.
+    const kind = beverage(data, r.siteId, String(set.beverage ?? d.beverage)).kind;
+    set.amount = hasAmount(p.drinkware) && kind === 'juice' ? 'Half' : 'Full';
+  }
+  if (p.amount !== undefined) {
+    if (p.amount === 'Half' && !hasAmount(String(set.drinkware ?? d.drinkware))) throw new Error('Only a glass or to-go cup can be half');
+    set.amount = p.amount;
+  }
   if (p.extraGlass !== undefined) set.extra_glass = p.extraGlass ? 1 : 0;
   if (p.creamer !== undefined) set.creamer = p.creamer ? 1 : 0;
   return Object.keys(set).length ? [patch('drink', { id: drinkId }, set)] : [];

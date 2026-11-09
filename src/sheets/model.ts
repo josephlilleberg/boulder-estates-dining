@@ -1,5 +1,5 @@
 import type { Beverage, Chair, DiningTable, MealPrefs, Resident } from '../domain/model';
-import { fullName, pouredTogether, shortName } from '../domain/model';
+import { fullName, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
 import { seatGeom } from '../domain/tables';
@@ -267,7 +267,7 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
   for (const d of p.drinks) {
     const bev = beverages.find((b) => b.siteId === r.siteId && b.name === d.beverage);
     if (bev?.kind === 'coffee') continue;
-    // Two of the same juice: one pill, "2 Cran", since it's poured as one glass.
+    // Two halves of the same drink: one pill, "2 Cran Juice", since it's poured as one.
     if (together && d.beverage === together && d.slot === 'drink') {
       if (shown) continue;
       shown = true;
@@ -348,11 +348,12 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   const p = prefsOf(r, meal);
   const dr = p?.drinks ?? [];
   const hasMug = dr.some((x) => x.drinkware === 'Mug') || !!p?.hotWater;
-  // Two of the same juice go in one glass instead of two juice glasses.
-  const together = pouredTogether(dr) ? 1 : 0;
-  const extraGlass = dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0) + together;
-  const juice = dr.filter((x) => x.drinkware === 'Juice glass').length - 2 * together;
-  const togo = dr.filter((x) => x.drinkware === 'To-go cup').length;
+  // Two halves of the same drink are poured together: one glass instead of two juice
+  // glasses, or one to-go cup instead of two.
+  const into = pouredInto(dr);
+  const extraGlass = dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0) + (into === 'Glass' ? 1 : 0);
+  const juice = dr.filter((x) => x.drinkware === 'Juice glass').length - (into === 'Glass' ? 2 : 0);
+  const togo = dr.filter((x) => x.drinkware === 'To-go cup').length - (into === 'To-go cup' ? 1 : 0);
   const out: Change[] = [];
   const add = (n: number, word: string) => {
     if (n > 0) out.push({ text: `+${n > 1 ? `${n} ` : ''}${word}`, bg: '#86EFAC' });

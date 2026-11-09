@@ -1,5 +1,5 @@
 // Wording shared by every screen and sheet. Kept identical to the mockup.
-import type { Beverage, DiningTable, Drink, Extra, Resident, SeatAssignment } from './model';
+import { ANY_KIND, type Beverage, type DiningTable, type Drink, type Extra, type Resident, type SeatAssignment } from './model';
 import type { MealName, Site } from './sites';
 import { getOpening } from './sites';
 
@@ -24,11 +24,12 @@ export function drinkSubtitle(d: Drink, bev: Beverage | undefined): string {
 
 /**
  * Names as written in Settings: "Grape Jelly ×2", "Mixed Fruit Jelly", "Napkins ×2", "Soup Spoon".
- * Fruit shows just the kind ("Banana"). A backup reads "Banana, else Apple".
+ * Fruit shows just the kind ("Banana"). A backup reads "Banana, else Apple" or "…, else any kind".
  */
 export function extraText(x: Pick<Extra, 'name' | 'variant' | 'count'> & { backup?: string | null }): string {
   const main = x.name === 'Fruit' ? (x.variant ?? 'Fruit') : `${x.variant ? `${x.variant} ` : ''}${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`;
-  return x.variant && x.backup ? `${main}, else ${x.backup}` : main;
+  if (!x.variant || !x.backup) return main; // no backup = nothing (the default), not written out
+  return `${main}, else ${x.backup === ANY_KIND ? 'any kind' : x.backup}`;
 }
 
 /** "Comes to Breakfast, Dinner" in the site's meal order. */

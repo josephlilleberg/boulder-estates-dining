@@ -78,7 +78,7 @@ function SetupBody({ room }: { room: SetupRoom }) {
         <Table key={t.id} t={t} />
       ))}
       {room.dividers.map((d, i) => (
-        <div key={i} style={{ position: 'absolute', left: d.l, top: 0, width: 0, height: d.h, borderLeft: '1px solid #E5E7EB' }} />
+        <div key={i} data-sheet-divider style={{ position: 'absolute', left: d.l, top: 0, width: 0, height: d.h, borderLeft: '1px solid #E5E7EB' }} />
       ))}
       {room.titles.map((t, i) => (
         <div key={i} style={{ position: 'absolute', left: t.l, top: t.t, fontSize: 16, fontWeight: 700, color: '#111827' }}>
@@ -122,10 +122,12 @@ const key = (mark: ReactNode, text: string) => (
   </span>
 );
 
-function SetupLegend() {
-  const grid = (cols: number): CSSProperties => ({ display: 'grid', gridTemplateColumns: Array(cols).fill('max-content').join(' '), gap: '6px 18px' });
+/** The setup sheet's key. `vertical` stacks it (View puts it beside the drawing). */
+export function SetupLegend({ vertical = false }: { vertical?: boolean }) {
+  const grid = (cols: number): CSSProperties => ({ display: 'grid', gridTemplateColumns: Array(vertical ? 1 : cols).fill('max-content').join(' '), gap: '6px 18px' });
+  const div: CSSProperties | undefined = vertical ? { borderLeft: 0, borderTop: '1px solid #D1D5DB' } : undefined;
   return (
-    <div style={{ marginTop: 12, width: 'max-content', maxWidth: '100%', display: 'flex', alignItems: 'stretch', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden', fontSize: 13, color: '#111827', background: '#FFFFFF' }}>
+    <div data-sheet-legend style={{ marginTop: vertical ? 0 : 12, width: 'max-content', maxWidth: '100%', display: 'flex', flexDirection: vertical ? 'column' : 'row', alignItems: 'stretch', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden', fontSize: 13, color: '#111827', background: '#FFFFFF' }}>
       <div className="lgcell">
         <div className="lghead">Resident seats</div>
         <div style={grid(3)}>
@@ -134,14 +136,14 @@ function SetupLegend() {
           {key(swatch({ width: 20, height: 8, background: '#FFFFFF', border: CHAIR_PILL.none.border }), CHAIR_LABEL.none)}
         </div>
       </div>
-      <div className="lgcell lgdiv">
+      <div className="lgcell lgdiv" style={div}>
         <div className="lghead">Labels</div>
         <div style={grid(2)}>
           {key(tag('#86EFAC', '+ Item'), 'Add drinkware')}
           {key(tag('#FCA5A5', '− Item'), 'Remove drinkware')}
         </div>
       </div>
-      <div className="lgcell lgdiv">
+      <div className="lgcell lgdiv" style={div}>
         <div className="lghead">Tables</div>
         <div style={grid(1)}>{key(swatch({ width: 24, height: 14, background: '#EDE9FE', border: '1.5px solid #6D28D9' }), 'Creamer tray')}</div>
       </div>
@@ -201,7 +203,7 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
         <div
           style={{ height: b.kind === 'setup' ? page.h - 150 : page.h - 124, boxSizing: 'border-box', paddingTop: 12, display: 'grid', gridTemplateColumns: 'max-content', gap: '12px 20px', alignContent: b.kind === 'setup' ? 'start' : 'center', justifyContent: 'center' }}
         >
-          <div>{b.kind === 'server' ? <ServerBody room={b.room} /> : <SetupBody room={b.room} />}</div>
+          <div data-sheet-room>{b.kind === 'server' ? <ServerBody room={b.room} /> : <SetupBody room={b.room} />}</div>
           {b.kind === 'setup' && <SetupLegend />}
         </div>
       )}

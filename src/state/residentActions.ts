@@ -1,12 +1,28 @@
 import type { AppData } from '../db/repo';
-import { canHaveExtraGlass, hasAmount, MILK_CUPS, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
+import { canHaveExtraGlass, drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { defaultCoffeeRow, setAttendance } from './actions';
 import { del, patch, put, type Op } from './ops';
 
 // Resident edits as (data) → ops. Each one is a single undo step.
 
-export const MAX_DRINKS = 2; // per meal, not counting breakfast coffee
+export const MAX_DRINKS = 2; // per meal, not counting breakfast coffee; a full glass of juice uses both
+
+/** Drink slots used at a meal (see drinkUnits). */
+export function unitsUsed(data: Pick<AppData, 'beverages'>, siteId: SiteId, drinks: Drink[]): number {
+  return drinks.reduce((n, d) => n + drinkUnits(d, data.beverages.find((b) => b.siteId === siteId && b.name === d.beverage)?.kind), 0);
+}
+
+/**
+ * Adding the same juice again (in a juice glass) makes one full glass instead of a second
+ * drink. Returns the drink to turn into a full glass, if that's what adding would do.
+ */
+export function juiceToMerge(data: Pick<AppData, 'beverages'>, siteId: SiteId, drinks: Drink[], beverageName: string): Drink | undefined {
+  const b = data.beverages.find((x) => x.siteId === siteId && x.name === beverageName);
+  if (b?.kind !== 'juice') return undefined;
+  const slots = drinks.filter((d) => d.slot === 'drink');
+  return slots.length === 1 && slots[0]!.beverage === beverageName && slots[0]!.drinkware === 'Juice glass' ? slots[0] : undefined;
+}
 
 const newId = () => crypto.randomUUID();
 const clean = (s: string) => s.trim().replace(/\s+/g, ' ');
@@ -214,8 +230,8 @@ export function addDrink(residentId: string, meal: MealName, slot: Drink['slot']
       if (slot === 'coffee') {
         if (meal !== 'Breakfast') throw new Error('Breakfast coffee is only for breakfast');
         if (drinks.some((d) => d.slot === 'coffee')) throw new Error('They already have breakfast coffee');
-      } else if (drinks.filter((d) => d.slot === 'drink').length >= MAX_DRINKS) {
-        throw new Error(`Up to ${MAX_DRINKS} drinks per meal`);
+      } else if (unitsUsed(data, r.siteId, drinks) >= MAX_DRINKS) {
+        throw new Error(`Up to ${MAX_DRINKS} drinks per meal (a full glass of juice counts as 2)`);
       }
       const b = beverage(data, r.siteId, slot === 'coffee' ? 'Coffee' : beverageName);
       return [
@@ -255,10 +271,12 @@ export const updateDrink = (drinkId: string, p: DrinkPatch) => (data: AppData): 
     const kind = beverage(data, r.siteId, String(set.beverage ?? d.beverage)).kind;
     if (kind === 'coffee' && p.drinkware !== COFFEE_CUP) throw new Error('Coffee always goes in a mug');
     if (kind === 'milk' && !MILK_CUPS.includes(p.drinkware)) throw new Error('Milk goes in a glass, juice glass, to-go cup or milk pitcher');
+    if (kind === 'juice' && !JUICE_CUPS.includes(p.drinkware)) throw new Error('Juice goes in a glass, juice glass or to-go cup');
     set.drinkware = p.drinkware;
-    // Only a glass or to-go cup has Full / Half. A juice poured into one starts at half
-    // (a juice serving is half a glass); anything else starts full.
-    set.amount = hasAmount(p.drinkware) && kind === 'juice' ? 'Half' : 'Full';
+    // Only a glass or to-go cup has Full / Half. Juice: a glass starts full (2 drinks) if
+    // there's room, otherwise half; a to-go cup starts half (one juice's worth).
+    const others = unitsUsed(data, r.siteId, r.prefs[findDrink(data, drinkId).meal]!.drinks.filter((x) => x.id !== drinkId));
+    set.amount = kind === 'juice' && p.drinkware === 'Glass' ? (others + 2 <= MAX_DRINKS ? 'Full' : 'Half') : kind === 'juice' && p.drinkware === 'To-go cup' ? 'Half' : 'Full';
   }
   if (p.amount !== undefined) {
     if (p.amount === 'Half' && !hasAmount(String(set.drinkware ?? d.drinkware))) throw new Error('Only a glass or to-go cup can be half');
@@ -283,6 +301,7 @@ export const updateDrink = (drinkId: string, p: DrinkPatch) => (data: AppData): 
   );
   const self = after.find((x) => x.id === drinkId)!;
   if (p.extraGlass && !canHaveExtraGlass(self, after)) throw new Error('An extra glass goes with a drink in a glass');
+  if (unitsUsed(data, r.siteId, after) > MAX_DRINKS) throw new Error('A full glass of juice counts as 2 drinks. Remove the other drink first.');
   const stale = staleExtraGlass(after);
   if (stale.includes(drinkId)) set.extra_glass = 0;
   return [patch('drink', { id: drinkId }, set), ...stale.filter((id) => id !== drinkId).map((id) => patch('drink', { id }, { extra_glass: 0 }))];

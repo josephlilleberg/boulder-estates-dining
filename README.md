@@ -101,12 +101,15 @@ The list (sortable by last or first name, searchable) and each resident's card.
     Coffee is the default for anyone new to a meal: at Breakfast it's a **Coffee** switch
     that doesn't count toward the 2, and at Dinner and Supper it's their first drink.
   - Extras (napkins, jelly, fruit…). An extra with kinds can have a backup for when the
-    kitchen is out of the first choice: "Banana, else Apple".
+    kitchen is out of the first choice: "Banana, else Apple" or "…, else any kind" (no
+    backup means nothing).
   - **Special water** (None / RO / Hot water) and portion (Full / Half).
 - **Drinks** have a cup, and creamer for coffee. Coffee always goes in a mug; milk goes in a
-  glass, juice glass, to-go cup or milk pitcher. **Extra glass** (one for water) is offered beside a drink in a glass,
+  glass, juice glass, to-go cup or milk pitcher; juice in a glass, juice glass or to-go cup.
+  A full glass or full to-go cup of juice counts as **2 drinks** (a juice glass or a half
+  counts as 1), and adding the same juice again makes one full glass. **Extra glass** (one for water) is offered beside a drink in a glass,
   or beside two of the same juice poured into one glass. Only a glass or a to-go cup comes in
-  Full or Half; a juice moved into one starts at Half. Two halves of the
+  Full or Half. Two halves of the
   same drink are **poured together**: two juice glasses become one glass, and two half to-go
   cups become one. The card says so, and the sheets follow.
 - The **⋯** menu offers rename, **Archive** (hides them everywhere but keeps their details,
@@ -114,8 +117,9 @@ The list (sortable by last or first name, searchable) and each resident's card.
 
 ### View and Print
 
-- **View** shows each sheet exactly as it will print. **Fit width** (the default) makes the
-  sheet as large as the window allows and scrolls down. **Whole page** shows all of it at once.
+- **View** has two zooms. **Drawing** (the default) crops to the tables and labels and fits
+  them to the window with the key beside or under them; **Whole page** shows the sheet exactly
+  as it prints.
 - **Print** lets you tick the sheets you want, preview them, and print or save as PDF. The
   setup sheet prints on 11×17 and the others on Letter, so the app opens one print dialog
   per paper size.

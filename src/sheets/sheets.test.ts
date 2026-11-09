@@ -68,14 +68,15 @@ describe('Setup sheet rules', () => {
     for (const c of setupChanges(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner')) expect(c.bg).toBe(c.text === 'No Mug' ? '#FCA5A5' : '#86EFAC');
   });
 
-  it('two of the same juice are poured together: +Glass instead of +2 Juice, one "2 Cran Juice" pill', () => {
+  it('two of the same juice are poured together into the usual glass: no +2 Juice, one "2 Cran Juice" pill', () => {
     const jg = { drinkware: 'Juice glass' };
-    // Both drinks are juice, so there's no coffee mug either.
+    // Both drinks are juice, so there's no coffee mug either; the juice uses the usual glass.
     const pair = resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]);
-    expect(texts(pair)).toEqual(['+Glass', 'No Mug']);
+    expect(texts(pair)).toEqual(['No Mug']);
     expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cran Juice']);
     // With an extra glass too, the glasses add up.
-    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+2 Glasses']);
+    // With an extra glass (for water), one more glass.
+    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+Glass']);
     // Not the same juice, or not both in juice glasses: nothing is combined.
     expect(texts(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]))).toEqual(['+2 Juice', 'No Mug']);
     expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+Juice', '+To-Go', 'No Mug']);
@@ -89,6 +90,13 @@ describe('Setup sheet rules', () => {
     expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cran Juice']);
     // Full to-go cups aren't combined.
     expect(texts(resident([drink('Cranberry Juice', { drinkware: 'To-go cup' }), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+2 To-Go', 'No Mug']);
+  });
+
+  it('glasses: the usual glass holds the first drink in a glass; more glasses are added', () => {
+    expect(texts(resident([drink('Orange Juice', { drinkware: 'Glass', amount: 'Full' })]))).toEqual(['No Mug']); // full glass of juice
+    expect(texts(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Glass', amount: 'Half' })]))).toEqual(['+Glass', 'No Mug']);
+    const half = serverPills(resident([drink('Orange Juice', { drinkware: 'To-go cup', amount: 'Half' })]), 'Dinner', data().beverages)[0]!;
+    expect([half.cap, half.half, half.cup]).toEqual(['OJ', true, 'To-go']);
   });
 
   it('No Mug only when there is no mug drink and no hot water', () => {

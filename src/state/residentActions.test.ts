@@ -228,20 +228,52 @@ describe('names', () => {
 });
 
 describe('cups and amounts', () => {
-  it('only a glass or to-go cup has Half; a juice moved into one starts at Half', async () => {
+  const only = async (meal: 'Supper') => {
+    for (const o of res(store, 'R0').prefs[meal]?.drinks.filter((x) => x.slot === 'drink') ?? []) await store.change('Remove', A.removeDrink(o.id));
+  };
+
+  it('only a glass or to-go cup has Half; juice: glass starts full, to-go starts half, juice glass is one serving', async () => {
+    await only('Supper');
     const { id, ops } = A.addDrink('R0', 'Supper', 'drink', 'Cranberry Juice');
     await store.change('Add', ops);
     const d = () => res(store, 'R0').prefs.Supper!.drinks.find((x) => x.id === id)!;
     expect([d().drinkware, d().amount]).toEqual(['Juice glass', 'Full']);
     expect(() => A.updateDrink(id, { amount: 'Half' })(store.get().data)).toThrow(/glass or to-go/);
+    expect(() => A.updateDrink(id, { drinkware: 'Mug' })(store.get().data)).toThrow(/Juice goes in/);
     await store.change('Cup', A.updateDrink(id, { drinkware: 'To-go cup' }));
     expect([d().drinkware, d().amount]).toEqual(['To-go cup', 'Half']);
     await store.change('Cup', A.updateDrink(id, { drinkware: 'Glass' }));
-    expect(d().amount).toBe('Half');
-    await store.change('Full', A.updateDrink(id, { amount: 'Full' }));
     expect(d().amount).toBe('Full');
     await store.change('Cup', A.updateDrink(id, { drinkware: 'Juice glass' }));
     expect(d().amount).toBe('Full');
+  });
+
+  it('a full glass or to-go cup of juice counts as 2 drinks', async () => {
+    await only('Supper');
+    const juice = A.addDrink('R0', 'Supper', 'drink', 'Orange Juice');
+    await store.change('Add', juice.ops);
+    await store.change('Glass', A.updateDrink(juice.id, { drinkware: 'Glass' })); // full: both slots
+    expect(A.unitsUsed(store.get().data, 'BE', res(store, 'R0').prefs.Supper!.drinks)).toBe(2);
+    expect(() => A.addDrink('R0', 'Supper', 'drink', '2% Milk').ops(store.get().data)).toThrow(/counts as 2/);
+    await store.change('Half', A.updateDrink(juice.id, { amount: 'Half' })); // half: one slot
+    const milk = A.addDrink('R0', 'Supper', 'drink', '2% Milk');
+    await store.change('Milk', milk.ops);
+    expect(() => A.updateDrink(juice.id, { amount: 'Full' })(store.get().data)).toThrow(/Remove the other drink first/);
+    // With another drink, choosing a glass for juice starts at half instead.
+    await store.change('JG', A.updateDrink(juice.id, { drinkware: 'Juice glass' }));
+    await store.change('Glass', A.updateDrink(juice.id, { drinkware: 'Glass' }));
+    expect(res(store, 'R0').prefs.Supper!.drinks.find((x) => x.id === juice.id)!.amount).toBe('Half');
+  });
+
+  it('adding the same juice again means one full glass', async () => {
+    await only('Supper');
+    const a = A.addDrink('R0', 'Supper', 'drink', 'Apple Juice');
+    await store.change('Add', a.ops);
+    const target = A.juiceToMerge(store.get().data, 'BE', res(store, 'R0').prefs.Supper!.drinks, 'Apple Juice');
+    expect(target?.id).toBe(a.id);
+    expect(A.juiceToMerge(store.get().data, 'BE', res(store, 'R0').prefs.Supper!.drinks, 'Orange Juice')).toBeUndefined();
+    await store.change('Merge', A.updateDrink(a.id, { drinkware: 'Glass' }));
+    expect(res(store, 'R0').prefs.Supper!.drinks.filter((x) => x.slot === 'drink').map((x) => [x.beverage, x.drinkware, x.amount])).toEqual([['Apple Juice', 'Glass', 'Full']]);
   });
 });
 
@@ -299,6 +331,17 @@ describe('extra glass and milk cups', () => {
     expect(() => A.updateDrink(m.id, { drinkware: 'Mug' })(store.get().data)).toThrow(/milk pitcher/);
     await store.change('To-go', A.updateDrink(m.id, { drinkware: 'To-go cup' }));
     expect([jg(m.id).drinkware, jg(m.id).extraGlass]).toEqual(['To-go cup', false]);
+  });
+});
+
+describe('extra backups: any kind', () => {
+  it('"Any kind" reads "…, else any kind"; no backup means nothing and isn\'t written', async () => {
+    const { extraText } = await import('../domain/labels');
+    const { ANY_KIND } = await import('../domain/model');
+    expect(extraText({ name: 'Jelly', variant: 'Mixed Fruit', backup: ANY_KIND, count: 1 })).toBe('Mixed Fruit Jelly, else any kind');
+    expect(extraText({ name: 'Jelly', variant: 'Mixed Fruit', backup: null, count: 1 })).toBe('Mixed Fruit Jelly');
+    await store.change('Add', A.addExtra('R0', 'Breakfast', { name: 'Jelly', variant: 'Mixed Fruit', backup: ANY_KIND, count: 1 }));
+    expect(res(store, 'R0').prefs.Breakfast!.extras.some((x) => x.backup === ANY_KIND)).toBe(true);
   });
 });
 

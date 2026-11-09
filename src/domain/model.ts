@@ -56,6 +56,19 @@ export function pouredInto(drinks: Drink[]): 'Glass' | 'To-go cup' | null {
 /** The drink poured together (see pouredInto), or null. */
 export const pouredTogether = (drinks: Drink[]): string | null => (pouredInto(drinks) ? (drinks.find((x) => x.slot === 'drink')?.beverage ?? null) : null);
 
+/** Juice goes in a glass, juice glass or to-go cup. */
+export const JUICE_CUPS = ['Glass', 'Juice glass', 'To-go cup'];
+
+/**
+ * How many of the resident's drinks (up to 2) this one uses. A juice glass is one serving;
+ * a full glass or full to-go cup of juice is two, so it fills both slots. Breakfast coffee
+ * doesn't count, and the rule is only for juice.
+ */
+export function drinkUnits(d: Pick<Drink, 'slot' | 'drinkware' | 'amount'>, kind: BeverageKind | undefined): number {
+  if (d.slot !== 'drink') return 0;
+  return kind === 'juice' && hasAmount(d.drinkware) && d.amount === 'Full' ? 2 : 1;
+}
+
 /** Milk goes in a glass, juice glass, to-go cup or milk pitcher. */
 export const MILK_CUPS = ['Glass', 'Juice glass', 'To-go cup', 'Milk pitcher'];
 
@@ -68,11 +81,14 @@ export function canHaveExtraGlass(d: Drink, drinks: Drink[]): boolean {
   return d.drinkware === 'Glass' || (pouredInto(drinks) === 'Glass' && d.beverage === pouredTogether(drinks));
 }
 
+/** Backup meaning "any kind will do" ("Mixed Fruit Jelly, else any kind"). */
+export const ANY_KIND = '*any*';
+
 export interface Extra {
   id: string;
   name: string;
   variant: string | null;
-  /** Second choice when the first kind isn't available ("Banana, else Apple"). */
+  /** Second choice when the first kind isn't available: a kind, ANY_KIND, or null (nothing). */
   backup: string | null;
   count: number;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extraText } from '../../domain/labels';
-import { canHaveExtraGlass, fullName, hasAmount, MILK_CUPS, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
+import { ANY_KIND, canHaveExtraGlass, fullName, JUICE_CUPS, hasAmount, MILK_CUPS, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { act, actUndoable } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -251,6 +251,12 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
         <DrinkPicker
           beverages={beverages}
           onPick={async (name) => {
+            // The same juice again: one full glass instead of a second juice glass.
+            const merge = A.juiceToMerge(data, r.siteId, drinks, name);
+            if (merge) {
+              if (await act(`2 ${name}: one full glass`, A.updateDrink(merge.id, { drinkware: 'Glass' }))) onTarget({ kind: 'edit', meal: target.meal, drinkId: merge.id });
+              return;
+            }
             const { id, ops } = A.addDrink(r.id, target.meal, 'drink', name);
             if (await act(`Add ${name}`, ops)) onTarget({ kind: 'edit', meal: target.meal, drinkId: id });
           }}
@@ -266,6 +272,8 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
   const isCoffeeSlot = drink.slot === 'coffee';
   const index = drinks.filter((x) => x.slot === 'drink').findIndex((x) => x.id === drink.id);
   const set = (label: string, p: A.DrinkPatch) => act(label, A.updateDrink(drink.id, p));
+  // A full glass or to-go cup of juice uses both drink slots, so it only fits on its own.
+  const fullFits = kind !== 'juice' || A.unitsUsed(data, r.siteId, drinks.filter((x) => x.id !== drink.id)) === 0;
 
   return (
     <Dialog
@@ -305,7 +313,7 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
         <Field label="Cup">
           {/* Chips, not pills: five options wrap badly in a segmented track. */}
           <div className="chips" role="group" aria-label="Cup">
-            {(kind === 'milk' ? drinkware.filter((w) => MILK_CUPS.includes(w) || w === drink.drinkware) : drinkware).map((w) => (
+            {(kind === 'milk' ? drinkware.filter((w) => MILK_CUPS.includes(w) || w === drink.drinkware) : kind === 'juice' ? drinkware.filter((w) => JUICE_CUPS.includes(w) || w === drink.drinkware) : drinkware).map((w) => (
               <button key={w} type="button" className={w === drink.drinkware ? 'chipbtn on' : 'chipbtn'} aria-pressed={w === drink.drinkware} onClick={() => w !== drink.drinkware && set(`Cup: ${w}`, { drinkware: w })}>
                 {w}
               </button>
@@ -316,7 +324,8 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
       {/* Only a glass or to-go cup has Full / Half; a juice glass or mug is one serving. */}
       {hasAmount(drink.drinkware) && (
         <Field label="Amount">
-          <Seg options={['Full', 'Half']} value={drink.amount} onPick={(a) => set(`${a} ${drink.beverage}`, { amount: a as 'Full' | 'Half' })} label="Amount" />
+          <Seg options={['Full', 'Half']} value={drink.amount} onPick={(a) => (a === 'Full' && !fullFits ? undefined : set(`${a} ${drink.beverage}`, { amount: a as 'Full' | 'Half' }))} label="Amount" />
+          {kind === 'juice' && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#4B5563' }}>{fullFits ? 'Full counts as 2 drinks; half counts as 1.' : 'Full would count as 2 drinks. Remove the other drink first.'}</p>}
         </Field>
       )}
       {/* Creamer for coffee; "Extra glass" only beside a drink in a glass (or a pair of juices poured into one). */}
@@ -495,6 +504,9 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
           <div className="chips" role="group" aria-label="Backup">
             <button type="button" className={!backup ? 'chipbtn on' : 'chipbtn'} aria-pressed={!backup} onClick={() => setBackup(null)}>
               Nothing
+            </button>
+            <button type="button" className={backup === ANY_KIND ? 'chipbtn on' : 'chipbtn'} aria-pressed={backup === ANY_KIND} onClick={() => setBackup(ANY_KIND)}>
+              Any kind
             </button>
             {backups.map((v) => (
               <button key={v} type="button" className={backup === v ? 'chipbtn on' : 'chipbtn'} aria-pressed={backup === v} onClick={() => setBackup(v)}>

@@ -1,5 +1,5 @@
 import type { Beverage, Chair, DiningTable, MealPrefs, Resident } from '../domain/model';
-import { fullName, hasAlert, pouredInto, pouredTogether, shortName } from '../domain/model';
+import { fullName, hasAlert, hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
 import { seatGeom } from '../domain/tables';
@@ -295,7 +295,7 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       cap: pair ? `2 ${short}` : short,
       bg: bev?.color ?? PLAIN,
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
-      half: d.amount === 'Half' && bev?.kind !== 'juice', // juices are never marked half
+      half: d.amount === 'Half' && hasAmount(served), // only a glass or to-go cup comes in halves
       cup: bev && served !== bev.defaultDrinkware ? cupTag(served) : null,
     });
   }
@@ -374,7 +374,11 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   // Two halves of the same drink are poured together: one glass instead of two juice
   // glasses, or one to-go cup instead of two.
   const into = pouredInto(dr);
-  const extraGlass = dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0) + (into === 'Glass' ? 1 : 0);
+  // The usual setting has one glass. It holds the first drink served in a glass (milk, a full
+  // glass of juice, a juice pair poured together); any further glass, an extra glass (for
+  // water) and RO water each add one.
+  const glassDrinks = dr.filter((x) => x.slot === 'drink' && x.drinkware === 'Glass').length + (into === 'Glass' ? 1 : 0);
+  const extraGlass = Math.max(0, glassDrinks - 1) + dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0);
   const juice = dr.filter((x) => x.drinkware === 'Juice glass').length - (into === 'Glass' ? 2 : 0);
   const togo = dr.filter((x) => x.drinkware === 'To-go cup').length - (into === 'To-go cup' ? 1 : 0);
   const pitcher = dr.filter((x) => x.drinkware === 'Milk pitcher').length;

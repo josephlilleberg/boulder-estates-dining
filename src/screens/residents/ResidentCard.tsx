@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { attendanceSummary, drinkSubtitle, extraText, seatLabel } from '../../domain/labels';
-import { CHAIR_LABEL, fullName, pouredInto, pouredTogether, type Chair, type Resident } from '../../domain/model';
+import { CHAIR_LABEL, drinkUnits, fullName, pouredInto, pouredTogether, type Chair, type Resident } from '../../domain/model';
 import type { MealName } from '../../domain/sites';
 import { act } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -142,6 +142,8 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
     const coffee = p?.drinks.filter((d) => d.slot === 'coffee') ?? [];
     const isBk = site.id === 'BE' && m === 'Breakfast';
     const bev = (n: string) => data.beverages.find((b) => b.siteId === site.id && b.name === n);
+    const units = A.unitsUsed(data, site.id, drinks);
+    const fullJuice = drinks.find((d) => drinkUnits(d, bev(d.beverage)?.kind) === 2);
     // Mockup: at Dinner and Supper the only extra is napkins.
     const extrasNote = isBk ? '' : `Only extra napkins at ${m}.`;
 
@@ -175,7 +177,12 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                       Both are {pouredTogether(drinks)}, so they’re poured together in one {pouredInto(drinks) === 'Glass' ? 'glass' : 'to-go cup'}.
                     </div>
                   )}
-                  {drinks.length < A.MAX_DRINKS && (
+                  {fullJuice && (
+                    <div className="grow" style={{ cursor: 'default', fontSize: 13, color: '#374151', background: '#F0FDF4' }}>
+                      A full {fullJuice.drinkware.toLowerCase()} of juice counts as 2 drinks.
+                    </div>
+                  )}
+                  {units < A.MAX_DRINKS && (
                     <button type="button" className="grow" onClick={() => onDrink({ kind: 'add', meal: m })} style={{ color: '#1D4ED8', fontSize: 14, fontWeight: 600 }}>
                       + Add a drink
                     </button>

@@ -55,6 +55,7 @@ export function ResidentsScreen(props: ScreenProps) {
               type="search"
               aria-label="Search residents"
               placeholder="Search by name"
+              data-resident-search
               value={q}
               onChange={(e) => setQ(e.target.value)}
               style={{ width: '100%', boxSizing: 'border-box', height: 40, padding: '0 12px 0 34px', border: 0, background: '#F1F3F5', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', color: '#111827' }}

@@ -9,6 +9,7 @@ import { useStore } from '../../state/store';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 import { cropOf, frameCrop, detailFacts, detailRows, mealRoster, parseSeatKey, pickerList, pickerPosition, seatingScale, seatKey, seatRoom, shortWhere, type SeatKey, type SeatLabel } from './model';
+import { NotSeatedList } from './NotSeatedList';
 import { SeatRoomView } from './SeatRoomView';
 
 export function SeatingScreen({ site, meal, opening, onResident, navigate }: ScreenProps) {
@@ -258,6 +259,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
             </>
           )}
         </section>
+        <NotSeatedList residents={roster.waiting} placingId={cur.pick} onPick={(id) => setCur({ pick: id, sel: null, pop: null })} onDrop={(id, k) => void seat(k, id)} />
       </aside>
     </div>
   );

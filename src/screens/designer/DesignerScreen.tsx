@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { DiningTable, Shape } from '../../domain/model';
 import { clampX, clampY, NUDGE_STEP, overlapWarnings, roomScale, sectionSummary } from '../../domain/room';
-import { act } from '../../state/act';
+import { act, actUndoable } from '../../state/act';
 import { useStore } from '../../state/store';
 import * as T from '../../state/tableActions';
 import { Dialog } from '../../ui/Dialog';
@@ -54,7 +54,7 @@ export function DesignerScreen({ site }: ScreenProps) {
   const remove = (t: DiningTable) => {
     if (T.seatedAt(data, t.id).length) return setConfirmDelete(t);
     setSelectedId(null);
-    void act(`Delete Table ${t.number}`, T.deleteTable(t.id));
+    void actUndoable(`Delete Table ${t.number}`, T.deleteTable(t.id), `Deleted Table ${t.number}`);
   };
   const nudge = (t: DiningTable, dx: number, dy: number) => act(`Move Table ${t.number}`, T.moveTable(t.id, clampX(t.x + dx), clampY(t.y + dy)));
 
@@ -251,7 +251,7 @@ function DeleteTableDialog({ table: t, meals, onClose, onDeleted }: { table: Din
           <button type="button" className="btn" onClick={onClose} data-autofocus>
             Cancel
           </button>
-          <button type="button" className="btn primary" onClick={() => act(`Delete Table ${t.number}`, T.deleteTable(t.id)).then((ok) => ok && onDeleted())}>
+          <button type="button" className="btn primary" onClick={() => actUndoable(`Delete Table ${t.number}`, T.deleteTable(t.id), `Deleted Table ${t.number}`).then((ok) => ok && onDeleted())}>
             Delete table
           </button>
         </>

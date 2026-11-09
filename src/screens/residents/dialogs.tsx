@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { extraText } from '../../domain/labels';
 import { fullName, hasAmount, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
-import { act } from '../../state/act';
+import { act, actUndoable } from '../../state/act';
 import * as A from '../../state/residentActions';
 import { extrasFor } from '../../state/settingsActions';
 import { useStore } from '../../state/store';
@@ -123,7 +123,7 @@ export function ArchiveDialog({ resident: r, seats, onClose }: { resident: Resid
             type="button"
             className="btn primary"
             onClick={async () => {
-              await act(`Archive ${name}`, A.archiveResident(r.id));
+              await actUndoable(`Archive ${name}`, A.archiveResident(r.id), `Archived ${name}`);
               onClose();
             }}
           >
@@ -156,7 +156,7 @@ export function DeleteDialog({ resident: r, onClose }: { resident: Resident; onC
             type="button"
             className="btn danger"
             onClick={async () => {
-              if (await act(`Delete ${name}`, A.deleteResident(r.id))) onClose();
+              if (await actUndoable(`Delete ${name}`, A.deleteResident(r.id), `Deleted ${name}`)) onClose();
             }}
           >
             Delete

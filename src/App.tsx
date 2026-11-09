@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { MealName, SiteId } from './domain/sites';
 import { DEFAULT_MEAL, DEFAULT_SITE, getOpening } from './domain/sites';
-import { ContextStrip } from './shell/ContextStrip';
 import { TopBar } from './shell/TopBar';
 import type { Screen } from './shell/screens';
 import { SCREENS } from './shell/screens';
@@ -13,6 +12,7 @@ import { SettingsScreen } from './screens/settings/SettingsScreen';
 import type { ScreenProps } from './screens/types';
 import { ViewScreen } from './screens/view/ViewScreen';
 import { getStore, useStore } from './state/store';
+import { UndoToast } from './ui/toast';
 
 const SCREEN_COMPONENTS: Record<Screen, (p: ScreenProps) => JSX.Element> = {
   seating: SeatingScreen,
@@ -47,6 +47,30 @@ export function App() {
     if (next && !next.meals.some((m) => m.meal === meal)) setMeal(next.meals[0]!.meal);
   };
 
+  // Shortcuts: Ctrl/⌘+Z undo (outside text boxes), Ctrl/⌘+P Print, Ctrl/⌘+F resident search.
+  useEffect(() => {
+    const isMac = navigator.userAgent.includes('Mac');
+    const onKey = (e: KeyboardEvent) => {
+      if (!(isMac ? e.metaKey : e.ctrlKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      const typing = e.target instanceof HTMLElement && (e.target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName));
+      // On the Mac, ⌘Z comes through the Edit menu (see appMenu), so it isn't handled twice.
+      if (k === 'z' && !e.shiftKey && !typing && !isMac) {
+        e.preventDefault();
+        void getStore().undoLast().catch(() => {});
+      } else if (k === 'p') {
+        e.preventDefault();
+        setScreen('print');
+      } else if (k === 'f') {
+        e.preventDefault();
+        setScreen('residents');
+        window.setTimeout(() => document.querySelector<HTMLInputElement>('input[data-resident-search]')?.focus(), 50);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="app">
       <TopBar
@@ -56,8 +80,13 @@ export function App() {
         error={error}
         undoLabel={undoLabel}
         onUndo={() => getStore().undoLast().catch(() => {})}
+        sites={sites}
+        site={site}
+        meal={opening.meal}
+        showMeals={usesMeal}
+        onSite={changeSite}
+        onMeal={setMeal}
       />
-      <ContextStrip sites={sites} site={site} meal={opening.meal} showMeals={usesMeal} onSite={changeSite} onMeal={setMeal} />
       <div className="content">
         <main className="main">
           {/* key resets per-screen UI state (section pick etc.) when the site changes */}
@@ -73,6 +102,7 @@ export function App() {
           />
         </main>
       </div>
+      <UndoToast />
     </div>
   );
 }

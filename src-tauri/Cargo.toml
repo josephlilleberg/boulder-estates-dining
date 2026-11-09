@@ -1,6 +1,6 @@
 [package]
 name = "boulder-estates-dining"
-version = "0.1.5"
+version = "0.1.6"
 description = "Boulder Estates dining room seating and setup sheets"
 authors = ["Joseph Lilleberg"]
 edition = "2024"

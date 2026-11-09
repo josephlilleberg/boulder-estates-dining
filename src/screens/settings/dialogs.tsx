@@ -4,7 +4,7 @@ import type { BackupFile } from '../../db/types';
 import type { Beverage, BeverageKind, ExtraOption } from '../../domain/model';
 import { DRINK_PALETTE, nextColor, textColorFor } from '../../domain/palette';
 import type { MealName, Site } from '../../domain/sites';
-import { act } from '../../state/act';
+import { act, actUndoable } from '../../state/act';
 import type { Op } from '../../state/ops';
 import * as S from '../../state/settingsActions';
 import { getStore, useStore } from '../../state/store';
@@ -348,7 +348,8 @@ export function MealSectionsDialog({ site, meal, onClose }: { site: Site; meal: 
                 title={o && open.length === 1 ? `${meal} needs at least one section` : undefined}
                 onClick={() => {
                   if (o && seated && !window.confirm(`${seated} resident${seated === 1 ? ' is' : 's are'} seated at the Section ${sec} tables for ${meal}. Close it and move them back to waiting? (Undo brings them back.)`)) return;
-                  void act(`${o ? 'Close' : 'Open'} Section ${sec} tables at ${meal}`, S.setSectionOpen(site.id, meal, sec, !o));
+                  const label = `${o ? 'Close' : 'Open'} Section ${sec} tables at ${meal}`;
+                  void (o ? actUndoable(label, S.setSectionOpen(site.id, meal, sec, false), `Closed the Section ${sec} tables at ${meal}`) : act(label, S.setSectionOpen(site.id, meal, sec, true)));
                 }}
               >
                 <span className={o ? 'box on' : 'box'}>

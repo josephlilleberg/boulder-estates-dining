@@ -67,8 +67,12 @@ The rooms and tables for Boulder Estates' three sections come built in.
 ## Using the app
 
 The top bar runs in shift order: **Seating · Residents · View · Print**, then the setup
-screens, **Room Designer · Settings**. Pick the **meal** (Breakfast, Dinner, Supper) in the
-strip under the top bar. Most screens show that meal.
+screens, **Room Designer · Settings**, with the **meal** picker (Breakfast, Dinner, Supper)
+beside them. On narrower windows the screen names shrink to icons (hover for the name).
+
+**Shortcuts:** Ctrl+Z (⌘Z on Mac) undoes the last change, Ctrl+P opens Print, and Ctrl+F
+jumps to resident search. Big changes (deleting or archiving a resident, closing a section,
+deleting a table) show a pop-up with an **Undo** button.
 
 ### Seating
 
@@ -78,6 +82,9 @@ sheet previews scale to fit the window, so nothing needs scrolling.
 - Click a **+** on an empty seat to seat someone. The picker lists who's not seated yet.
 - Drag a name onto another seat to move them. Drop it on someone else to swap.
 - Click a name to see **Seat details**: their drinks for this meal, chair and notes.
+- A red **!** before a name means they have allergies or notes (also on the server sheet).
+- **Not seated** lists who's coming but has no seat. Drag a name onto a seat, or click it
+  and then a seat.
 - The header counts who's seated, who isn't, and the empty seats.
 
 ### Residents

@@ -1,7 +1,9 @@
 import { Fragment, type ReactNode } from 'react';
 import type { SaveStatus } from '../state/store';
 import type { Screen } from './screens';
+import type { MealName, Site, SiteId } from '../domain/sites';
 import { SCREENS } from './screens';
+import { Segmented } from './Segmented';
 import { installUpdate, useUpdateState } from '../state/updates';
 import { CheckIcon, UndoIcon } from './icons';
 
@@ -13,16 +15,24 @@ interface Props {
   /** Label of the change Undo would reverse; null when there's nothing to undo. */
   undoLabel: string | null;
   onUndo: () => void;
+  sites: Site[];
+  site: Site;
+  meal: MealName;
+  /** Room Designer and Settings don't depend on the meal. */
+  showMeals: boolean;
+  onSite: (id: SiteId) => void;
+  onMeal: (meal: MealName) => void;
 }
 
-export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo }: Props) {
+export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, sites, site, meal, showMeals, onSite, onMeal }: Props) {
+  const enabledSites = sites.filter((s) => s.enabled);
   return (
     <header className="topbar">
       <div className="brand">
         <div className="brand-mark">BE</div>
-        <div>
+        <div className="brand-text">
           <div className="brand-name">Dining</div>
-          <div className="brand-sub">Boulder Estates kitchen</div>
+          <div className="brand-sub">{site.name} kitchen</div>
         </div>
       </div>
 
@@ -36,6 +46,12 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo }:
           </Fragment>
         ))}
       </nav>
+
+      <div className="topmeal">
+        {/* v1 has one dining room, so its picker only appears once there's a choice. */}
+        {enabledSites.length > 1 && <Segmented label="Dining room" options={enabledSites.map((s) => ({ value: s.id, label: s.name }))} value={site.id} onChange={onSite} />}
+        {showMeals && <Segmented label="Meal" options={site.meals.map((m) => ({ value: m.meal, label: m.meal }))} value={meal} onChange={onMeal} />}
+      </div>
 
       <div className="topbar-right">
         <UpdateButton />
@@ -94,9 +110,9 @@ function SaveIndicator({ status, error }: { status: SaveStatus; error: string | 
 
 function NavButton({ on, onClick, icon, children }: { on: boolean; onClick: () => void; icon: ReactNode; children: ReactNode }) {
   return (
-    <button type="button" className={on ? 'nav on' : 'nav'} aria-current={on ? 'page' : undefined} onClick={onClick}>
+    <button type="button" className={on ? 'nav on' : 'nav'} aria-current={on ? 'page' : undefined} onClick={onClick} title={typeof children === 'string' ? children : undefined}>
       {icon}
-      {children}
+      <span className="navlabel">{children}</span>
     </button>
   );
 }

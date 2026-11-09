@@ -1,4 +1,6 @@
 import { useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { hasAlert } from '../../domain/model';
+import { AlertBadge } from '../../sheets/SheetPage';
 import type { SeatKey, SeatLabel, SeatRoom } from './model';
 
 interface Props {
@@ -116,7 +118,10 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
             }}
           >
             {r ? (
-              lab.name
+              <>
+                {hasAlert(r) && <AlertBadge size={Math.max(10, lab.fontSize - 1)} />}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: hasAlert(r) ? 3 : 0 }}>{lab.name}</span>
+              </>
             ) : (
               <svg viewBox="0 0 10 10" width={placing ? 10 : 8} height={placing ? 10 : 8} aria-hidden="true" style={{ display: 'block' }}>
                 <path d="M5 1.5v7M1.5 5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />

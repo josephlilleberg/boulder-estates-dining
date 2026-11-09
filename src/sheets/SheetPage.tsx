@@ -18,6 +18,19 @@ function Table({ t }: { t: TableDraw }) {
   );
 }
 
+/** Red "!" before a name: this resident has allergies or notes (see Allergies & notes). */
+export function AlertBadge({ size = 11 }: { size?: number }) {
+  return (
+    <span
+      aria-label="Allergies or notes"
+      title="Allergies or notes"
+      style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: size, height: size, borderRadius: '50%', background: '#DC2626', color: '#FFFFFF', fontSize: size - 3, fontWeight: 800, lineHeight: 1 }}
+    >
+      !
+    </span>
+  );
+}
+
 function ServerBody({ room }: { room: ServerRoom }) {
   return (
     <div style={roomBox(room.w, room.h)}>
@@ -29,7 +42,10 @@ function ServerBody({ room }: { room: ServerRoom }) {
           key={i}
           style={{ position: 'absolute', left: l.l, top: l.t, width: l.w, height: l.h, transform: `rotate(${l.ang}deg)`, display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: 2, textAlign: 'center' }}
         >
-          <div style={{ height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+            {l.alert && <AlertBadge />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
+          </div>
           {l.items.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               {l.items.map((it, k) => (

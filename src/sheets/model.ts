@@ -1,5 +1,5 @@
 import type { Beverage, Chair, DiningTable, MealPrefs, Resident } from '../domain/model';
-import { fullName, pouredInto, pouredTogether, shortName } from '../domain/model';
+import { fullName, hasAlert, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
 import { seatGeom } from '../domain/tables';
@@ -115,6 +115,8 @@ export interface ServerLabel {
   /** column-reverse when the label reads outward-up, so the name stays against the table. */
   dir: 'column' | 'column-reverse';
   name: string;
+  /** Has allergies or notes: a red ! before the name. */
+  alert: boolean;
   items: Pill[];
 }
 
@@ -245,14 +247,16 @@ const PLAIN = '#F9FAFB';
  * don't fit are clipped by the label box).
  */
 export const CHAR_W = 6.0;
+/** The red ! badge before a name, plus its gap. */
+export const ALERT_W = 14;
 
 /**
  * Width of what a server label actually draws (the name, the widest pill). Its box
  * is wider (84–92 px) so the two seats on a rectangle's long side, 76 px apart,
  * have boxes that overlap while their names and pills don't.
  */
-export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'>): number {
-  const name = l.name.length * CHAR_W;
+export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { alert?: boolean }): number {
+  const name = l.name.length * CHAR_W + (l.alert ? ALERT_W : 0);
   const pills = l.items.map((p) => Math.max(30, 2 + 12 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0)));
   return Math.min(l.w, Math.max(name, ...pills));
 }
@@ -314,7 +318,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       // Pyramid: longest drink next to the name, shortest farthest out.
       const len = (p: Pill) => p.cap.length + (p.half ? 2 : 0);
       items.sort((p, q) => (outUp ? 1 : -1) * (len(p) - len(q)));
-      labels.push({ tableId: t.id, l: sx + nx * off - hw, t: sy + ny * off - H / 2, w: hw * 2, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), items });
+      labels.push({ tableId: t.id, l: sx + nx * off - hw, t: sy + ny * off - H / 2, w: hw * 2, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), alert: hasAlert(r), items });
     });
     tables.push({
       id: t.id,
@@ -611,7 +615,7 @@ export function stressOccupant(meal: string): Occupant {
     nickname: null,
     chair: 'arm',
     archived: false,
-    notes: [],
+    notes: [{ id: 'sn', text: 'No nuts' }], // the red ! badge too: widest label
     attends: [meal as never],
     prefs: {
       [meal]: {

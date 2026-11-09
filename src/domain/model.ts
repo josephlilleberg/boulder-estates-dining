@@ -146,4 +146,7 @@ export function tidyName(raw: string): string {
     .map((w) => (w && w === w.toLowerCase() ? w.replace(/(^|[-'’.])(\p{L})/gu, (_, sep: string, ch: string) => sep + ch.toUpperCase()) : w))
     .join(' ');
 }
+/** Allergies & notes are flagged wherever the resident's name appears on a diagram. */
+export const hasAlert = (r: Pick<Resident, 'notes'>) => r.notes.length > 0;
+
 export const fullName = (r: Pick<Resident, 'first' | 'last'>) => `${r.first} ${r.last}`;

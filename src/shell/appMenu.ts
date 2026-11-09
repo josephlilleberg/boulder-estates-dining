@@ -1,4 +1,5 @@
 import { isTauri } from '../db/tauriDb';
+import { getStore } from '../state/store';
 import { appVersion, checkForUpdate, getUpdateState, installUpdate, onUpdateState } from '../state/updates';
 
 // The native menu bar: on the Mac the app menu (About, Check for Updates…, Quit) plus
@@ -63,7 +64,17 @@ export async function installAppMenu(): Promise<void> {
           await Submenu.new({
             text: 'Edit',
             items: [
-              await PredefinedMenuItem.new({ item: 'Undo' }),
+              // ⌘Z: undo typing inside a text box, otherwise undo the last change in the app.
+              await MenuItem.new({
+                text: 'Undo',
+                accelerator: 'CmdOrCtrl+Z',
+                action: () => {
+                  const el = document.activeElement;
+                  const typing = el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA'].includes(el.tagName));
+                  if (typing) document.execCommand('undo');
+                  else void getStore().undoLast().catch(() => {});
+                },
+              }),
               await PredefinedMenuItem.new({ item: 'Redo' }),
               await sep(),
               await PredefinedMenuItem.new({ item: 'Cut' }),

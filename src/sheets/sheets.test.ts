@@ -174,6 +174,7 @@ describe('Server sheet spacing (stress test: two drinks at every seat)', () => {
     const T = layoutTables().filter((t) => t.section === 1);
     const room = serverRoom(T, stress, 'Dinner', data().beverages);
     for (const l of room.labels) {
+      expect(l.alert).toBe(true); // the stress resident has a note
       expect(Math.abs(l.ang)).toBeLessThanOrEqual(90);
       expect(l.items.map((i) => i.cap).sort()).toEqual(['Choc. Milk', 'Cran Juice']);
       expect(l.items.find((i) => i.cap === 'Cran Juice')).toMatchObject({ half: false, bg: '#C11749', color: '#FFFFFF' });
@@ -234,5 +235,15 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows[0]).toMatchObject({ head: true });
     for (const r of rows) if (!r.head) expect(r.notes !== '' || r.portion === 'Half portion').toBe(true);
+  });
+});
+
+describe('allergy flags', () => {
+  it('a resident with allergies or notes gets the red ! on the server sheet; others do not', () => {
+    const T = layoutTables().filter((t) => t.section === 1).slice(0, 1);
+    const withNote = { ...resident([coffee()]), notes: [{ id: 'n', text: 'Nut allergy' }] };
+    const without = resident([coffee()]);
+    expect(serverRoom(T, (_t, s) => (s === 0 ? withNote : null), 'Dinner', data().beverages).labels[0]!.alert).toBe(true);
+    expect(serverRoom(T, (_t, s) => (s === 0 ? without : null), 'Dinner', data().beverages).labels[0]!.alert).toBe(false);
   });
 });

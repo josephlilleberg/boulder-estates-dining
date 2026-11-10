@@ -164,9 +164,8 @@ export const saveExtraOption = (siteId: SiteId, original: string | null, x: Extr
 
 export const removeExtraOption = (siteId: SiteId, name: string): Op[] => [del('extra_option', { site_id: siteId, name })];
 
-/** Extras offered at a meal: everything at Breakfast, only the every-meal ones otherwise. */
-export const extrasFor = (data: Pick<AppData, 'extraOptions'>, siteId: SiteId, meal: MealName) =>
-  data.extraOptions.filter((o) => o.siteId === siteId && (meal === 'Breakfast' || o.allMeals));
+/** Extras offered on the resident card: the whole list, at every meal (the manager keeps it short). */
+export const extrasFor = (data: Pick<AppData, 'extraOptions'>, siteId: SiteId) => data.extraOptions.filter((o) => o.siteId === siteId);
 
 // ---- Meals & sections --------------------------------------------------------------
 

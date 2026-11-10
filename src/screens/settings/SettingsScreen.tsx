@@ -128,11 +128,10 @@ export function SettingsScreen({ site }: ScreenProps) {
             {extras.map((x) => (
               <button key={x.name} type="button" style={chip} onClick={() => setOpen({ kind: 'extra', option: x })}>
                 {x.name}
-                {x.allMeals ? ' · every meal' : ''}
               </button>
             ))}
           </div>
-          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#4B5563' }}>Breakfast only unless marked “every meal”.</p>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#4B5563' }}>Offered at every meal.</p>
           <button type="button" className="btn sm" onClick={() => setOpen({ kind: 'extra', option: null })}>
             + Add an extra
           </button>

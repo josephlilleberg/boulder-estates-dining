@@ -144,8 +144,6 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
     const bev = (n: string) => data.beverages.find((b) => b.siteId === site.id && b.name === n);
     const units = A.unitsUsed(data, site.id, drinks);
     const fullJuice = drinks.find((d) => drinkUnits(d, bev(d.beverage)?.kind) === 2);
-    // Mockup: at Dinner and Supper the only extra is napkins.
-    const extrasNote = isBk ? '' : `Only extra napkins at ${m}.`;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -219,7 +217,6 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                     <button type="button" className="btn sm" onClick={() => onExtra({ kind: 'add', meal: m })}>
                       + Add an extra
                     </button>
-                    {extrasNote && <span style={{ fontSize: 13, color: '#4B5563' }}>{extrasNote}</span>}
                   </div>
                 </div>
               </div>

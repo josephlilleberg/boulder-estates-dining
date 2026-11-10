@@ -237,7 +237,8 @@ export function ExtraOptionDialog({ site, option, onClose }: { site: Site; optio
   const data = useStore((s) => s.data);
   const [name, setName] = useState(option?.name ?? '');
   const [kinds, setKinds] = useState(option?.variants.join(', ') ?? '');
-  const [allMeals, setAllMeals] = useState(option?.allMeals ?? false);
+  // Every extra is offered at every meal; the stored flag is kept as on.
+  const allMeals = true;
   const [counted, setCounted] = useState(option?.counted ?? true);
   const input = { name, variants: kinds.split(','), allMeals, counted };
   const ops = S.saveExtraOption(site.id, option?.name ?? null, input);
@@ -291,13 +292,6 @@ export function ExtraOptionDialog({ site, option, onClose }: { site: Site; optio
           <input className="text-input" value={kinds} onChange={(e) => setKinds(e.target.value)} placeholder="e.g. Grape, Mixed Fruit" autoComplete="off" />
         </Field>
         <div className="group">
-          <button type="button" className="grow" aria-pressed={allMeals} onClick={() => setAllMeals(!allMeals)}>
-            <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>
-              Offered at every meal
-              <span style={{ display: 'block', fontSize: 12, color: '#4B5563' }}>Off: Breakfast only</span>
-            </span>
-            <SwitchMark on={allMeals} />
-          </button>
           <button type="button" className="grow" aria-pressed={counted} onClick={() => setCounted(!counted)}>
             <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Ask how many</span>
             <SwitchMark on={counted} />

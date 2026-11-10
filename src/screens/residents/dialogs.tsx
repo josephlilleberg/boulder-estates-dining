@@ -370,29 +370,27 @@ const OTHER = '__other__';
 export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTarget; resident: Resident; onClose: () => void }) {
   const residents = useStore((s) => s.data.residents);
   const catalog = useStore((s) => s.data.extraOptions);
-  const options = useMemo(() => extrasFor({ extraOptions: catalog }, r.siteId, target.meal), [catalog, r.siteId, target.meal]);
+  const options = useMemo(() => extrasFor({ extraOptions: catalog }, r.siteId), [catalog, r.siteId]);
   const existing = target.kind === 'edit' ? r.prefs[target.meal]?.extras.find((x) => x.id === target.extraId) : undefined;
-  const isBk = target.meal === 'Breakfast';
 
-  // Everything this site has used at breakfast, so the list grows with real use.
+  // Everything this site has used at any meal, so the list grows with real use.
   const used = useMemo(() => {
     const names = new Set<string>();
     const variants: Record<string, Set<string>> = {};
-    for (const x of residents.filter((y) => y.siteId === r.siteId).flatMap((y) => y.prefs.Breakfast?.extras ?? [])) {
+    for (const x of residents.filter((y) => y.siteId === r.siteId).flatMap((y) => Object.values(y.prefs).flatMap((p) => p?.extras ?? []))) {
       names.add(x.name);
       if (x.variant) (variants[x.name] ??= new Set()).add(x.variant);
     }
     return { names, variants };
   }, [residents, r.siteId]);
 
-  const names = isBk ? [...new Set([...options.map((o) => o.name), ...used.names])] : options.map((o) => o.name);
-  const onlyOne = !isBk && names.length === 1;
+  const names = [...new Set([...options.map((o) => o.name), ...used.names])];
   const startKnown = !existing || names.includes(existing.name);
-  const [pick, setPick] = useState<string>(existing ? (startKnown ? existing.name : OTHER) : onlyOne ? names[0]! : '');
+  const [pick, setPick] = useState<string>(existing ? (startKnown ? existing.name : OTHER) : '');
   const [custom, setCustom] = useState(existing && !startKnown ? existing.name : '');
   const [variant, setVariant] = useState<string | null>(existing?.variant ?? null);
   const [backup, setBackup] = useState<string | null>(existing?.backup ?? null);
-  const [count, setCount] = useState(existing?.count ?? (isBk ? 1 : 2));
+  const [count, setCount] = useState(existing?.count ?? 1);
 
   const name = pick === OTHER ? custom.trim() : pick;
   const opt = options.find((o) => o.name === name);
@@ -442,10 +440,7 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
         </>
       }
     >
-      {onlyOne ? (
-        <p style={{ margin: 0, fontSize: 14, color: '#374151' }}>Only extra {names[0]!.toLowerCase()} at {target.meal}.</p>
-      ) : names.length || isBk ? (
-        <Field label="Item">
+      <Field label="Item">
           <div className="chips">
             {names.map((n, i) => (
               <button
@@ -463,19 +458,14 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
                 {n}
               </button>
             ))}
-            {isBk && (
-              <button type="button" className={pick === OTHER ? 'chipbtn on' : 'chipbtn'} aria-pressed={pick === OTHER} onClick={() => setPick(OTHER)}>
-                Something else…
-              </button>
-            )}
+            <button type="button" className={pick === OTHER ? 'chipbtn on' : 'chipbtn'} aria-pressed={pick === OTHER} onClick={() => setPick(OTHER)}>
+              Something else…
+            </button>
           </div>
           {pick === OTHER && (
             <input className="text-input" style={{ marginTop: 8 }} autoFocus placeholder="e.g. Extra toast" value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void save()} />
           )}
-        </Field>
-      ) : (
-        <p style={{ margin: 0, fontSize: 14, color: '#374151' }}>No extras are offered at {target.meal}. Add some in Settings.</p>
-      )}
+      </Field>
 
       {variants.length > 0 && (
         <Field label={name === 'Fruit' ? 'Which fruit' : 'Kind'}>

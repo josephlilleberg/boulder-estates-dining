@@ -85,7 +85,8 @@ describe('Cups', () => {
     await store.change('Add', S.addDrinkware('BE', 'Sippy cup'));
     expect(data().drinkware.map((w) => w.name)).toContain('Sippy cup');
     const r = someone();
-    const { id, ops } = addDrink(r.id, 'Dinner', 'drink', 'Tea'); // milk and juice have fixed cups; tea doesn't
+    await store.change('New drink', S.addBeverage('BE', { name: 'Lemonade', shortLabel: '', kind: 'other', color: '#FFF59D' }));
+    const { id, ops } = addDrink(r.id, 'Dinner', 'drink', 'Lemonade'); // coffee, tea, milk and juice have fixed cups
     await store.change('Give', ops);
     await store.change('Cup', updateDrink(id, { drinkware: 'Sippy cup' }));
     expect(() => S.removeDrinkware('BE', 'Sippy cup')(data())).toThrow(/uses/);

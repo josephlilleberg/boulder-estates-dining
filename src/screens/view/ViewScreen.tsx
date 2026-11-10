@@ -1,9 +1,8 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { DrawingView } from '../../sheets/DrawingView';
 import { fitPage } from '../../sheets/model';
 import { ScaledPage, SetupLegend } from '../../sheets/SheetPage';
 import { useSheets } from '../../sheets/useSheets';
-import { Segmented } from '../../shell/Segmented';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 
@@ -23,6 +22,7 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
   const [picked, setPicked] = useState('setup');
   const [zoom, setZoomState] = useState<Zoom>(savedZoom);
   const current = sheets.find((s) => s.key === picked) ?? sheets[0]!;
+  const servers = sheets.filter((s) => s.kind === 'server');
   // The sheet box runs to the bottom of the window (card + page padding below it).
   const [boxRef, box] = useFitBox<HTMLDivElement>(28);
   const pg = page(current);
@@ -52,7 +52,37 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
         <h1 className="h1" style={{ marginRight: 4 }}>
           View · {meal}
         </h1>
-        <Segmented label="Sheet" role="tablist" options={sheets.map((s) => ({ value: s.key, label: s.label }))} value={current.key} onChange={setPicked} style={{ flexWrap: 'wrap' }} />
+        {/* One row: Setup · Server 1 2 3 · Allergies & notes, then how to show it. The server
+            sheets share one "Server" label so the section numbers read like Seating's. */}
+        <div className="segwrap" role="tablist" aria-label="Sheet" style={{ alignItems: 'center' }}>
+          {sheets.map((s, i) => {
+            const on = s.key === current.key;
+            const many = servers.length > 1;
+            const firstServer = s.kind === 'server' && sheets[i - 1]?.kind !== 'server';
+            return (
+              <Fragment key={s.key}>
+                {firstServer && many && (
+                  <span aria-hidden="true" style={{ padding: '0 4px 0 10px', fontSize: 12.5, fontWeight: 600, color: '#6B7280' }}>
+                    Server
+                  </span>
+                )}
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  aria-label={s.label}
+                  title={s.label}
+                  className={on ? 'seg on' : 'seg'}
+                  style={s.kind === 'server' && many ? { minWidth: 36, padding: '0 10px' } : undefined}
+                  onClick={() => setPicked(s.key)}
+                >
+                  {s.kind === 'server' ? (many ? s.section : 'Server') : s.label}
+                </button>
+                {s.kind === 'server' && many && sheets[i + 1]?.kind !== 'server' && <span aria-hidden="true" style={{ width: 8 }} />}
+              </Fragment>
+            );
+          })}
+        </div>
         <div style={{ flex: '1 1 0' }} />
         <div className="segwrap" role="group" aria-label="Zoom">
           {(

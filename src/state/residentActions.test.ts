@@ -305,6 +305,18 @@ describe('coffee cup', () => {
   });
 });
 
+describe('tea cup', () => {
+  it('tea always goes in a mug, like coffee', async () => {
+    const { id, ops } = A.addDrink('R0', 'Supper', 'drink', '2% Milk');
+    await store.change('Add', ops);
+    await store.change('Cup', A.updateDrink(id, { drinkware: 'To-go cup' }));
+    await store.change('Tea', A.updateDrink(id, { beverage: 'Tea' }));
+    const d = res(store, 'R0').prefs.Supper!.drinks.find((x) => x.id === id)!;
+    expect([d.beverage, d.drinkware]).toEqual(['Tea', 'Mug']);
+    expect(() => A.updateDrink(id, { drinkware: 'Glass' })(store.get().data)).toThrow(/Tea always goes in a mug/);
+  });
+});
+
 describe('extra glass and milk cups', () => {
   const jg = (id: string) => res(store, 'R0').prefs.Supper!.drinks.find((x) => x.id === id)!;
 
@@ -323,12 +335,13 @@ describe('extra glass and milk cups', () => {
     expect(jg(a.id).extraGlass).toBe(false);
   });
 
-  it('milk goes in a glass, juice glass, to-go cup or pitcher; moving it out of the glass drops the extra glass', async () => {
+  it('milk goes in a glass, juice glass or to-go cup (no pitcher); moving it out of the glass drops the extra glass', async () => {
     const m = A.addDrink('R0', 'Supper', 'drink', '2% Milk');
     for (const o of res(store, 'R0').prefs.Supper?.drinks.filter((x) => x.slot === 'drink') ?? []) await store.change('Remove', A.removeDrink(o.id));
     await store.change('Add', m.ops);
     await store.change('Extra', A.updateDrink(m.id, { extraGlass: true }));
-    expect(() => A.updateDrink(m.id, { drinkware: 'Mug' })(store.get().data)).toThrow(/milk pitcher/);
+    expect(() => A.updateDrink(m.id, { drinkware: 'Mug' })(store.get().data)).toThrow(/glass, juice glass or to-go cup/);
+    expect(() => A.updateDrink(m.id, { drinkware: 'Milk pitcher' })(store.get().data)).toThrow(/glass, juice glass or to-go cup/);
     await store.change('To-go', A.updateDrink(m.id, { drinkware: 'To-go cup' }));
     expect([jg(m.id).drinkware, jg(m.id).extraGlass]).toEqual(['To-go cup', false]);
   });

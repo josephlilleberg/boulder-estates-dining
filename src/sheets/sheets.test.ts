@@ -2,11 +2,11 @@ import initSqlJs from 'sql.js';
 import { seedTestDb } from '../test/seed';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sqljsDb } from '../db/sqljsDb';
-import type { Chair, DiningTable, Drink, MealPrefs, Resident } from '../domain/model';
+import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTable, type Drink, type MealPrefs, type Resident } from '../domain/model';
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { corners, edgeAngle, labelInkWidth, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
+import { corners, edgeAngle, labelInkWidth, MIN_LABEL_SCALE, SEAT_H, SEAT_W, separation, serverPills, serverRoom, serverSeatSpaces, setupChanges, setupRoom, stressOccupant } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -87,7 +87,7 @@ describe('Setup sheet rules', () => {
     const half = { drinkware: 'To-go cup', amount: 'Half' as const };
     const pair = resident([drink('Cranberry Juice', half), drink('Cranberry Juice', half)]);
     expect(texts(pair)).toEqual(['+To-Go', 'No Mug']);
-    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cran Juice']);
+    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => [p.cap, p.half])).toEqual([['2 Cran Juice', false]]); // two halves make a full cup
     // Full to-go cups aren't combined.
     expect(texts(resident([drink('Cranberry Juice', { drinkware: 'To-go cup' }), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+2 To-Go', 'No Mug']);
   });
@@ -141,52 +141,53 @@ describe('Setup sheet rules', () => {
 
 const stress = stressOccupant('Dinner');
 
-describe('Server sheet spacing (stress test: two drinks at every seat)', () => {
-  // A realistic extra: one seat per table also has its drink in an unusual cup (a band).
-  const withBands = (meal: MealName) => {
-    const base = stressOccupant(meal);
-    return (tableId: string, s: number): Resident | null => {
-      const r = base(tableId, s);
-      if (!r || s !== 0) return r;
-      const p = r.prefs[meal]!;
-      return { ...r, prefs: { [meal]: { ...p, drinks: p.drinks.map((d) => (d.beverage === 'Chocolate Milk' ? { ...d, drinkware: 'Milk pitcher', extraGlass: false } : d)) } } };
-    };
-  };
-  for (const [meal, bands] of [['Dinner', false], ['Breakfast', false], ['Supper', false], ['Dinner', true], ['Breakfast', true], ['Supper', true]] as [MealName, boolean][]) {
-    it(`${meal}${bands ? ' with a cup band at every table' : ''}: 0 label overlaps and 0 off-page labels on every server sheet`, () => {
-      const opening = getOpening(site(), meal);
-      for (const sec of opening.sections) {
+describe('Server sheet spacing: any combination fits', () => {
+  // Rotated tables included. Every label is drawn inside its seat's space (SEAT_W × SEAT_H, smaller if it has to be), so
+  // two checks cover any mix of residents: the spaces never overlap, and every label fits its space.
+  for (const meal of ['Breakfast', 'Dinner', 'Supper'] as MealName[]) {
+    it(`${meal}: no two seat spaces overlap, and none is off the page, on any server sheet`, () => {
+      for (const sec of getOpening(site(), meal).sections) {
         const T = layoutTables().filter((t) => t.section === sec.section);
-        const room = serverRoom(T, bands ? withBands(meal) : stressOccupant(meal), meal, data().beverages);
-        expect(room.labels).toHaveLength(T.reduce((n, t) => n + (t.shape === 'round' ? 4 : 6), 0));
-        const rotated = new Set(T.filter((t) => t.rotation % 90 !== 0).map((t) => t.id)); // exempt from the automatic check
-        const boxes: (RotBox & { table: string; label: boolean })[] = [
-          // What the label draws (name and pills), not its wider layout box.
-          ...room.labels.map((l) => ({ cx: l.l + l.w / 2, cy: l.t + l.h / 2, hw: labelInkWidth(l) / 2, hh: l.h / 2, ang: l.ang, table: l.tableId, label: true })),
-          ...room.tables.map((t) => ({ cx: t.l + t.w / 2, cy: t.t + t.h / 2, hw: t.w / 2, hh: t.h / 2, ang: t.rotation, table: t.id, label: false })),
-        ];
+        const B = serverSeatSpaces(T);
         const clashes: string[] = [];
-        boxes.forEach((a, i) =>
-          boxes.forEach((b, j) => {
-            if (j <= i || (!a.label && !b.label)) return;
-            if (a.table === b.table && (!a.label || !b.label)) return; // a label sits against its own table
-            if (rotated.has(a.table) || rotated.has(b.table)) return;
+        B.forEach((a, i) =>
+          B.forEach((b, j) => {
+            if (j <= i || (a.body && b.body)) return;
+            if (a.tableId === b.tableId && (a.body || b.body)) return; // a label sits against its own table
             const m = separation(a, b, 0);
-            if (m) clashes.push(`${sec.label}: ${a.table}/${b.table} by ${m.o.toFixed(1)} px`);
+            if (m) clashes.push(`${sec.label}: ${a.tableId}/${b.tableId} by ${m.o.toFixed(1)} px`);
           }),
         );
         expect(clashes).toEqual([]);
-        for (const l of room.labels) {
-          for (const [x, y] of corners({ cx: l.l + l.w / 2, cy: l.t + l.h / 2, hw: l.w / 2, hh: l.h / 2, ang: l.ang })) {
-            expect(x).toBeGreaterThanOrEqual(0);
-            expect(y).toBeGreaterThanOrEqual(0);
-            expect(x).toBeLessThanOrEqual(room.w);
-            expect(y).toBeLessThanOrEqual(room.h);
-          }
-        }
+        for (const x of B) for (const [px, py] of corners(x)) expect(px >= -0.01 && py >= -0.01 && px <= 972.01 && py <= 676.01).toBe(true);
       }
     });
   }
+
+  it('every combination of drinks, cups, halves, water and a long name fits its seat space, drawn at 78% or larger', () => {
+    const bevs = data().beverages.filter((b) => b.siteId === 'BE' && b.kind !== 'coffee');
+    const cups = data().drinkware.filter((w) => w.siteId === 'BE').map((w) => w.name);
+    const cupsFor = (kind: string) => (kind === 'tea' ? ['Mug'] : kind === 'milk' ? [...MILK_CUPS, 'Milk pitcher'] : kind === 'juice' ? JUICE_CUPS : cups); // pitcher: older records
+    const singles: Drink[] = bevs.flatMap((b) => cupsFor(b.kind).flatMap((w) => (hasAmount(w) ? (['Full', 'Half'] as const) : (['Full'] as const)).map((amount) => drink(b.name, { drinkware: w, amount }))));
+    const kindOf = (d: Drink) => bevs.find((b) => b.name === d.beverage)!.kind;
+    const fits = (ds: Drink[]) => ds.reduce((n, d) => n + drinkUnits(d, kindOf(d)), 0) <= 2;
+    const combos: Drink[][] = [[], ...singles.map((d) => [d]), ...singles.flatMap((d, i) => singles.slice(i).map((e) => [d, { ...e, id: `${e.id}b` }])).filter(fits)];
+    const T = layoutTables().filter((t) => t.shape === 'rect').slice(0, 1);
+    let smallest = 1;
+    let worst = '';
+    for (const ds of combos) {
+      for (const water of [{}, { hotWater: true }, { roWater: true }]) {
+        const r = { ...resident(ds, water), first: 'Wilhelmina', notes: [{ id: 'n', text: 'Nuts' }] };
+        const [l] = serverRoom(T, (_t, s) => (s === 0 ? r : null), 'Dinner', data().beverages).labels;
+        expect(l!.w).toBeLessThanOrEqual(SEAT_W);
+        expect(l!.h).toBeLessThanOrEqual(SEAT_H + 0.01);
+        expect(labelInkWidth(l!)).toBeLessThanOrEqual(SEAT_W);
+        if (l!.scale < smallest) [smallest, worst] = [l!.scale, l!.items.map((i) => `${i.half ? '½ ' : ''}${i.cap}${i.cup ? ` (${i.cup})` : ''}`).join(' + ')];
+      }
+    }
+    expect(combos.length).toBeGreaterThan(500); // 640 today, each with no water, hot water and RO
+    expect(smallest, worst).toBeGreaterThanOrEqual(MIN_LABEL_SCALE);
+  });
 
   it('labels are never upside down; coffee is not shown; half milk gets the ½ tab, juice never', () => {
     const T = layoutTables().filter((t) => t.section === 1);
@@ -199,14 +200,9 @@ describe('Server sheet spacing (stress test: two drinks at every seat)', () => {
     }
     const r = resident([coffee(), drink('2% Milk', { amount: 'Half' })], { hotWater: true, roWater: true });
     const one = serverRoom(T.slice(0, 1), (_t, s) => (s === 0 ? r : null), 'Dinner', data().beverages);
-    expect(one.labels[0]!.items.map((i) => [i.cap, i.half])).toEqual(
-      expect.arrayContaining([
-        ['2% Milk', true],
-        ['Hot water', false],
-        ['RO', false],
-      ]),
-    );
-    expect(one.labels[0]!.items).toHaveLength(3);
+    // Hot water / RO is a tag after the name, not a pill.
+    expect(one.labels[0]!.items.map((i) => [i.cap, i.half])).toEqual([['2% Milk', true]]);
+    expect(one.labels[0]!.water).toBe('HOT');
     expect(edgeAngle(0, 1)).toBe(0); // bottom seat reads upright
   });
 });

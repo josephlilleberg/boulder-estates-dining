@@ -31,6 +31,15 @@ export function AlertBadge({ size = 11 }: { size?: number }) {
   );
 }
 
+/** Hot water or RO water, after the name on a server sheet: a small outlined tag. */
+function WaterTag({ kind }: { kind: 'HOT' | 'RO' }) {
+  return (
+    <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', height: 11, padding: '0 2px', border: '1px solid #111827', borderRadius: 3, fontSize: 8, lineHeight: 1, fontWeight: 800, letterSpacing: '.03em', color: '#111827', background: '#FFFFFF' }}>
+      {kind}
+    </span>
+  );
+}
+
 function ServerBody({ room }: { room: ServerRoom }) {
   return (
     <div style={roomBox(room.w, room.h)}>
@@ -38,33 +47,39 @@ function ServerBody({ room }: { room: ServerRoom }) {
         <Table key={t.id} t={t} />
       ))}
       {room.labels.map((l, i) => (
-        <div
-          key={i}
-          style={{ position: 'absolute', left: l.l, top: l.t, width: l.w, height: l.h, transform: `rotate(${l.ang}deg)`, display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: 2, textAlign: 'center' }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-            {l.alert && <AlertBadge />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
-          </div>
-          {l.items.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              {l.items.map((it, k) => (
-                <div
-                  key={k}
-                  style={{ boxSizing: 'border-box', minWidth: 30, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
-                >
-                  <div style={{ display: 'flex', height: 16, justifyContent: 'center' }}>
-                    {it.half && <span style={{ display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
-                    <span style={{ display: 'flex', alignItems: 'center', padding: '0 6px' }}>{it.cap}</span>
-                  </div>
-                  {/* Not the drink's usual cup: named in a dark band, the same dark as the ½ tab. */}
-                  {it.cup && (
-                    <div style={{ height: CUP_BAND_H, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 8, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
-                  )}
-                </div>
-              ))}
+        // The seat's space, turned to face the table; inside it the label is drawn at full size
+        // and scaled down only when it has more in it than the space holds.
+        <div key={i} style={{ position: 'absolute', left: l.l, top: l.t, width: l.w, height: l.h, transform: `rotate(${l.ang}deg)` }}>
+          <div
+            style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: 2, textAlign: 'center' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+              {l.alert && <AlertBadge />}
+              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
+              {l.water && <WaterTag kind={l.water} />}
             </div>
-          )}
+            {l.items.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                {l.items.map((it, k) => (
+                  <div
+                    key={k}
+                    style={{ boxSizing: 'border-box', minWidth: 30, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
+                  >
+                    <div style={{ display: 'flex', height: 16, justifyContent: 'center' }}>
+                      {it.half && <span style={{ display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
+                      <span style={{ display: 'flex', alignItems: 'center', padding: '0 6px' }}>{it.cap}</span>
+                    </div>
+                    {/* Not the drink's usual cup: named in a dark band, the same dark as the ½ tab.
+                        With a ½ tab too, a white hairline keeps the two dark marks apart (inside
+                        the band's height, so the pill doesn't grow). */}
+                    {it.cup && (
+                      <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: it.half ? '1px solid #FFFFFF' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 8, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       ))}
     </div>

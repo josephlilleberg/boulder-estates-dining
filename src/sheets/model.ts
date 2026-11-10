@@ -125,7 +125,11 @@ export interface ServerLabel {
   name: string;
   /** Has allergies or notes: a red ! before the name. */
   alert: boolean;
+  /** Hot water or RO water: a small tag after the name. */
+  water: 'HOT' | 'RO' | null;
   items: Pill[];
+  /** Drawn at this scale (1 = full size) so the label fits its seat's space. */
+  scale: number;
 }
 
 export interface ServerRoom {
@@ -140,26 +144,33 @@ const SG = 0.825;
 const AW = 972;
 const AH = 676;
 const EDGE = 8;
-/** Every label is sized for two drinks when spacing tables, so a full room still fits. */
-const FIT_HW = 42;
-const FIT_LH = 14 + 2 + 2 * 20;
+/**
+ * The space every server label gets at its seat. Wider than about 76 px and two seats on a
+ * rectangle's long side (or round a corner) touch; the height is what the page can give every
+ * seat at once. A label with more in it is drawn smaller to fit, so any combination of drinks,
+ * cups and names fits without overlapping (see the every-combination test).
+ */
+export const SEAT_W = 74;
+export const SEAT_H = 58;
+/** The smallest a label is drawn; the test checks every real combination stays at or above it. */
+export const MIN_LABEL_SCALE = 0.78;
 
 type Spot = { x: number; y: number };
 
-function serverShapes(t: DiningTable, p: Spot, lh: (seat: number) => number = () => FIT_LH): (RotBox & { body?: boolean })[] {
+function serverShapes(t: DiningTable, p: Spot): (RotBox & { body?: boolean })[] {
   const round = t.shape === 'round';
   const a = (t.rotation * Math.PI) / 180;
   const c = Math.cos(a);
   const s = Math.sin(a);
   const out: (RotBox & { body?: boolean })[] = [{ cx: p.x, cy: p.y, hw: ((round ? 92 : 182) * SG) / 2, hh: (92 * SG) / 2, ang: t.rotation, body: true }];
-  seatGeom(t.shape).forEach((g, i) => {
-    const h = lh(i);
+  seatGeom(t.shape).forEach((g) => {
+    const h = SEAT_H;
     const sx = p.x + (g[0] * c - g[1] * s) * SG;
     const sy = p.y + (g[0] * s + g[1] * c) * SG;
     const nx = g[2] * c - g[3] * s;
     const ny = g[2] * s + g[3] * c;
     const off = -13 * SG + 3 + h / 2;
-    out.push({ cx: sx + nx * off, cy: sy + ny * off, hw: FIT_HW, hh: h / 2, ang: edgeAngle(nx, ny) });
+    out.push({ cx: sx + nx * off, cy: sy + ny * off, hw: SEAT_W / 2, hh: h / 2, ang: edgeAngle(nx, ny) });
   });
   return out;
 }
@@ -169,16 +180,14 @@ function serverShapes(t: DiningTable, p: Spot, lh: (seat: number) => number = ()
  * fill the page, then any two tables whose labels would touch are nudged apart a
  * few px at a time, staying on the page. The room layout itself never changes.
  */
-export function serverFit(T: DiningTable[], labelH: (t: DiningTable, seat: number) => number = () => FIT_LH): Map<string, Spot> {
-  // Room kept for each seat's label: two drinks by default, more where cup bands make it taller.
-  const lhOf = new Map(T.map((t) => [t.id, (seat: number) => Math.max(FIT_LH, labelH(t, seat))]));
+export function serverFit(T: DiningTable[]): Map<string, Spot> {
   const bbox = (spx: number, spy: number) => {
     let x0 = 1e9;
     let y0 = 1e9;
     let x1 = -1e9;
     let y1 = -1e9;
     for (const t of T) {
-      for (const r of serverShapes(t, { x: t.x * spx, y: t.y * spy }, lhOf.get(t.id))) {
+      for (const r of serverShapes(t, { x: t.x * spx, y: t.y * spy })) {
         for (const [x, y] of corners(r)) {
           x0 = Math.min(x0, x);
           x1 = Math.max(x1, x);
@@ -209,7 +218,7 @@ export function serverFit(T: DiningTable[], labelH: (t: DiningTable, seat: numbe
 
   for (let it = 0; it < 120; it++) {
     let moved = false;
-    const S = T.map((t, i) => serverShapes(t, pos[i]!, lhOf.get(t.id)));
+    const S = T.map((t, i) => serverShapes(t, pos[i]!));
     for (let i = 0; i < T.length; i++) {
       for (let j = i + 1; j < T.length; j++) {
         for (const A of S[i]!) {
@@ -232,7 +241,7 @@ export function serverFit(T: DiningTable[], labelH: (t: DiningTable, seat: numbe
       let y0 = 1e9;
       let x1 = -1e9;
       let y1 = -1e9;
-      for (const r of serverShapes(t, pos[i]!, lhOf.get(t.id))) {
+      for (const r of serverShapes(t, pos[i]!)) {
         for (const [x, y] of corners(r)) {
           x0 = Math.min(x0, x);
           x1 = Math.max(x1, x);
@@ -260,19 +269,25 @@ const PLAIN = '#F9FAFB';
 export const CHAR_W = 6.0;
 /** The red ! badge before a name, plus its gap. */
 export const ALERT_W = 14;
+/** The HOT / RO tag after a name, plus its gap. */
+export const waterTagW = (w: ServerLabel['water']) => (w ? 3 + 6 + w.length * 5.6 : 0);
+
+/** Full-size width of one drink pill: the ½ tab, the name, or its cup band if wider. */
+export const pillW = (p: Pill) => Math.max(30, 2 + 12 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 : 0);
+/** Full-size height of a label: the name line, then its pills (a cup band adds a little). */
+export const labelH = (items: Pill[]) => 14 + (items.length ? 2 + items.reduce((h, x) => h + 20 + (x.cup ? CUP_BAND_H : 0), 0) : 0);
 
 /**
  * Width of what a server label actually draws (the name, the widest pill). Its box
  * is wider (84–92 px) so the two seats on a rectangle's long side, 76 px apart,
  * have boxes that overlap while their names and pills don't.
  */
-export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { alert?: boolean }): number {
-  const name = l.name.length * CHAR_W + (l.alert ? ALERT_W : 0);
-  const pills = l.items.map((p) => Math.max(30, 2 + 12 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 : 0));
-  return Math.min(l.w, Math.max(name, ...pills));
+export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { alert?: boolean; water?: ServerLabel['water']; scale?: number }): number {
+  const name = l.name.length * CHAR_W + (l.alert ? ALERT_W : 0) + waterTagW(l.water ?? null);
+  return Math.min(l.w, Math.max(name, ...l.items.map(pillW)) * (l.scale ?? 1));
 }
 
-/** One pill per drink (coffee isn't shown: everyone is offered it), then Hot water and RO. */
+/** One pill per drink (coffee isn't shown: everyone is offered it). Hot water and RO are a tag by the name. */
 export function serverPills(r: Resident, meal: string, beverages: Beverage[]): Pill[] {
   const p = prefsOf(r, meal);
   if (!p) return [];
@@ -295,21 +310,25 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       cap: pair ? `2 ${short}` : short,
       bg: bev?.color ?? PLAIN,
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
-      half: d.amount === 'Half' && hasAmount(served), // only a glass or to-go cup comes in halves
+      // Only a glass or to-go cup comes in halves; two halves poured together make a full one.
+      half: !pair && d.amount === 'Half' && hasAmount(served),
       cup: bev && served !== bev.defaultDrinkware ? cupTag(served) : null,
     });
   }
-  if (p.hotWater) items.push({ cap: 'Hot water', bg: PLAIN, color: '#111827', half: false });
-  if (p.roWater) items.push({ cap: 'RO', bg: PLAIN, color: '#111827', half: false });
   return items;
 }
 
+/**
+ * The space kept for every seat's label on a server sheet, where serverRoom puts the tables.
+ * Each label is drawn inside its seat's space, so if these never overlap, no labels can.
+ */
+export function serverSeatSpaces(T: DiningTable[]): (RotBox & { tableId: string; body: boolean })[] {
+  const at = serverFit(T);
+  return T.flatMap((t) => serverShapes(t, at.get(t.id)!).map((b) => ({ ...b, tableId: t.id, body: !!b.body })));
+}
+
 export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[]): ServerRoom {
-  const labelH = (p: Pill[]) => 14 + (p.length ? 2 + p.reduce((h, x) => h + 20 + (x.cup ? CUP_BAND_H : 0), 0) : 0);
-  const at = serverFit(T, (t, seat) => {
-    const r = occupant(t.id, seat);
-    return r ? labelH(serverPills(r, meal, beverages)) : 0;
-  });
+  const at = serverFit(T);
   const tables: TableDraw[] = [];
   const labels: ServerLabel[] = [];
   for (const t of T) {
@@ -329,15 +348,18 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const ny = g[2] * s + g[3] * c;
       const ang = edgeAngle(nx, ny);
       const items = serverPills(r, meal, beverages);
-      const hw = items.some((x) => x.half) ? 46 : 42;
-      const H = labelH(items);
+      const p = prefsOf(r, meal);
+      const water = p?.hotWater ? 'HOT' : p?.roWater ? 'RO' : null;
+      // Drawn smaller only if the pills don't fit the seat's space (the name is cut short instead).
+      const k = Math.min(1, Math.floor(Math.min(SEAT_W / Math.max(1, ...items.map(pillW)), SEAT_H / labelH(items)) * 100) / 100);
+      const H = labelH(items) * k;
       const off = -13 * SG + 3 + H / 2;
       const ar = (ang * Math.PI) / 180;
       const outUp = nx * Math.sin(ar) - ny * Math.cos(ar) > 0;
       // Pyramid: longest drink next to the name, shortest farthest out.
       const len = (p: Pill) => p.cap.length + (p.half ? 2 : 0);
       items.sort((p, q) => (outUp ? 1 : -1) * (len(p) - len(q)));
-      labels.push({ tableId: t.id, l: sx + nx * off - hw, t: sy + ny * off - H / 2, w: hw * 2, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), alert: hasAlert(r), items });
+      labels.push({ tableId: t.id, l: sx + nx * off - SEAT_W / 2, t: sy + ny * off - H / 2, w: SEAT_W, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), alert: hasAlert(r), water, items, scale: k });
     });
     tables.push({
       id: t.id,

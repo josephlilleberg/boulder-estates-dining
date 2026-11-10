@@ -69,8 +69,11 @@ export function drinkUnits(d: Pick<Drink, 'slot' | 'drinkware' | 'amount'>, kind
   return kind === 'juice' && hasAmount(d.drinkware) && d.amount === 'Full' ? 2 : 1;
 }
 
-/** Milk goes in a glass, juice glass, to-go cup or milk pitcher. */
-export const MILK_CUPS = ['Glass', 'Juice glass', 'To-go cup', 'Milk pitcher'];
+/**
+ * Milk goes in a glass, juice glass or to-go cup. (Older records may still have a milk
+ * pitcher; it's kept until someone changes the cup.)
+ */
+export const MILK_CUPS = ['Glass', 'Juice glass', 'To-go cup'];
 
 /**
  * "Extra glass" (a second glass, for water) only makes sense beside a drink in a glass:

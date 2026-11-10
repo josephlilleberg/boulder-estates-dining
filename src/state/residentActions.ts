@@ -200,13 +200,14 @@ export const setPortion = (id: string, meal: MealName, portion: Portion) => (dat
 export const TEAS = ['Chamomile', 'Black Tea', 'Green Tea'];
 
 /** Field values a drink takes when its beverage is (re)chosen. */
-/** Coffee always goes in a mug. */
+/** Coffee and tea always go in a mug. */
 export const COFFEE_CUP = 'Mug';
+export const inMug = (kind: Beverage['kind'] | undefined) => kind === 'coffee' || kind === 'tea';
 
 function drinkDefaults(b: Beverage) {
   return {
     beverage: b.name,
-    drinkware: b.kind === 'coffee' ? COFFEE_CUP : b.defaultDrinkware,
+    drinkware: inMug(b.kind) ? COFFEE_CUP : b.defaultDrinkware,
     tea: b.kind === 'tea' ? TEAS[0]! : null,
     amount: 'Full' as Portion,
     creamer: 0,
@@ -269,8 +270,8 @@ export const updateDrink = (drinkId: string, p: DrinkPatch) => (data: AppData): 
   if (p.tea !== undefined) set.tea = p.tea;
   if (p.drinkware !== undefined && p.drinkware !== d.drinkware) {
     const kind = beverage(data, r.siteId, String(set.beverage ?? d.beverage)).kind;
-    if (kind === 'coffee' && p.drinkware !== COFFEE_CUP) throw new Error('Coffee always goes in a mug');
-    if (kind === 'milk' && !MILK_CUPS.includes(p.drinkware)) throw new Error('Milk goes in a glass, juice glass, to-go cup or milk pitcher');
+    if (inMug(kind) && p.drinkware !== COFFEE_CUP) throw new Error(`${kind === 'tea' ? 'Tea' : 'Coffee'} always goes in a mug`);
+    if (kind === 'milk' && !MILK_CUPS.includes(p.drinkware)) throw new Error('Milk goes in a glass, juice glass or to-go cup');
     if (kind === 'juice' && !JUICE_CUPS.includes(p.drinkware)) throw new Error('Juice goes in a glass, juice glass or to-go cup');
     set.drinkware = p.drinkware;
     // Only a glass or to-go cup has Full / Half. Juice: a glass starts full (2 drinks) if

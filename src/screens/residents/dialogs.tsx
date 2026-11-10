@@ -188,7 +188,7 @@ const DRINK_TYPES: { kind: BeverageKind; label: string }[] = [
  * Top-down drink choice: pick the type (Milk, Juice, Coffee…), then the drink within it
  * (2% Milk, Skim Milk…). A type with only one drink, like Coffee, is picked in one click.
  */
-function DrinkPicker({ beverages, value, onPick }: { beverages: Beverage[]; value?: string; onPick: (name: string) => void }) {
+function DrinkPicker({ beverages, value, onPick, onKind }: { beverages: Beverage[]; value?: string; onPick: (name: string) => void; onKind?: (kind: BeverageKind) => void }) {
   const current = beverages.find((b) => b.name === value);
   const [kind, setKind] = useState<BeverageKind | null>(current?.kind ?? null);
   const types = DRINK_TYPES.filter((t) => beverages.some((b) => b.kind === t.kind));
@@ -208,6 +208,7 @@ function DrinkPicker({ beverages, value, onPick }: { beverages: Beverage[]; valu
                 data-autofocus={(!current && i === 0) || undefined}
                 onClick={() => {
                   setKind(t.kind);
+                  onKind?.(t.kind);
                   if (inType.length === 1 && inType[0]!.name !== value) onPick(inType[0]!.name);
                 }}
               >
@@ -239,6 +240,9 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
   const drinks = r.prefs[target.meal]?.drinks ?? [];
   const d = target.kind === 'edit' ? drinks.find((x) => x.id === target.drinkId) : undefined;
   const gone = target.kind === 'edit' && !d; // e.g. removed, or Undo took it away
+  // The type clicked in the picker. Until a drink of that type is picked, the old drink's
+  // cup, tea and so on are hidden, so they're never shown under the wrong type.
+  const [browsing, setBrowsing] = useState<{ drinkId: string; kind: BeverageKind } | null>(null);
 
   useEffect(() => {
     if (gone) onClose();
@@ -270,6 +274,7 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
   const bev = beverages.find((b) => b.name === drink.beverage);
   const kind = bev?.kind ?? 'other';
   const isCoffeeSlot = drink.slot === 'coffee';
+  const picking = browsing?.drinkId === drink.id && browsing.kind !== kind;
   const index = drinks.filter((x) => x.slot === 'drink').findIndex((x) => x.id === drink.id);
   const set = (label: string, p: A.DrinkPatch) => act(label, A.updateDrink(drink.id, p));
   // A full glass or to-go cup of juice uses both drink slots, so it only fits on its own.
@@ -299,50 +304,54 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
         </>
       }
     >
-      {!isCoffeeSlot && <DrinkPicker key={drink.id} beverages={beverages} value={drink.beverage} onPick={(name) => set(`Drink: ${name}`, { beverage: name })} />}
-      {kind === 'tea' && (
-        <Field label="Tea">
-          <Seg options={A.TEAS} value={drink.tea ?? ''} onPick={(tea) => set(`Tea: ${tea}`, { tea })} label="Tea" />
-        </Field>
-      )}
-      {kind === 'coffee' ? (
-        <Field label="Cup">
-          <p style={{ margin: 0, fontSize: 14, color: '#374151' }}>Mug. Coffee always goes in a mug.</p>
-        </Field>
-      ) : (
-        <Field label="Cup">
-          {/* Chips, not pills: five options wrap badly in a segmented track. */}
-          <div className="chips" role="group" aria-label="Cup">
-            {(kind === 'milk' ? drinkware.filter((w) => MILK_CUPS.includes(w) || w === drink.drinkware) : kind === 'juice' ? drinkware.filter((w) => JUICE_CUPS.includes(w) || w === drink.drinkware) : drinkware).map((w) => (
-              <button key={w} type="button" className={w === drink.drinkware ? 'chipbtn on' : 'chipbtn'} aria-pressed={w === drink.drinkware} onClick={() => w !== drink.drinkware && set(`Cup: ${w}`, { drinkware: w })}>
-                {w}
-              </button>
-            ))}
-          </div>
-        </Field>
-      )}
-      {/* Only a glass or to-go cup has Full / Half; a juice glass or mug is one serving. */}
-      {hasAmount(drink.drinkware) && (
-        <Field label="Amount">
-          <Seg options={['Full', 'Half']} value={drink.amount} onPick={(a) => (a === 'Full' && !fullFits ? undefined : set(`${a} ${drink.beverage}`, { amount: a as 'Full' | 'Half' }))} label="Amount" />
-          {kind === 'juice' && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#4B5563' }}>{fullFits ? 'Full counts as 2 drinks; half counts as 1.' : 'Full would count as 2 drinks. Remove the other drink first.'}</p>}
-        </Field>
-      )}
-      {/* Creamer for coffee; "Extra glass" only beside a drink in a glass (or a pair of juices poured into one). */}
-      {(kind === 'coffee' || canHaveExtraGlass(drink, drinks)) && (
-        <div className="group">
-          {kind === 'coffee' ? (
-            <button type="button" className="grow" aria-pressed={drink.creamer} onClick={() => set(`Creamer ${drink.creamer ? 'off' : 'on'}`, { creamer: !drink.creamer })}>
-              <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Creamer</span>
-              <SwitchMark on={drink.creamer} />
-            </button>
-          ) : (
-            <button type="button" className="grow" aria-pressed={drink.extraGlass} onClick={() => set(`Extra glass ${drink.extraGlass ? 'off' : 'on'}`, { extraGlass: !drink.extraGlass })}>
-              <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Extra glass</span>
-              <SwitchMark on={drink.extraGlass} />
-            </button>
+      {!isCoffeeSlot && <DrinkPicker key={drink.id} beverages={beverages} value={drink.beverage} onPick={(name) => set(`Drink: ${name}`, { beverage: name })} onKind={(k) => setBrowsing({ drinkId: drink.id, kind: k })} />}
+      {!picking && (
+        <>
+          {kind === 'tea' && (
+            <Field label="Tea">
+              <Seg options={A.TEAS} value={drink.tea ?? ''} onPick={(tea) => set(`Tea: ${tea}`, { tea })} label="Tea" />
+            </Field>
           )}
-        </div>
+          {kind === 'coffee' || kind === 'tea' ? (
+            <Field label="Cup">
+              <p style={{ margin: 0, fontSize: 14, color: '#374151' }}>Mug. {kind === 'tea' ? 'Tea' : 'Coffee'} always goes in a mug.</p>
+            </Field>
+          ) : (
+            <Field label="Cup">
+              {/* Chips, not pills: five options wrap badly in a segmented track. */}
+              <div className="chips" role="group" aria-label="Cup">
+                {(kind === 'milk' ? drinkware.filter((w) => MILK_CUPS.includes(w) || w === drink.drinkware) : kind === 'juice' ? drinkware.filter((w) => JUICE_CUPS.includes(w) || w === drink.drinkware) : drinkware).map((w) => (
+                  <button key={w} type="button" className={w === drink.drinkware ? 'chipbtn on' : 'chipbtn'} aria-pressed={w === drink.drinkware} onClick={() => w !== drink.drinkware && set(`Cup: ${w}`, { drinkware: w })}>
+                    {w}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          )}
+          {/* Only a glass or to-go cup has Full / Half; a juice glass or mug is one serving. */}
+          {hasAmount(drink.drinkware) && (
+            <Field label="Amount">
+              <Seg options={['Full', 'Half']} value={drink.amount} onPick={(a) => (a === 'Full' && !fullFits ? undefined : set(`${a} ${drink.beverage}`, { amount: a as 'Full' | 'Half' }))} label="Amount" />
+              {kind === 'juice' && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#4B5563' }}>{fullFits ? 'Full counts as 2 drinks; half counts as 1.' : 'Full would count as 2 drinks. Remove the other drink first.'}</p>}
+            </Field>
+          )}
+          {/* Creamer for coffee; "Extra glass" only beside a drink in a glass (or a pair of juices poured into one). */}
+          {(kind === 'coffee' || canHaveExtraGlass(drink, drinks)) && (
+            <div className="group">
+              {kind === 'coffee' ? (
+                <button type="button" className="grow" aria-pressed={drink.creamer} onClick={() => set(`Creamer ${drink.creamer ? 'off' : 'on'}`, { creamer: !drink.creamer })}>
+                  <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Creamer</span>
+                  <SwitchMark on={drink.creamer} />
+                </button>
+              ) : (
+                <button type="button" className="grow" aria-pressed={drink.extraGlass} onClick={() => set(`Extra glass ${drink.extraGlass ? 'off' : 'on'}`, { extraGlass: !drink.extraGlass })}>
+                  <span style={{ flex: 1, fontSize: 14, color: '#111827' }}>Extra glass</span>
+                  <SwitchMark on={drink.extraGlass} />
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </Dialog>
   );

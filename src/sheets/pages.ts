@@ -88,7 +88,7 @@ export function buildPage(
       title: `${meal} · ${label}`,
       right: `Server sheet · ${site.name}`,
       legendHead: 'Key',
-      legendText: 'Each label is a drink. Dark ½ tab = half. Dark band under a drink = not its usual cup (e.g. PITCHER, TO-GO). Red ! = allergies or notes; see the Allergies & notes sheet. Coffee isn’t shown; everyone is offered it.',
+      legendText: 'Each label is a drink. Dark ½ tab = half. Dark band under a drink = not its usual cup (e.g. PITCHER, TO-GO). HOT / RO after a name = hot water / RO water. Red ! = allergies or notes; see the Allergies & notes sheet. Coffee isn’t shown; everyone is offered it.',
       body: { kind: 'server', room: serverRoom(tables.filter((t) => t.section === sheet.section), occupant, meal, data.beverages) },
     };
   }

@@ -1,7 +1,7 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { DrawingView } from '../../sheets/DrawingView';
 import { fitPage } from '../../sheets/model';
-import { ScaledPage, SetupLegend } from '../../sheets/SheetPage';
+import { ScaledPage, ServerNotes, SetupLegend } from '../../sheets/SheetPage';
 import { useSheets } from '../../sheets/useSheets';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
@@ -52,7 +52,7 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
         <h1 className="h1" style={{ marginRight: 4 }}>
           View · {meal}
         </h1>
-        {/* One row: Setup · Server 1 2 3 · Allergies & notes, then how to show it. The server
+        {/* One row: Setup · Server 1 2 3, then how to show it. The server
             sheets share one "Server" label so the section numbers read like Seating's. */}
         <div className="segwrap" role="tablist" aria-label="Sheet" style={{ alignItems: 'center' }}>
           {sheets.map((s, i) => {
@@ -113,9 +113,10 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
           ) : (
             <ScaledPage page={pg} k={fitPage(box.w, box.h - 2 * PAD, pg.w, pg.h)} />
           ))}
-        {keyKind === 'below' && (
-          <div ref={keyRef} style={{ display: 'flex', justifyContent: 'center', paddingTop: 6, fontSize: 12, color: '#374151' }}>
-            {pg.legendText}
+        {/* Drawing view crops to the tables, so a server sheet's notes go underneath. */}
+        {keyKind === 'below' && pg.body.kind === 'server' && (
+          <div ref={keyRef} style={{ paddingTop: 8, maxWidth: 1000, margin: '0 auto' }}>
+            <ServerNotes notes={pg.body.notes} />
           </div>
         )}
       </div>

@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -120,6 +120,19 @@ export const MIGRATIONS: Record<number, string[]> = {
     `ALTER TABLE extra ADD COLUMN backup TEXT`,
     `UPDATE extra_option SET variants = CASE WHEN variants = '' THEN 'Strawberry' ELSE variants || '|Strawberry' END
        WHERE name = 'Jelly' AND ('|' || variants || '|') NOT LIKE '%|Strawberry|%'`,
+  ],
+  // Server sheet juice labels drop "Juice" (the colour says it): OJ → Orange, Cran Juice → Cranberry…
+  // Only labels still at the old default; one the manager changed in Settings is kept.
+  6: [
+    ...(
+      [
+        ['Orange Juice', 'OJ', 'Orange'],
+        ['Apple Juice', 'Apple Juice', 'Apple'],
+        ['Cranberry Juice', 'Cran Juice', 'Cranberry'],
+        ['V8 Juice', 'V8 Juice', 'V8'],
+        ['Prune Juice', 'Prune Juice', 'Prune'],
+      ] as const
+    ).map(([name, from, to]) => `UPDATE beverage SET short_label = '${to}' WHERE name = '${name}' AND short_label = '${from}'`),
   ],
 };
 

@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CHAIR_PILL, CUP_BAND_H, type PrefRow, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { CHAIR_PILL, CUP_BAND_H, NOTES_COLS, NOTES_LINE_H, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -18,7 +18,7 @@ function Table({ t }: { t: TableDraw }) {
   );
 }
 
-/** Red "!" before a name: this resident has allergies or notes (see Allergies & notes). */
+/** Red "!" before a name in the app (Seating): this resident has allergies or notes. */
 export function AlertBadge({ size = 11 }: { size?: number }) {
   return (
     <span
@@ -54,7 +54,6 @@ function ServerBody({ room }: { room: ServerRoom }) {
             style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: 2, textAlign: 'center' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-              {l.alert && <AlertBadge />}
               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
               {l.water && <WaterTag kind={l.water} />}
             </div>
@@ -63,18 +62,15 @@ function ServerBody({ room }: { room: ServerRoom }) {
                 {l.items.map((it, k) => (
                   <div
                     key={k}
-                    style={{ boxSizing: 'border-box', minWidth: 30, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
+                    style={{ boxSizing: 'border-box', width: l.pillW, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
                   >
-                    <div style={{ display: 'flex', height: 16, justifyContent: 'center' }}>
-                      {it.half && <span style={{ display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
-                      <span style={{ display: 'flex', alignItems: 'center', padding: '0 6px' }}>{it.cap}</span>
+                    <div style={{ display: 'flex', height: PILL_ROW_H }}>
+                      {it.half && <span style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
+                      <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>{it.cap}</span>
                     </div>
-                    {/* Not the drink's usual cup: named in a dark band, the same dark as the ½ tab.
-                        With a ½ tab too, a white hairline keeps the two dark marks apart (inside
-                        the band's height, so the pill doesn't grow). */}
-                    {it.cup && (
-                      <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: it.half ? '1px solid #FFFFFF' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 8, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
-                    )}
+                    {/* The cup, in a dark band the same dark as the ½ tab. With a ½ tab too, a white
+                        hairline keeps the two dark marks apart (inside the band's height). */}
+                    <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: it.half ? '1px solid #FFFFFF' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
                   </div>
                 ))}
               </div>
@@ -166,34 +162,26 @@ export function SetupLegend({ vertical = false }: { vertical?: boolean }) {
   );
 }
 
-const PREF_COLS = '90px 210px minmax(0, 1fr) 110px';
+/** Page height a server drawing gives up for its notes. */
+const roomTrim = (b: PageData['body']) => (b.kind === 'server' ? Math.round((b.room.h + 2) * (1 - b.roomScale)) : 0);
 
-function PrefsBody({ rows }: { rows: PrefRow[] }) {
+/**
+ * A server sheet's notes: allergies, notes and ½ portions by table, in columns under the drawing.
+ * Replaces the red ! on labels; the server finds the person by table and name.
+ */
+export function ServerNotes({ notes }: { notes: ServerNote[] }) {
+  if (!notes.length) return <div style={{ fontSize: 10.5, color: '#6B7280' }}>No allergies, notes or half portions in this section.</div>;
   return (
-    <div style={{ height: 692, paddingTop: 14, boxSizing: 'border-box', overflow: 'hidden' }}>
-      {!rows.length && <p style={{ fontSize: 14, color: '#4B5563' }}>No one seated at this meal has notes or a half portion.</p>}
-      <div style={{ fontSize: 13, color: '#111827' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: PREF_COLS, fontSize: 11, fontWeight: 600, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '.04em', borderBottom: '1px solid #D1D5DB' }}>
-          <div style={{ padding: '6px 8px' }}>Table</div>
-          <div style={{ padding: '6px 8px' }}>Resident</div>
-          <div style={{ padding: '6px 8px' }}>Allergies &amp; notes</div>
-          <div style={{ padding: '6px 8px' }}>Portion</div>
+    <div style={{ columnCount: NOTES_COLS, columnGap: 16, fontSize: 10.5, lineHeight: `${NOTES_LINE_H}px`, color: '#111827' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#6B7280' }}>Notes</div>
+      {notes.map((n, i) => (
+        <div key={i} style={{ breakInside: 'avoid' }}>
+          <b>
+            T{n.table} · {n.name}
+          </b>{' '}
+          — {n.text}
         </div>
-        {rows.map((r, i) =>
-          r.head ? (
-            <div key={i} style={{ padding: '14px 8px 4px', fontSize: 13, fontWeight: 700, color: '#111827' }}>
-              {r.label}
-            </div>
-          ) : (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: PREF_COLS, borderBottom: '1px solid #F0F1F3' }}>
-              <div style={{ padding: '6px 8px', color: '#4B5563' }}>{r.table}</div>
-              <div style={{ padding: '6px 8px', fontWeight: 600 }}>{r.name}</div>
-              <div style={{ padding: '6px 8px' }}>{r.notes}</div>
-              <div style={{ padding: '6px 8px' }}>{r.portion}</div>
-            </div>
-          ),
-        )}
-      </div>
+      ))}
     </div>
   );
 }
@@ -212,24 +200,36 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
         </div>
       </div>
 
-      {b.kind === 'prefs' ? (
-        <PrefsBody rows={b.rows} />
-      ) : (
         <div
-          style={{ height: b.kind === 'setup' ? page.h - 150 : page.h - 124, boxSizing: 'border-box', paddingTop: 12, display: 'grid', gridTemplateColumns: 'max-content', gap: '12px 20px', alignContent: b.kind === 'setup' ? 'start' : 'center', justifyContent: 'center' }}
+          style={{ height: b.kind === 'setup' ? page.h - 150 : page.h - 124 - roomTrim(b), boxSizing: 'border-box', paddingTop: 12, display: 'grid', gridTemplateColumns: 'max-content', gap: '12px 20px', alignContent: b.kind === 'setup' ? 'start' : 'center', justifyContent: 'center' }}
         >
-          <div data-sheet-room>{b.kind === 'server' ? <ServerBody room={b.room} /> : <SetupBody room={b.room} />}</div>
+          <div data-sheet-room>
+            {b.kind === 'server' ? (
+              // Drawn smaller only when a long notes list needs the room.
+              <div style={{ width: (b.room.w + 2) * b.roomScale, height: (b.room.h + 2) * b.roomScale }}>
+                <div style={{ transform: b.roomScale < 1 ? `scale(${b.roomScale})` : undefined, transformOrigin: '0 0' }}>
+                  <ServerBody room={b.room} />
+                </div>
+              </div>
+            ) : (
+              <SetupBody room={b.room} />
+            )}
+          </div>
           {b.kind === 'setup' && <SetupLegend />}
         </div>
-      )}
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderTop: '1px solid #E5E7EB', fontSize: 10.5, color: '#4B5563' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 10px' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#6B7280' }}>{page.legendHead}</span>
-          <span>{page.legendText}</span>
+      {b.kind === 'server' ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderTop: '1px solid #E5E7EB', fontSize: 10.5, color: '#4B5563' }}>
+          <div style={{ flex: 1, paddingTop: 6 }}>
+            <ServerNotes notes={b.notes} />
+          </div>
+          <div style={{ alignSelf: 'flex-end', whiteSpace: 'nowrap', padding: '2px 0 8px' }}>{page.footer}</div>
         </div>
-        <div style={{ whiteSpace: 'nowrap' }}>{page.footer}</div>
-      </div>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', borderTop: '1px solid #E5E7EB', fontSize: 10.5, color: '#4B5563' }}>
+          <div style={{ whiteSpace: 'nowrap' }}>{page.footer}</div>
+        </div>
+      )}
     </div>
   );
 }

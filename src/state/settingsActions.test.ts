@@ -37,7 +37,7 @@ describe('Drinks: a new drink works without code changes', () => {
     const { ops } = addDrink(r.id, 'Dinner', 'drink', 'Grape Juice');
     await store.change('Give', ops);
     const after = data().residents.find((x) => x.id === r.id)!;
-    expect(serverPills(after, 'Dinner', data().beverages)).toContainEqual({ cap: 'Grape', bg: '#F29BE0', color: '#111827', half: false, cup: null });
+    expect(serverPills(after, 'Dinner', data().beverages)).toContainEqual({ cap: 'Grape', bg: '#F29BE0', color: '#111827', half: false, cup: 'Juice glass' });
     expect(setupChanges(after, 'Dinner').map((c) => c.text)).toContain('+Juice');
   });
 
@@ -122,7 +122,7 @@ describe('Meals & sections', () => {
     await store.change('Close', S.setSectionOpen('BE', 'Dinner', 3, false));
     expect(getOpening(site(), 'Dinner').sections.map((s) => s.section)).toEqual([1, 2]);
     expect(seatsAt('Dinner', 3)).toBe(0);
-    expect(sheetsFor(getOpening(site(), 'Dinner')).map((s) => s.key)).toEqual(['setup', 'server-1', 'server-2', 'prefs']);
+    expect(sheetsFor(getOpening(site(), 'Dinner')).map((s) => s.key)).toEqual(['setup', 'server-1', 'server-2']);
     await store.undoLast();
     expect(seatsAt('Dinner', 3)).toBe(n);
     expect(getOpening(site(), 'Dinner').sections.map((s) => s.label)).toEqual(['Section 1', 'Section 2', 'Section 3']);
@@ -193,6 +193,20 @@ describe('Backups setting and upgrades', () => {
     expect(data().extraOptions.length).toBeGreaterThan(0);
     const rows = await db.select<{ variants: string }>("SELECT variants FROM extra_option WHERE name = 'Jelly'");
     for (const r of rows) expect(r.variants).toBe('Grape|Mixed Fruit|Strawberry');
+  });
+
+  it('upgrading to v6 drops "Juice" from the default juice labels, but keeps one the manager changed', async () => {
+    await db.batch([
+      { sql: "UPDATE beverage SET short_label = 'OJ' WHERE name = 'Orange Juice'" },
+      { sql: "UPDATE beverage SET short_label = 'Cran Juice' WHERE name = 'Cranberry Juice'" },
+      { sql: "UPDATE beverage SET short_label = 'Apple J.' WHERE name = 'Apple Juice'" }, // the manager's own
+      { sql: "UPDATE meta SET value = '5' WHERE key = 'schema_version'" },
+    ]);
+    await migrate(db);
+    const label = async (name: string) => (await db.select<{ short_label: string }>('SELECT short_label FROM beverage WHERE name = ?', [name]))[0]!.short_label;
+    expect(await label('Orange Juice')).toBe('Orange');
+    expect(await label('Cranberry Juice')).toBe('Cranberry');
+    expect(await label('Apple Juice')).toBe('Apple J.');
   });
 
   it('refuses a newer database', async () => {

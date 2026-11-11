@@ -1,22 +1,22 @@
 import type { AppData } from '../db/repo';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
-import { PAGE, prefRows, serverRoom, setupRoom, type Occupant, type Paper, type PrefRow, type ServerRoom, type SetupRoom } from './model';
+import { NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
 
 // The printable sheets for a meal and the data each page draws. Shared by View,
 // Print preview and the printed output, so all three are the same page.
 
-export type SheetKind = 'setup' | 'server' | 'prefs';
+export type SheetKind = 'setup' | 'server';
 
 export interface SheetRef {
   key: string;
   kind: SheetKind;
-  /** View pill: "Setup", "Server · Section 1", "Allergies & notes". */
+  /** View pill: "Setup", "Server · Section 1". */
   label: string;
   /** Print checkbox title and its one-line description. */
   printLabel: string;
   sub: string;
-  /** Print preview tab: "Setup", "Server · S1", "Allergies & notes". */
+  /** Print preview tab: "Setup", "Server · S1". */
   tab: string;
   paper: Paper;
   /** Physical section, for server sheets. */
@@ -39,11 +39,18 @@ export function sheetsFor(opening: MealOpening): SheetRef[] {
         section: s.section,
       }),
     ),
-    { key: 'prefs', kind: 'prefs', label: 'Allergies & notes', printLabel: 'Allergies & notes', sub: 'Allergies, notes and half portions by table', tab: 'Allergies & notes', paper: 'letter' },
   ];
 }
 
-export type PageBody = { kind: 'server'; room: ServerRoom } | { kind: 'setup'; room: SetupRoom } | { kind: 'prefs'; rows: PrefRow[] };
+export type PageBody =
+  | {
+      kind: 'server';
+      room: ServerRoom;
+      /** Allergies, notes and ½ portions, listed under the drawing (no key: the labels explain themselves). */
+      notes: ServerNote[];
+      /** The drawing's scale: 1, or smaller when the notes need more room than the page keeps for them. */
+      roomScale: number;
+    } | { kind: 'setup'; room: SetupRoom };
 
 export interface PageData {
   key: string;
@@ -52,8 +59,6 @@ export interface PageData {
   h: number;
   title: string;
   right: string;
-  legendHead: string;
-  legendText: string;
   footer: string;
   body: PageBody;
 }
@@ -82,33 +87,22 @@ export function buildPage(
   const base = { key: sheet.key, paper: sheet.paper, w, h, footer };
 
   if (sheet.kind === 'server') {
+    const T = tables.filter((t) => t.section === sheet.section);
+    const room = serverRoom(T, occupant, meal, data.beverages);
+    const notes = serverNotes(T, occupant, meal);
     const label = opening.sections.find((s) => s.section === sheet.section)?.label ?? '';
     return {
       ...base,
       title: `${meal} · ${label}`,
       right: `Server sheet · ${site.name}`,
-      legendHead: 'Key',
-      legendText: 'Each label is a drink. Dark ½ tab = half. Dark band under a drink = not its usual cup (e.g. PITCHER, TO-GO). HOT / RO after a name = hot water / RO water. Red ! = allergies or notes; see the Allergies & notes sheet. Coffee isn’t shown; everyone is offered it.',
-      body: { kind: 'server', room: serverRoom(tables.filter((t) => t.section === sheet.section), occupant, meal, data.beverages) },
+      body: { kind: 'server', room, notes, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
     };
   }
-  if (sheet.kind === 'setup') {
-    // 150 px of header/footer, 20 px gap and 84 px kept free for the legend.
-    return {
-      ...base,
-      title: `${meal} · Setup`,
-      right: `Setup sheet · ${site.name}`,
-      legendHead: '',
-      legendText: '',
-      body: { kind: 'setup', room: setupRoom(opening.sections, tables, occupant, meal, w - 80, h - 150 - 20 - 84) },
-    };
-  }
+  // Setup: 150 px of header/footer, 20 px gap and 84 px kept free for the chair key.
   return {
     ...base,
-    title: `${meal} · Allergies & notes`,
-    right: `Allergies & notes · ${site.name}`,
-    legendHead: 'Note',
-    legendText: 'Only residents with allergies, notes or a half portion are listed.',
-    body: { kind: 'prefs', rows: prefRows(opening.sections, tables, occupant, meal) },
+    title: `${meal} · Setup`,
+    right: `Setup sheet · ${site.name}`,
+    body: { kind: 'setup', room: setupRoom(opening.sections, tables, occupant, meal, w - 80, h - 150 - 20 - 84) },
   };
 }

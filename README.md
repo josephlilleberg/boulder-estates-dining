@@ -82,7 +82,7 @@ sheet previews scale to fit the window, so nothing needs scrolling.
 - Click a **+** on an empty seat to seat someone. The picker lists who's not seated yet.
 - Drag a name onto another seat to move them. Drop it on someone else to swap.
 - Click a name to see **Seat details**: their drinks for this meal, chair and notes.
-- A red **!** before a name means they have allergies or notes (also on the server sheet).
+- A red **!** before a name means they have allergies or notes (the server sheet lists them under the drawing).
 - **Not seated** lists who's coming but has no seat. Drag a name onto a seat, or click it
   and then a seat.
 - The header counts who's seated, who isn't, and the empty seats.
@@ -118,7 +118,7 @@ The list (sortable by last or first name, searchable) and each resident's card.
 ### View and Print
 
 - **View** has two zooms. **Drawing** (the default) crops to the tables and labels and fits
-  them to the window with the key beside or under them; **Whole page** shows the sheet exactly
+  them to the window, with the chair key beside the setup sheet and a server sheet's notes underneath; **Whole page** shows the sheet exactly
   as it prints.
 - **Print** lets you tick the sheets you want, preview them, and print or save as PDF. The
   setup sheet prints on 11×17 and the others on Letter, so the app opens one print dialog
@@ -154,8 +154,7 @@ label shows what it will undo. The history is cleared when the app closes or aft
 | Sheet | Paper | For | Shows |
 | --- | --- | --- | --- |
 | **Setup** | 11×17 | Setting the tables | Every section on one page. At each seat, only what differs from the usual setting (a glass and a coffee mug): **+Glass**, **+Juice**, **+To-Go**, **+Pitcher**, **No Mug**. A seat pill shows the chair type. Tables where anyone takes creamer are tinted. |
-| **Server** | Letter, one per section | Pouring drinks | Each resident's name with coloured drink pills (short names from Settings), plus Hot water and RO. A dark ½ tab means half; a dark band under a drink names its cup when it isn't the usual one (PITCHER, TO-GO). Two of the same juice show as one "2 …" pill. A red ! marks allergies or notes. |
-| **Allergies & notes** | Letter | Everyone | Only residents with notes or a half portion, grouped by section. |
+| **Server** | Letter, one per section | Pouring drinks | Each resident's name with coloured drink pills, all one width (short names from Settings: Orange, Apple, Cranberry…). A dark band under each drink names its cup (GLASS, JUICE GLASS, TO-GO, MUG); a dark ½ tab means half. Two of the same juice show as one "2 …" pill. **HOT** / **RO** after a name is hot or RO water. Under the drawing, **Notes** lists each resident's allergies, notes and half portion by table. A crowded label is drawn a little smaller so it never overlaps a neighbour. |
 
 Each page footer shows the paper size, the print date and the page number.
 

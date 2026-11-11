@@ -1,12 +1,12 @@
 import type { Beverage, Chair, DiningTable, MealPrefs, Resident } from '../domain/model';
-import { fullName, hasAlert, hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
+import { hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
 import { seatGeom } from '../domain/tables';
 
 // The printed sheets as plain data: positions in page pixels (96 per inch), ready
 // for SheetPage to draw. Ported from the mockup's serverFit / printRoom /
-// setupPlan / prefRows; numbers match it so View, Print preview and paper agree.
+// setupPlan; numbers match it so View, Print preview and paper agree.
 
 export type Occupant = (tableId: string, seat: number) => Resident | null;
 
@@ -89,15 +89,19 @@ export interface Pill {
   color: string;
   /** Half glass of milk: a dark ½ tab in front. */
   half: boolean;
-  /** Not the drink's usual cup (its default in Settings): named in a dark band under the drink. */
-  cup?: string | null;
+  /** The cup it's served in, named in a dark band under the drink. */
+  cup: string;
 }
 
 /** Short names for the cup band on server sheets. */
 const CUP_TAG: Record<string, string> = { 'To-go cup': 'To-go', 'Milk pitcher': 'Pitcher', 'Juice glass': 'Juice glass', Glass: 'Glass', Mug: 'Mug' };
 export const cupTag = (drinkware: string) => CUP_TAG[drinkware] ?? drinkware;
 /** Extra height a cup band adds to a pill. */
-export const CUP_BAND_H = 9;
+export const CUP_BAND_H = 8;
+/** A pill's drink row (inside its 1 px border). */
+export const PILL_ROW_H = 14;
+/** Every pill on a label is this wide (wider only if a name doesn't fit, and then the label shrinks). */
+export const PILL_W = 72;
 
 export interface TableDraw {
   id: string;
@@ -123,11 +127,11 @@ export interface ServerLabel {
   /** column-reverse when the label reads outward-up, so the name stays against the table. */
   dir: 'column' | 'column-reverse';
   name: string;
-  /** Has allergies or notes: a red ! before the name. */
-  alert: boolean;
   /** Hot water or RO water: a small tag after the name. */
   water: 'HOT' | 'RO' | null;
   items: Pill[];
+  /** Width of every pill on this label, so they line up. */
+  pillW: number;
   /** Drawn at this scale (1 = full size) so the label fits its seat's space. */
   scale: number;
 }
@@ -153,7 +157,7 @@ const EDGE = 8;
 export const SEAT_W = 74;
 export const SEAT_H = 58;
 /** The smallest a label is drawn; the test checks every real combination stays at or above it. */
-export const MIN_LABEL_SCALE = 0.78;
+export const MIN_LABEL_SCALE = 0.85;
 
 type Spot = { x: number; y: number };
 
@@ -267,23 +271,21 @@ const PLAIN = '#F9FAFB';
  * don't fit are clipped by the label box).
  */
 export const CHAR_W = 6.0;
-/** The red ! badge before a name, plus its gap. */
-export const ALERT_W = 14;
 /** The HOT / RO tag after a name, plus its gap. */
 export const waterTagW = (w: ServerLabel['water']) => (w ? 3 + 6 + w.length * 5.6 : 0);
 
-/** Full-size width of one drink pill: the ½ tab, the name, or its cup band if wider. */
-export const pillW = (p: Pill) => Math.max(30, 2 + 12 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 : 0);
+/** Full-size width of one drink pill: PILL_W, or more if its ½ tab and name or its cup band need it. */
+export const pillW = (p: Pill) => Math.max(PILL_W, 2 + 6 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), 2 + 8 + p.cup.length * 5.2);
 /** Full-size height of a label: the name line, then its pills (a cup band adds a little). */
-export const labelH = (items: Pill[]) => 14 + (items.length ? 2 + items.reduce((h, x) => h + 20 + (x.cup ? CUP_BAND_H : 0), 0) : 0);
+export const labelH = (items: Pill[]) => 14 + items.length * (2 + 2 + PILL_ROW_H + CUP_BAND_H); // name line, then per pill: gap, border, row, band
 
 /**
  * Width of what a server label actually draws (the name, the widest pill). Its box
  * is wider (84–92 px) so the two seats on a rectangle's long side, 76 px apart,
  * have boxes that overlap while their names and pills don't.
  */
-export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { alert?: boolean; water?: ServerLabel['water']; scale?: number }): number {
-  const name = l.name.length * CHAR_W + (l.alert ? ALERT_W : 0) + waterTagW(l.water ?? null);
+export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { water?: ServerLabel['water']; scale?: number }): number {
+  const name = l.name.length * CHAR_W + waterTagW(l.water ?? null);
   return Math.min(l.w, Math.max(name, ...l.items.map(pillW)) * (l.scale ?? 1));
 }
 
@@ -312,7 +314,7 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
       // Only a glass or to-go cup comes in halves; two halves poured together make a full one.
       half: !pair && d.amount === 'Half' && hasAmount(served),
-      cup: bev && served !== bev.defaultDrinkware ? cupTag(served) : null,
+      cup: cupTag(served),
     });
   }
   return items;
@@ -351,7 +353,8 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const p = prefsOf(r, meal);
       const water = p?.hotWater ? 'HOT' : p?.roWater ? 'RO' : null;
       // Drawn smaller only if the pills don't fit the seat's space (the name is cut short instead).
-      const k = Math.min(1, Math.floor(Math.min(SEAT_W / Math.max(1, ...items.map(pillW)), SEAT_H / labelH(items)) * 100) / 100);
+      const pw = Math.max(PILL_W, ...items.map(pillW));
+      const k = Math.min(1, Math.floor(Math.min(SEAT_W / pw, SEAT_H / labelH(items)) * 100) / 100);
       const H = labelH(items) * k;
       const off = -13 * SG + 3 + H / 2;
       const ar = (ang * Math.PI) / 180;
@@ -359,7 +362,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       // Pyramid: longest drink next to the name, shortest farthest out.
       const len = (p: Pill) => p.cap.length + (p.half ? 2 : 0);
       items.sort((p, q) => (outUp ? 1 : -1) * (len(p) - len(q)));
-      labels.push({ tableId: t.id, l: sx + nx * off - SEAT_W / 2, t: sy + ny * off - H / 2, w: SEAT_W, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), alert: hasAlert(r), water, items, scale: k });
+      labels.push({ tableId: t.id, l: sx + nx * off - SEAT_W / 2, t: sy + ny * off - H / 2, w: SEAT_W, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), water, items, pillW: pw, scale: k });
     });
     tables.push({
       id: t.id,
@@ -376,6 +379,40 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
     });
   }
   return { w: AW, h: AH, tables, labels };
+}
+
+/** One line in a server sheet's notes: who (by table) and their allergies, notes and ½ portion. */
+export interface ServerNote {
+  table: number;
+  name: string;
+  text: string;
+}
+
+/** The notes listed under a server sheet's drawing, by table then seat. */
+export function serverNotes(T: DiningTable[], occupant: Occupant, meal: string): ServerNote[] {
+  const out: ServerNote[] = [];
+  for (const t of [...T].sort((a, b) => a.number - b.number)) {
+    seatGeom(t.shape).forEach((_, i) => {
+      const r = occupant(t.id, i);
+      if (!r) return;
+      const parts = [...r.notes.map((n) => n.text), ...(prefsOf(r, meal)?.portion === 'Half' ? ['½ portion'] : [])];
+      if (parts.length) out.push({ table: t.number, name: shortName(r), text: parts.join(', ') });
+    });
+  }
+  return out;
+}
+
+/** Room under a server sheet's drawing for its notes; more than this and the drawing shrinks to make room. */
+export const NOTES_ROOM = 40;
+export const NOTES_COLS = 3;
+export const NOTES_LINE_H = 13;
+const NOTES_CHARS_PER_LINE = 54; // a third of the page at 10.5 px, with margin
+
+/** Height the notes take (heading, then lines in NOTES_COLS columns), in page pixels. */
+export function notesHeight(notes: ServerNote[]): number {
+  if (!notes.length) return 0;
+  const lines = notes.reduce((n, x) => n + Math.ceil((`T${x.table} · ${x.name} — ${x.text}`.length) / NOTES_CHARS_PER_LINE), 0);
+  return 6 + NOTES_LINE_H * (Math.ceil(lines / NOTES_COLS) + 1); // +1: the heading, and columns that don't balance exactly
 }
 
 // ---- Setup sheet ------------------------------------------------------------------------
@@ -623,29 +660,6 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
   return out;
 }
 
-// ---- Allergies & notes -------------------------------------------------------------------
-
-export type PrefRow = { head: true; label: string } | { head: false; table: string; name: string; notes: string; portion: string };
-
-/** Only residents with notes or a half portion, by section then table. */
-export function prefRows(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string): PrefRow[] {
-  const rows: PrefRow[] = [];
-  for (const s of sections) {
-    const group: PrefRow[] = [];
-    for (const t of allTables.filter((x) => x.section === s.section).sort((a, b) => a.number - b.number)) {
-      seatGeom(t.shape).forEach((_, i) => {
-        const r = occupant(t.id, i);
-        if (!r) return;
-        const half = prefsOf(r, meal)?.portion === 'Half';
-        if (!r.notes.length && !half) return;
-        group.push({ head: false, table: `Table ${t.number}`, name: fullName(r), notes: r.notes.map((n) => n.text).join(', '), portion: half ? 'Half portion' : 'Full' });
-      });
-    }
-    if (group.length) rows.push({ head: true, label: s.label }, ...group);
-  }
-  return rows;
-}
-
 // ---- Developer stress test ---------------------------------------------------------------
 
 /**
@@ -662,7 +676,7 @@ export function stressOccupant(meal: string): Occupant {
     nickname: null,
     chair: 'arm',
     archived: false,
-    notes: [{ id: 'sn', text: 'No nuts' }], // the red ! badge too: widest label
+    notes: [{ id: 'sn', text: 'No nuts' }], // listed under the drawing
     attends: [meal as never],
     prefs: {
       [meal]: {

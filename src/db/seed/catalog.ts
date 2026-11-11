@@ -34,7 +34,7 @@ const SITES: SiteSeed[] = [
   },
 ];
 
-// [name, kind, short label, colour, text colour]. Colours from BRIEF.md "Drink colours".
+// [name, kind, short label (what the server sheet prints; juices drop "Juice", the colour says it), colour, text colour]. Colours from BRIEF.md "Drink colours".
 type Bev = [string, BeverageKind, string, string | null, string];
 const BEVERAGES: Bev[] = [
   ['Coffee', 'coffee', 'Coffee', null, '#000000'],
@@ -42,11 +42,11 @@ const BEVERAGES: Bev[] = [
   ['2% Milk', 'milk', '2% Milk', '#6AB3FD', '#000000'],
   ['Skim Milk', 'milk', 'Skim Milk', '#F0B4CA', '#000000'],
   ['Chocolate Milk', 'milk', 'Choc. Milk', '#D69A72', '#000000'],
-  ['Orange Juice', 'juice', 'OJ', '#FFA14B', '#000000'],
-  ['Apple Juice', 'juice', 'Apple Juice', '#F2DD5A', '#000000'],
-  ['Cranberry Juice', 'juice', 'Cran Juice', '#C11749', '#FFFFFF'],
-  ['V8 Juice', 'juice', 'V8 Juice', '#FF8179', '#000000'],
-  ['Prune Juice', 'juice', 'Prune Juice', '#B995F6', '#000000'],
+  ['Orange Juice', 'juice', 'Orange', '#FFA14B', '#000000'],
+  ['Apple Juice', 'juice', 'Apple', '#F2DD5A', '#000000'],
+  ['Cranberry Juice', 'juice', 'Cranberry', '#C11749', '#FFFFFF'],
+  ['V8 Juice', 'juice', 'V8', '#FF8179', '#000000'],
+  ['Prune Juice', 'juice', 'Prune', '#B995F6', '#000000'],
 ];
 
 const DRINKWARE = ['Mug', 'Glass', 'Juice glass', 'To-go cup', 'Milk pitcher'];

@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { corners, edgeAngle, labelInkWidth, MIN_LABEL_SCALE, SEAT_H, SEAT_W, separation, serverPills, serverRoom, serverSeatSpaces, setupChanges, setupRoom, stressOccupant } from './model';
+import { corners, edgeAngle, labelInkWidth, MIN_LABEL_SCALE, PILL_W, SEAT_H, SEAT_W, separation, serverPills, serverRoom, serverSeatSpaces, setupChanges, setupRoom, stressOccupant } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -73,7 +73,7 @@ describe('Setup sheet rules', () => {
     // Both drinks are juice, so there's no coffee mug either; the juice uses the usual glass.
     const pair = resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]);
     expect(texts(pair)).toEqual(['No Mug']);
-    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cran Juice']);
+    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cranberry']);
     // With an extra glass too, the glasses add up.
     // With an extra glass (for water), one more glass.
     expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+Glass']);
@@ -87,7 +87,7 @@ describe('Setup sheet rules', () => {
     const half = { drinkware: 'To-go cup', amount: 'Half' as const };
     const pair = resident([drink('Cranberry Juice', half), drink('Cranberry Juice', half)]);
     expect(texts(pair)).toEqual(['+To-Go', 'No Mug']);
-    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => [p.cap, p.half])).toEqual([['2 Cran Juice', false]]); // two halves make a full cup
+    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => [p.cap, p.half])).toEqual([['2 Cranberry', false]]); // two halves make a full cup
     // Full to-go cups aren't combined.
     expect(texts(resident([drink('Cranberry Juice', { drinkware: 'To-go cup' }), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+2 To-Go', 'No Mug']);
   });
@@ -96,7 +96,7 @@ describe('Setup sheet rules', () => {
     expect(texts(resident([drink('Orange Juice', { drinkware: 'Glass', amount: 'Full' })]))).toEqual(['No Mug']); // full glass of juice
     expect(texts(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Glass', amount: 'Half' })]))).toEqual(['+Glass', 'No Mug']);
     const half = serverPills(resident([drink('Orange Juice', { drinkware: 'To-go cup', amount: 'Half' })]), 'Dinner', data().beverages)[0]!;
-    expect([half.cap, half.half, half.cup]).toEqual(['OJ', true, 'To-go']);
+    expect([half.cap, half.half, half.cup]).toEqual(['Orange', true, 'To-go']);
   });
 
   it('No Mug only when there is no mug drink and no hot water', () => {
@@ -164,7 +164,7 @@ describe('Server sheet spacing: any combination fits', () => {
     });
   }
 
-  it('every combination of drinks, cups, halves, water and a long name fits its seat space, drawn at 78% or larger', () => {
+  it('every combination of drinks, cups, halves, water and a long name fits its seat space, drawn at 85% or larger', () => {
     const bevs = data().beverages.filter((b) => b.siteId === 'BE' && b.kind !== 'coffee');
     const cups = data().drinkware.filter((w) => w.siteId === 'BE').map((w) => w.name);
     const cupsFor = (kind: string) => (kind === 'tea' ? ['Mug'] : kind === 'milk' ? [...MILK_CUPS, 'Milk pitcher'] : kind === 'juice' ? JUICE_CUPS : cups); // pitcher: older records
@@ -193,10 +193,9 @@ describe('Server sheet spacing: any combination fits', () => {
     const T = layoutTables().filter((t) => t.section === 1);
     const room = serverRoom(T, stress, 'Dinner', data().beverages);
     for (const l of room.labels) {
-      expect(l.alert).toBe(true); // the stress resident has a note
       expect(Math.abs(l.ang)).toBeLessThanOrEqual(90);
-      expect(l.items.map((i) => i.cap).sort()).toEqual(['Choc. Milk', 'Cran Juice']);
-      expect(l.items.find((i) => i.cap === 'Cran Juice')).toMatchObject({ half: false, bg: '#C11749', color: '#FFFFFF' });
+      expect(l.items.map((i) => i.cap).sort()).toEqual(['Choc. Milk', 'Cranberry']);
+      expect(l.items.find((i) => i.cap === 'Cranberry')).toMatchObject({ half: false, bg: '#C11749', color: '#FFFFFF' });
     }
     const r = resident([coffee(), drink('2% Milk', { amount: 'Half' })], { hotWater: true, roWater: true });
     const one = serverRoom(T.slice(0, 1), (_t, s) => (s === 0 ? r : null), 'Dinner', data().beverages);
@@ -214,7 +213,7 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     const occ = occupantFor(data(), 'BE', meal);
     return sheets.map((s, i) => buildPage(data(), site(), meal, opening, s, occ, i + 1, sheets.length, 'Nov 7, 2026'));
   };
-  const tablesOn = (p: ReturnType<typeof pagesFor>[number]) => (p.body.kind === 'prefs' ? [] : p.body.room.tables);
+  const tablesOn = (p: ReturnType<typeof pagesFor>[number]) => p.body.room.tables;
 
   it('a new table appears on the setup sheet and its server sheet; a moved table moves', async () => {
     const before = pagesFor('Dinner');
@@ -234,34 +233,37 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
   });
 
   it('pages carry the mockup header and footer', () => {
-    const [setup, server, , , prefs] = pagesFor('Dinner');
+    const pages = pagesFor('Dinner');
+    const [setup, server] = pages;
+    expect(pages.map((p) => p.key)).toEqual(['setup', 'server-1', 'server-2', 'server-3']); // allergies and notes are on each server sheet
     expect([setup!.title, setup!.right]).toEqual(['Dinner · Setup', 'Setup sheet · Boulder Estates']);
-    expect(setup!.footer).toBe('11 × 17 · Printed Nov 7, 2026 · Page 1 of 5');
+    expect(setup!.footer).toBe('11 × 17 · Printed Nov 7, 2026 · Page 1 of 4');
     expect([server!.title, server!.right, server!.w, server!.h]).toEqual(['Dinner · Section 1', 'Server sheet · Boulder Estates', 1056, 816]);
-    expect(prefs!.footer).toBe('Letter · Printed Nov 7, 2026 · Page 5 of 5');
+    expect(pages[3]!.footer).toBe('Letter · Printed Nov 7, 2026 · Page 4 of 4');
     expect(setup!.w / setup!.h).toBeCloseTo(17 / 11);
   });
 
-  it('Allergies & notes lists only residents with notes or a half portion, by section', () => {
-    const p = pagesFor('Dinner')[4]!;
-    if (p.body.kind !== 'prefs') throw new Error('expected prefs');
-    const rows = p.body.rows;
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows[0]).toMatchObject({ head: true });
-    for (const r of rows) if (!r.head) expect(r.notes !== '' || r.portion === 'Half portion').toBe(true);
-  });
+
 });
 
 describe('cup bands', () => {
-  it('a drink not in its usual cup gets a band naming the cup; the usual cup gets none', () => {
-    const caps = (r: Resident) => serverPills(r, 'Dinner', data().beverages).map((p) => [p.cap, p.cup ?? null]);
-    expect(caps(resident([drink('2% Milk')]))).toEqual([['2% Milk', null]]);
+  it('every drink names its cup in a band, the usual cup too', () => {
+    const caps = (r: Resident) => serverPills(r, 'Dinner', data().beverages).map((p) => [p.cap, p.cup]);
+    expect(caps(resident([drink('2% Milk')]))).toEqual([['2% Milk', 'Glass']]);
     expect(caps(resident([drink('2% Milk', { drinkware: 'Milk pitcher' })]))).toEqual([['2% Milk', 'Pitcher']]);
-    expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]))).toEqual([['OJ', null]]);
-    expect(caps(resident([drink('Orange Juice', { drinkware: 'To-go cup' })]))).toEqual([['OJ', 'To-go']]);
+    expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]))).toEqual([['Orange', 'Juice glass']]);
+    expect(caps(resident([drink('Orange Juice', { drinkware: 'To-go cup' })]))).toEqual([['Orange', 'To-go']]);
+    expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Green Tea' })]))).toEqual([['Tea', 'Mug']]);
     // Two of the same juice poured into one glass: the glass is named.
     const jg = { drinkware: 'Juice glass' };
-    expect(caps(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]))).toEqual([['2 Cran Juice', 'Glass']]);
+    expect(caps(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]))).toEqual([['2 Cranberry', 'Glass']]);
+  });
+
+  it('the pills on a label are all one width', () => {
+    const T = layoutTables().filter((t) => t.section === 1).slice(0, 1);
+    const r = resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'To-go cup', amount: 'Half' })]);
+    const [l] = serverRoom(T, (_t, s) => (s === 0 ? r : null), 'Dinner', data().beverages).labels;
+    expect(l!.pillW).toBe(PILL_W);
   });
 
   it('the setup sheet sets a pitcher: +Pitcher', () => {
@@ -269,12 +271,30 @@ describe('cup bands', () => {
   });
 });
 
-describe('allergy flags', () => {
-  it('a resident with allergies or notes gets the red ! on the server sheet; others do not', () => {
-    const T = layoutTables().filter((t) => t.section === 1).slice(0, 1);
-    const withNote = { ...resident([coffee()]), notes: [{ id: 'n', text: 'Nut allergy' }] };
-    const without = resident([coffee()]);
-    expect(serverRoom(T, (_t, s) => (s === 0 ? withNote : null), 'Dinner', data().beverages).labels[0]!.alert).toBe(true);
-    expect(serverRoom(T, (_t, s) => (s === 0 ? without : null), 'Dinner', data().beverages).labels[0]!.alert).toBe(false);
+describe('server sheet notes', () => {
+  const T = () => layoutTables().filter((t) => t.section === 1);
+  const page = (occ: (t: string, s: number) => Resident | null) => {
+    const opening = getOpening(site(), 'Dinner');
+    const sheet = sheetsFor(opening).find((x) => x.kind === 'server')!;
+    return buildPage(data(), site(), 'Dinner', opening, sheet, occ, 1, 1, 'Nov 11, 2026');
+  };
+
+  it('allergies, notes and half portions are listed by table under the drawing; no key, no red !', () => {
+    const first = T().sort((a, b) => a.number - b.number)[0]!;
+    const withNote = { ...resident([coffee()], { portion: 'Half' }), notes: [{ id: 'n', text: 'Nut allergy' }] };
+    const plain = { ...resident([coffee()]), first: 'Bea' };
+    const pg = page((t, s) => (t === first.id ? (s === 0 ? withNote : s === 1 ? plain : null) : null));
+    expect(pg.body.kind === 'server' && pg.body.notes).toEqual([{ table: first.number, name: 'Agatha H.', text: 'Nut allergy, ½ portion' }]);
+    expect(pg.body.kind === 'server' && pg.body.roomScale).toBe(1);
+  });
+
+  it('a long list makes the drawing give up height, never below half size', () => {
+    const r = { ...resident([coffee()]), notes: [{ id: 'n', text: 'Allergic to shellfish and tree nuts; cut food small; sits near the window' }] };
+    const pg = page(() => r);
+    if (pg.body.kind !== 'server') throw new Error('server page');
+    expect(pg.body.notes.length).toBeGreaterThan(20);
+    expect(pg.body.roomScale).toBeLessThan(1);
+    expect(pg.body.roomScale).toBeGreaterThanOrEqual(0.5);
   });
 });
+

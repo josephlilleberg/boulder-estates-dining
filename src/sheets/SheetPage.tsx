@@ -54,14 +54,15 @@ function ServerBody({ room }: { room: ServerRoom }) {
                     key={k}
                     style={{ boxSizing: 'border-box', width: l.pillW, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
                   >
-                    <div style={{ display: 'flex', height: PILL_ROW_H }}>
+                    {/* A dark rule under the drink, then the band's white line: dark | white | dark. Inside the row, so nothing grows. */}
+                    <div style={{ display: 'flex', height: PILL_ROW_H, boxShadow: it.cup ? 'inset 0 -1px 0 #111827' : undefined }}>
                       {it.half && <span style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
                       <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>{it.cap}</span>
                     </div>
-                    {/* What the server fills, in a dark band the same dark as the ½ tab (none for tea's mug).
-                        With a ½ tab too, a white hairline keeps the two dark marks apart. */}
+                    {/* The band: what the server fills (or which tea), in the same dark as the ½ tab. A white
+                        hairline separates it from the drink on every pill. */}
                     {it.cup && (
-                      <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: it.half ? '1px solid #FFFFFF' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
+                      <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
                     )}
                   </div>
                 ))}

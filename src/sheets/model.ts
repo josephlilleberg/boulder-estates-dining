@@ -89,7 +89,7 @@ export interface Pill {
   color: string;
   /** Half glass of milk: a dark ½ tab in front. */
   half: boolean;
-  /** What the server fills, named in a dark band under the drink; null for a mug (tea), which the server doesn't fill. */
+  /** The dark band under the drink: what the server fills (GLASS, TO-GO…), or for tea which tea (CHAMOMILE, GREEN…). */
   cup: string | null;
 }
 
@@ -331,7 +331,8 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
       // Only a glass or to-go cup comes in halves; two halves poured together make a full one.
       half: !pair && d.amount === 'Half' && hasAmount(served),
-      cup: bev?.kind === 'tea' || served === 'Mug' ? null : cupTag(served),
+      // Tea's mug isn't filled by the server, so its band says which tea instead ("Green Tea" → GREEN).
+      cup: bev?.kind === 'tea' ? (d.tea ? d.tea.replace(/ Tea$/, '') : null) : served === 'Mug' ? null : cupTag(served),
     });
   }
   if (p.roWater) items.push({ cap: 'RO water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' });

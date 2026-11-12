@@ -366,13 +366,14 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
 });
 
 describe('cup bands', () => {
-  it('every drink names its cup in a band, the usual cup too; tea has none', () => {
+  it('every drink names its cup in a band, the usual cup too; tea names which tea', () => {
     const caps = (r: Resident) => serverPills(r, 'Dinner', data().beverages).map((p) => [p.cap, p.cup]);
     expect(caps(resident([drink('2% Milk')]))).toEqual([['2% Milk', 'Glass']]);
     expect(caps(resident([drink('2% Milk', { drinkware: 'Milk pitcher' })]))).toEqual([['2% Milk', 'Pitcher']]);
     expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]))).toEqual([['Orange', 'Juice glass']]);
     expect(caps(resident([drink('Orange Juice', { drinkware: 'To-go cup' })]))).toEqual([['Orange', 'To-go']]);
-    expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Green Tea' })]))).toEqual([['Tea', null]]); // a mug isn't filled by the server
+    expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Green Tea' })]))).toEqual([['Tea', 'Green']]); // a mug isn't filled, so the band says which tea
+    expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Chamomile' })]))).toEqual([['Tea', 'Chamomile']]);
     // Two of the same juice poured into one glass: the glass is named.
     const jg = { drinkware: 'Juice glass' };
     expect(caps(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]))).toEqual([['2 Cranberry', 'Glass']]);

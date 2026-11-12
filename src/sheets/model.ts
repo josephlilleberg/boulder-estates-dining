@@ -97,7 +97,7 @@ export interface Pill {
 const CUP_TAG: Record<string, string> = { 'To-go cup': 'To-go', 'Milk pitcher': 'Pitcher', 'Juice glass': 'Juice glass', Glass: 'Glass', Mug: 'Mug' };
 export const cupTag = (drinkware: string) => CUP_TAG[drinkware] ?? drinkware;
 /** Extra height a cup band adds to a pill. */
-export const CUP_BAND_H = 8;
+export const CUP_BAND_H = 11; // 7.5 px text with room above and below
 /** A pill's drink row (inside its 1 px border). */
 export const PILL_ROW_H = 14;
 /** Every pill on a label is this wide (wider only if a name doesn't fit, and then the label shrinks). */

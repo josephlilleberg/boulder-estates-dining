@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CHAIR_PILL, CUP_BAND_H, NOTES_COLS, NOTES_LINE_H, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { CHAIR_PILL, CUP_BAND_H, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -31,15 +31,6 @@ export function AlertBadge({ size = 11 }: { size?: number }) {
   );
 }
 
-/** Hot water or RO water, after the name on a server sheet: a small outlined tag. */
-function WaterTag({ kind }: { kind: 'HOT' | 'RO' }) {
-  return (
-    <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', height: 11, padding: '0 2px', border: '1px solid #111827', borderRadius: 3, fontSize: 8, lineHeight: 1, fontWeight: 800, letterSpacing: '.03em', color: '#111827', background: '#FFFFFF' }}>
-      {kind}
-    </span>
-  );
-}
-
 function ServerBody({ room }: { room: ServerRoom }) {
   return (
     <div style={roomBox(room.w, room.h)}>
@@ -47,18 +38,17 @@ function ServerBody({ room }: { room: ServerRoom }) {
         <Table key={t.id} t={t} />
       ))}
       {room.labels.map((l, i) => (
-        // The seat's space, turned to face the table; inside it the label is drawn at full size
-        // and scaled down only when it has more in it than the space holds.
+        // The seat's label, turned to face the table; drawn at full size inside, then scaled to
+        // the sheet's scale (smaller only when a full section needs the room).
         <div key={i} style={{ position: 'absolute', left: l.l, top: l.t, width: l.w, height: l.h, transform: `rotate(${l.ang}deg)` }}>
           <div
-            style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: 2, textAlign: 'center' }}
+            style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: NAME_GAP, textAlign: 'center' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
-              {l.water && <WaterTag kind={l.water} />}
             </div>
             {l.items.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: PILL_GAP }}>
                 {l.items.map((it, k) => (
                   <div
                     key={k}
@@ -68,9 +58,11 @@ function ServerBody({ room }: { room: ServerRoom }) {
                       {it.half && <span style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
                       <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>{it.cap}</span>
                     </div>
-                    {/* The cup, in a dark band the same dark as the ½ tab. With a ½ tab too, a white
-                        hairline keeps the two dark marks apart (inside the band's height). */}
-                    <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: it.half ? '1px solid #FFFFFF' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
+                    {/* What the server fills, in a dark band the same dark as the ½ tab (none for tea's mug).
+                        With a ½ tab too, a white hairline keeps the two dark marks apart. */}
+                    {it.cup && (
+                      <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: it.half ? '1px solid #FFFFFF' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -212,7 +204,12 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
                 </div>
               </div>
             ) : (
-              <SetupBody room={b.room} />
+              // Drawn smaller only when the sections' chips need more width than the page has.
+              <div style={{ width: (b.room.w + 2) * b.room.scale, height: (b.room.h + 2) * b.room.scale }}>
+                <div style={{ transform: b.room.scale < 1 ? `scale(${b.room.scale})` : undefined, transformOrigin: '0 0' }}>
+                  <SetupBody room={b.room} />
+                </div>
+              </div>
             )}
           </div>
           {b.kind === 'setup' && <SetupLegend />}

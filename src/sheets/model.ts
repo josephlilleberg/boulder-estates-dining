@@ -89,8 +89,8 @@ export interface Pill {
   color: string;
   /** Half glass of milk: a dark ½ tab in front. */
   half: boolean;
-  /** The cup it's served in, named in a dark band under the drink. */
-  cup: string;
+  /** What the server fills, named in a dark band under the drink; null for a mug (tea), which the server doesn't fill. */
+  cup: string | null;
 }
 
 /** Short names for the cup band on server sheets. */
@@ -127,18 +127,18 @@ export interface ServerLabel {
   /** column-reverse when the label reads outward-up, so the name stays against the table. */
   dir: 'column' | 'column-reverse';
   name: string;
-  /** Hot water or RO water: a small tag after the name. */
-  water: 'HOT' | 'RO' | null;
   items: Pill[];
   /** Width of every pill on this label, so they line up. */
   pillW: number;
-  /** Drawn at this scale (1 = full size) so the label fits its seat's space. */
+  /** Drawn at this scale: the sheet's scale, a little less if a pill is wider than a seat. */
   scale: number;
 }
 
 export interface ServerRoom {
   w: number;
   h: number;
+  /** Every label on the sheet is drawn at this scale: 1, or less when a full section needs the room. */
+  scale: number;
   tables: TableDraw[];
   labels: ServerLabel[];
 }
@@ -149,32 +149,38 @@ const AW = 972;
 const AH = 676;
 const EDGE = 8;
 /**
- * The space every server label gets at its seat. Wider than about 76 px and two seats on a
- * rectangle's long side (or round a corner) touch; the height is what the page can give every
- * seat at once. A label with more in it is drawn smaller to fit, so any combination of drinks,
- * cups and names fits without overlapping (see the every-combination test).
+ * Widest a server label is drawn: the two seats on a rectangle's long side are 76 px apart,
+ * so anything wider would touch its neighbour at the same table.
  */
 export const SEAT_W = 74;
-export const SEAT_H = 58;
-/** The smallest a label is drawn; the test checks every real combination stays at or above it. */
-export const MIN_LABEL_SCALE = 0.85;
+/** Clear space kept between the labels (and tables) of different tables on a server sheet. */
+export const SERVER_GAP = 20;
+/** A full section's labels shrink together to fit, never below this. */
+export const MIN_SHEET_SCALE = 0.5;
+/** Space between the name and the first pill, and between pills. */
+export const NAME_GAP = 5;
+export const PILL_GAP = 2;
 
 type Spot = { x: number; y: number };
+/** Each seat's label height at full size (0: nobody there). */
+type SeatHeight = (seat: number) => number;
 
-function serverShapes(t: DiningTable, p: Spot): (RotBox & { body?: boolean })[] {
+/** A table and the space its labels take, at label scale k. */
+function serverShapes(t: DiningTable, p: Spot, lh: SeatHeight, k: number): (RotBox & { body?: boolean })[] {
   const round = t.shape === 'round';
   const a = (t.rotation * Math.PI) / 180;
   const c = Math.cos(a);
   const s = Math.sin(a);
   const out: (RotBox & { body?: boolean })[] = [{ cx: p.x, cy: p.y, hw: ((round ? 92 : 182) * SG) / 2, hh: (92 * SG) / 2, ang: t.rotation, body: true }];
-  seatGeom(t.shape).forEach((g) => {
-    const h = SEAT_H;
+  seatGeom(t.shape).forEach((g, i) => {
+    const h = lh(i) * k;
+    if (!h) return;
     const sx = p.x + (g[0] * c - g[1] * s) * SG;
     const sy = p.y + (g[0] * s + g[1] * c) * SG;
     const nx = g[2] * c - g[3] * s;
     const ny = g[2] * s + g[3] * c;
     const off = -13 * SG + 3 + h / 2;
-    out.push({ cx: sx + nx * off, cy: sy + ny * off, hw: SEAT_W / 2, hh: h / 2, ang: edgeAngle(nx, ny) });
+    out.push({ cx: sx + nx * off, cy: sy + ny * off, hw: (SEAT_W * k) / 2, hh: h / 2, ang: edgeAngle(nx, ny) });
   });
   return out;
 }
@@ -184,14 +190,15 @@ function serverShapes(t: DiningTable, p: Spot): (RotBox & { body?: boolean })[] 
  * fill the page, then any two tables whose labels would touch are nudged apart a
  * few px at a time, staying on the page. The room layout itself never changes.
  */
-export function serverFit(T: DiningTable[]): Map<string, Spot> {
+export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: number): Map<string, Spot> {
+  const lh = (t: DiningTable): SeatHeight => lhOf.get(t.id) ?? (() => 0);
   const bbox = (spx: number, spy: number) => {
     let x0 = 1e9;
     let y0 = 1e9;
     let x1 = -1e9;
     let y1 = -1e9;
     for (const t of T) {
-      for (const r of serverShapes(t, { x: t.x * spx, y: t.y * spy })) {
+      for (const r of serverShapes(t, { x: t.x * spx, y: t.y * spy }, lh(t), k)) {
         for (const [x, y] of corners(r)) {
           x0 = Math.min(x0, x);
           x1 = Math.max(x1, x);
@@ -222,13 +229,13 @@ export function serverFit(T: DiningTable[]): Map<string, Spot> {
 
   for (let it = 0; it < 120; it++) {
     let moved = false;
-    const S = T.map((t, i) => serverShapes(t, pos[i]!));
+    const S = T.map((t, i) => serverShapes(t, pos[i]!, lh(t), k));
     for (let i = 0; i < T.length; i++) {
       for (let j = i + 1; j < T.length; j++) {
         for (const A of S[i]!) {
           for (const B of S[j]!) {
             if (A.body && B.body) continue;
-            const m = separation(A, B, 4);
+            const m = separation(A, B, SERVER_GAP);
             if (!m) continue;
             const d = Math.min(m.o, 6) / 2; // small steps so tables move as little as needed
             pos[i]!.x += m.v[0] * d;
@@ -245,7 +252,7 @@ export function serverFit(T: DiningTable[]): Map<string, Spot> {
       let y0 = 1e9;
       let x1 = -1e9;
       let y1 = -1e9;
-      for (const r of serverShapes(t, pos[i]!)) {
+      for (const r of serverShapes(t, pos[i]!, lh(t), k)) {
         for (const [x, y] of corners(r)) {
           x0 = Math.min(x0, x);
           x1 = Math.max(x1, x);
@@ -263,6 +270,15 @@ export function serverFit(T: DiningTable[]): Map<string, Spot> {
   return new Map(T.map((t, i) => [t.id, pos[i]!]));
 }
 
+/** Whether any two tables' labels (or a label and another table) come closer than the gap allows. */
+function crowded(T: DiningTable[], at: Map<string, Spot>, lhOf: Map<string, SeatHeight>, k: number): boolean {
+  const S = T.map((t) => serverShapes(t, at.get(t.id)!, lhOf.get(t.id) ?? (() => 0), k));
+  for (let i = 0; i < S.length; i++)
+    for (let j = i + 1; j < S.length; j++)
+      for (const A of S[i]!) for (const B of S[j]!) if (!(A.body && B.body) && separation(A, B, SERVER_GAP - 2)) return true;
+  return false;
+}
+
 const PLAIN = '#F9FAFB';
 
 /**
@@ -271,25 +287,26 @@ const PLAIN = '#F9FAFB';
  * don't fit are clipped by the label box).
  */
 export const CHAR_W = 6.0;
-/** The HOT / RO tag after a name, plus its gap. */
-export const waterTagW = (w: ServerLabel['water']) => (w ? 3 + 6 + w.length * 5.6 : 0);
-
 /** Full-size width of one drink pill: PILL_W, or more if its ½ tab and name or its cup band need it. */
-export const pillW = (p: Pill) => Math.max(PILL_W, 2 + 6 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), 2 + 8 + p.cup.length * 5.2);
+export const pillW = (p: Pill) => Math.max(PILL_W, 2 + 6 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 : 0);
 /** Full-size height of a label: the name line, then its pills (a cup band adds a little). */
-export const labelH = (items: Pill[]) => 14 + items.length * (2 + 2 + PILL_ROW_H + CUP_BAND_H); // name line, then per pill: gap, border, row, band
+export const labelH = (items: Pill[]) =>
+  14 + (items.length ? NAME_GAP + (items.length - 1) * PILL_GAP : 0) + items.reduce((h, p) => h + 2 + PILL_ROW_H + (p.cup ? CUP_BAND_H : 0), 0);
 
 /**
  * Width of what a server label actually draws (the name, the widest pill). Its box
  * is wider (84–92 px) so the two seats on a rectangle's long side, 76 px apart,
  * have boxes that overlap while their names and pills don't.
  */
-export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { water?: ServerLabel['water']; scale?: number }): number {
-  const name = l.name.length * CHAR_W + waterTagW(l.water ?? null);
+export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { scale?: number }): number {
+  const name = l.name.length * CHAR_W;
   return Math.min(l.w, Math.max(name, ...l.items.map(pillW)) * (l.scale ?? 1));
 }
 
-/** One pill per drink (coffee isn't shown: everyone is offered it). Hot water and RO are a tag by the name. */
+/**
+ * One pill per drink, then RO water (a glass) and hot water (a pitcher): everything the server
+ * fills. Coffee isn't shown (everyone is offered it); tea has no cup band (a mug isn't filled).
+ */
 export function serverPills(r: Resident, meal: string, beverages: Beverage[]): Pill[] {
   const p = prefsOf(r, meal);
   if (!p) return [];
@@ -314,23 +331,40 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
       // Only a glass or to-go cup comes in halves; two halves poured together make a full one.
       half: !pair && d.amount === 'Half' && hasAmount(served),
-      cup: cupTag(served),
+      cup: bev?.kind === 'tea' || served === 'Mug' ? null : cupTag(served),
     });
   }
+  if (p.roWater) items.push({ cap: 'RO water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' });
+  if (p.hotWater) items.push({ cap: 'Hot water', bg: PLAIN, color: '#111827', half: false, cup: 'Pitcher' });
   return items;
 }
 
 /**
- * The space kept for every seat's label on a server sheet, where serverRoom puts the tables.
- * Each label is drawn inside its seat's space, so if these never overlap, no labels can.
+ * A server sheet: tables keep their order and spread out so every label has a clear gap to the
+ * next table's, sized by what's actually at each seat. If a section is too full for that at full
+ * size, every label on the sheet shrinks by the same amount (never below MIN_SHEET_SCALE).
  */
-export function serverSeatSpaces(T: DiningTable[]): (RotBox & { tableId: string; body: boolean })[] {
-  const at = serverFit(T);
-  return T.flatMap((t) => serverShapes(t, at.get(t.id)!).map((b) => ({ ...b, tableId: t.id, body: !!b.body })));
-}
-
 export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[]): ServerRoom {
-  const at = serverFit(T);
+  const pillsAt = new Map<string, Pill[]>();
+  for (const t of T) seatGeom(t.shape).forEach((_, i) => {
+    const r = occupant(t.id, i);
+    if (r) pillsAt.set(`${t.id}:${i}`, serverPills(r, meal, beverages));
+  });
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const p = pillsAt.get(`${t.id}:${i}`); return p ? labelH(p) : 0; }]));
+  let sheetK = 1;
+  let at = serverFit(T, lhOf, 1);
+  if (crowded(T, at, lhOf, 1)) {
+    let lo = MIN_SHEET_SCALE;
+    let hi = 1;
+    let best = { k: MIN_SHEET_SCALE, at: serverFit(T, lhOf, MIN_SHEET_SCALE) };
+    for (let n = 0; n < 7; n++) {
+      const mid = (lo + hi) / 2;
+      const m = serverFit(T, lhOf, mid);
+      if (crowded(T, m, lhOf, mid)) hi = mid;
+      else [lo, best] = [mid, { k: mid, at: m }];
+    }
+    [sheetK, at] = [Math.floor(best.k * 100) / 100, best.at];
+  }
   const tables: TableDraw[] = [];
   const labels: ServerLabel[] = [];
   for (const t of T) {
@@ -349,12 +383,10 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const nx = g[2] * c - g[3] * s;
       const ny = g[2] * s + g[3] * c;
       const ang = edgeAngle(nx, ny);
-      const items = serverPills(r, meal, beverages);
-      const p = prefsOf(r, meal);
-      const water = p?.hotWater ? 'HOT' : p?.roWater ? 'RO' : null;
-      // Drawn smaller only if the pills don't fit the seat's space (the name is cut short instead).
+      const items = pillsAt.get(`${t.id}:${i}`) ?? [];
+      // The sheet's scale; a little less if a pill is wider than a seat (the name is cut short instead).
       const pw = Math.max(PILL_W, ...items.map(pillW));
-      const k = Math.min(1, Math.floor(Math.min(SEAT_W / pw, SEAT_H / labelH(items)) * 100) / 100);
+      const k = Math.floor(sheetK * Math.min(1, SEAT_W / pw) * 100) / 100;
       const H = labelH(items) * k;
       const off = -13 * SG + 3 + H / 2;
       const ar = (ang * Math.PI) / 180;
@@ -362,7 +394,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       // Pyramid: longest drink next to the name, shortest farthest out.
       const len = (p: Pill) => p.cap.length + (p.half ? 2 : 0);
       items.sort((p, q) => (outUp ? 1 : -1) * (len(p) - len(q)));
-      labels.push({ tableId: t.id, l: sx + nx * off - SEAT_W / 2, t: sy + ny * off - H / 2, w: SEAT_W, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), water, items, pillW: pw, scale: k });
+      labels.push({ tableId: t.id, l: sx + nx * off - (SEAT_W * sheetK) / 2, t: sy + ny * off - H / 2, w: SEAT_W * sheetK, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), items, pillW: pw, scale: k });
     });
     tables.push({
       id: t.id,
@@ -378,7 +410,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       border: '1px solid #6B7280',
     });
   }
-  return { w: AW, h: AH, tables, labels };
+  return { w: AW, h: AH, scale: sheetK, tables, labels };
 }
 
 /** One line in a server sheet's notes: who (by table) and their allergies, notes and ½ portion. */
@@ -429,7 +461,8 @@ export interface Change {
 export function setupChanges(r: Resident, meal: string): Change[] {
   const p = prefsOf(r, meal);
   const dr = p?.drinks ?? [];
-  const hasMug = dr.some((x) => x.drinkware === 'Mug') || !!p?.hotWater;
+  // Hot water comes in a pitcher, not a mug.
+  const hasMug = dr.some((x) => x.drinkware === 'Mug');
   // Two halves of the same drink are poured together: one glass instead of two juice
   // glasses, or one to-go cup instead of two.
   const into = pouredInto(dr);
@@ -440,7 +473,7 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   const extraGlass = Math.max(0, glassDrinks - 1) + dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0);
   const juice = dr.filter((x) => x.drinkware === 'Juice glass').length - (into === 'Glass' ? 2 : 0);
   const togo = dr.filter((x) => x.drinkware === 'To-go cup').length - (into === 'To-go cup' ? 1 : 0);
-  const pitcher = dr.filter((x) => x.drinkware === 'Milk pitcher').length;
+  const pitcher = dr.filter((x) => x.drinkware === 'Milk pitcher').length + (p?.hotWater ? 1 : 0);
   const out: Change[] = [];
   const add = (n: number, word: string) => {
     if (n > 0) out.push({ text: `+${n > 1 ? `${n} ` : ''}${word}`, bg: '#86EFAC' });
@@ -448,8 +481,8 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   add(extraGlass, extraGlass > 1 ? 'Glasses' : 'Glass');
   add(juice, 'Juice');
   add(togo, 'To-Go');
-  add(pitcher, 'Pitcher');
-  if (!hasMug) out.push({ text: 'No Mug', bg: '#FCA5A5' });
+  add(pitcher, pitcher > 1 ? 'Pitchers' : 'Pitcher');
+  if (!hasMug) out.push({ text: '−Mug', bg: '#FCA5A5' }); // a true minus, to match +Glass
   return out;
 }
 
@@ -472,6 +505,8 @@ export interface SeatPill {
 }
 
 export interface ChangeLabel {
+  /** The table whose seat this is. */
+  tableId: string;
   l: number;
   t: number;
   w: number;
@@ -488,16 +523,102 @@ export interface SetupRoom {
   dividers: { l: number; h: number }[];
   pills: SeatPill[];
   changes: ChangeLabel[];
+  /** Drawn at this scale: 1, or less when the sections' chips need more width than the page has. */
+  scale: number;
 }
 
 /** Tables (and their seats) are drawn this much larger than true scale, so seats on one table don't crowd. */
 const TG = 1.35;
+
+/** Clear space kept between one table's chips and the next table (and its chips) on the setup sheet. */
+export const SETUP_GAP = 12;
+
+type AABB = { x0: number; x1: number; y0: number; y1: number };
+const tableAABB = (t: TableDraw): AABB => {
+  const a = (t.rotation * Math.PI) / 180;
+  const hw = (Math.abs(Math.cos(a)) * t.w + Math.abs(Math.sin(a)) * t.h) / 2;
+  const hh = (Math.abs(Math.sin(a)) * t.w + Math.abs(Math.cos(a)) * t.h) / 2;
+  const cx = t.l + t.w / 2;
+  const cy = t.t + t.h / 2;
+  return { x0: cx - hw, x1: cx + hw, y0: cy - hh, y1: cy + hh };
+};
+const labelAABB = (L: { l: number; t: number; w: number; h: number; bw: number; bh: number }): AABB => {
+  const cx = L.l + L.w / 2;
+  const cy = L.t + L.h / 2;
+  return { x0: cx - L.bw / 2, x1: cx + L.bw / 2, y0: cy - L.bh / 2, y1: cy + L.bh / 2 };
+};
+
+/**
+ * Setup sheet: each table moves together with its seat pills and change labels. Neighbours in a
+ * row whose chips come within SETUP_GAP slide apart sideways (rows and order stay as in the room).
+ * Then each section takes the width its tables and chips need, side by side; spare width is shared
+ * out. Returns the room's width, which is more than PW only when the sheet must be drawn smaller.
+ */
+function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: number; h: number; bw: number; bh: number; tix: number }[], pillTix: number[], secOf: number[], titles: string[], PW: number, H: number): number {
+  const n = out.tables.length;
+  const move = (i: number, dx: number) => {
+    out.tables[i]!.l += dx;
+    for (const L of labels) if (L.tix === i) L.l += dx;
+    out.pills.forEach((p, k) => {
+      if (pillTix[k] === i) p.l += dx;
+    });
+  };
+  const parts = (i: number): AABB[] => [tableAABB(out.tables[i]!), ...labels.filter((L) => L.tix === i).map(labelAABB)];
+  const cx = (i: number) => out.tables[i]!.l + out.tables[i]!.w / 2;
+  for (let it = 0; it < 200; it++) {
+    let moved = false;
+    const P = Array.from({ length: n }, (_, i) => parts(i));
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (secOf[i] !== secOf[j]) continue;
+        for (const a of P[i]!) {
+          for (const b of P[j]!) {
+            const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) + SETUP_GAP;
+            const oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) + SETUP_GAP;
+            if (ox <= 0 || oy <= 0) continue;
+            const d = (Math.min(ox, 6) / 2) * (cx(i) <= cx(j) ? -1 : 1);
+            move(i, d);
+            move(j, -d);
+            moved = true;
+          }
+        }
+      }
+    }
+    if (!moved) break;
+  }
+  // Sections side by side, each as wide as its tables and chips need.
+  const PADX = 16;
+  const secs = titles.map((_, k) => {
+    const ps = out.tables.flatMap((_, i) => (secOf[i] === k ? parts(i) : []));
+    return ps.length ? { x0: Math.min(...ps.map((p) => p.x0)), x1: Math.max(...ps.map((p) => p.x1)) } : { x0: 0, x1: 0 };
+  });
+  const need = secs.reduce((a, e) => a + e.x1 - e.x0 + 2 * PADX, 0);
+  const extra = Math.max(0, PW - need) / titles.length;
+  out.titles = [];
+  out.dividers = [];
+  let cur = 0;
+  secs.forEach((e, k) => {
+    const dx = cur + PADX + extra / 2 - e.x0;
+    for (let i = 0; i < n; i++) if (secOf[i] === k) move(i, dx);
+    out.titles.push({ l: cur + 12, t: 8, text: titles[k]! });
+    if (k > 0) out.dividers.push({ l: cur, h: H });
+    cur += e.x1 - e.x0 + 2 * PADX + extra;
+  });
+  return cur;
+}
 
 /**
  * Every open section side by side on one 11 × 17 floor plan. Rows line up across
  * sections; a section with fewer rows uses the first and last shared heights.
  */
 export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number): SetupRoom {
+  // A sheet drawn smaller to fit its width would leave the page's height unused, so lay it out
+  // again with the height it will have once scaled (rows spread further apart).
+  const first = buildSetupRoom(sections, allTables, occupant, meal, PW, PH);
+  return first.scale < 1 ? buildSetupRoom(sections, allTables, occupant, meal, PW, PH / first.scale) : first;
+}
+
+function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number): SetupRoom {
   const pad = 30;
   const secTables = sections.map((s) => allTables.filter((t) => t.section === s.section));
   const ay = new Map(allTables.map((t) => [t.id, t.y]));
@@ -526,7 +647,7 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
       y0: Math.min(...b.ts.map((t) => ay.get(t.id)! - footprint(t)[1])),
       y1: Math.max(...b.ts.map((t) => ay.get(t.id)! + footprint(t)[1])),
     }));
-  const out: SetupRoom = { w: 0, h: 0, tables: [], titles: [], dividers: [], pills: [], changes: [] };
+  const out: SetupRoom = { w: 0, h: 0, tables: [], titles: [], dividers: [], pills: [], changes: [], scale: 1 };
   if (!boxes.length) return out;
   const y0 = Math.min(...boxes.map((b) => b.y0)) - pad - 24;
   const y1 = Math.max(...boxes.map((b) => b.y1)) + pad;
@@ -535,7 +656,9 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
   const sc = Math.min(PW / totalW, PH / totalH);
   // Rows spread apart vertically to fill the page; table sizes and left-to-right spacing stay true.
   const fy = Math.max(sc, Math.min(PH / totalH, sc * 1.8));
-  const labels: (ChangeLabel & { bw: number; bh: number; tix: number })[] = [];
+  const labels: (Omit<ChangeLabel, 'tableId'> & { bw: number; bh: number; tix: number })[] = [];
+  const pillTix: number[] = []; // which table each seat pill belongs to
+  const secOf: number[] = []; // each table's section (index into boxes)
 
   let ox = 0;
   boxes.forEach((b, bi) => {
@@ -569,6 +692,7 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
         const PH2 = 7;
         const pin = 3 + PH2 / 2;
         out.pills.push({ l: ex - nx * pin - PW2 / 2, t: ey - ny * pin - PH2 / 2, w: PW2, h: PH2, ang: Math.round((Math.atan2(ny, nx) * 180) / Math.PI + 90), chair: r.chair });
+        pillTix.push(out.tables.length);
         const items = setupChanges(r, meal);
         if (!items.length) return;
         const w = Math.max(...items.map((x) => Math.round(x.text.length * 6.3) + 14));
@@ -582,6 +706,7 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
         const bh = Math.abs(Math.sin(lr)) * w + Math.abs(Math.cos(lr)) * h;
         labels.push({ l: gx - w / 2, t: gy - h / 2, w, h, ang: la, bw, bh, items, tix: out.tables.length });
       });
+      secOf.push(bi);
       out.tables.push({
         id: t.id,
         number: t.number,
@@ -599,8 +724,10 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
     ox += (b.x1 - b.x0) * sc;
   });
 
+  const roomW = spreadSetupTables(out, labels, pillTix, secOf, boxes.map((b) => b.s.label), PW, totalH * fy);
+
   // Labels never overlap: when two label blocks (or a label and another table) touch,
-  // slide them apart along the shorter overlap a few px at a time. Tables never move.
+  // slide them apart along the shorter overlap a few px at a time.
   const tbox = out.tables.map((t) => {
     const a = (t.rotation * Math.PI) / 180;
     const hw = (Math.abs(Math.cos(a)) * t.w + Math.abs(Math.sin(a)) * t.h) / 2;
@@ -654,8 +781,9 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
     }
     if (!moved) break;
   }
-  out.changes = labels.map(({ l, t, w, h, ang, items }) => ({ l, t, w, h, ang, items }));
-  out.w = Math.round(ox);
+  out.changes = labels.map(({ l, t, w, h, ang, items, tix }) => ({ tableId: out.tables[tix]!.id, l, t, w, h, ang, items }));
+  out.w = Math.round(roomW);
+  out.scale = Math.min(1, Math.floor((PW / roomW) * 100) / 100);
   out.h = Math.round(totalH * fy);
   return out;
 }

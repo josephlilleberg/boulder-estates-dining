@@ -270,7 +270,7 @@ export function detailRows(r: Resident, meal: string, beverages: Beverage[]): De
     const both = isPair(d);
     return { name: both ? `2 × ${d.beverage}` : d.beverage, meta: both ? `${pouredInto(p.drinks)} · both poured together` : meta, dot: kind === 'coffee' ? '#6F4E37' : (bev?.color ?? '#FFFFFF') };
   });
-  if (p.hotWater) rows.push({ name: 'Hot water', meta: 'Mug', dot: '#FFFFFF' });
+  if (p.hotWater) rows.push({ name: 'Hot water', meta: 'Pitcher', dot: '#FFFFFF' });
   if (p.roWater) rows.push({ name: 'RO water', meta: 'Glass', dot: '#BFDBFE' });
   return rows;
 }

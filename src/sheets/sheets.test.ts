@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { chipRows, corners, edgeAngle, EXTRA_BG, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
+import { chipRows, corners, edgeAngle, EXTRA_BG, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -440,6 +440,40 @@ describe('setup chip layout', () => {
   });
 });
 
+describe('Breakfast: setup and server sheets share one layout', () => {
+  const opening = () => getOpening(site(), 'Breakfast');
+  const pagesOf = (occ: (t: string, s: number) => Resident | null) => sheetsFor(opening()).map((sh) => buildPage(data(), site(), 'Breakfast', opening(), sh, occ, 1, 2, 'Nov 18, 2026'));
+  const r = (): Resident => {
+    const x = { ...resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { extras: [{ id: 'e', name: 'Fruit', variant: 'Banana', backup: null, count: 1 }] }), attends: ['Breakfast' as const] };
+    x.prefs = { Breakfast: x.prefs.Dinner! };
+    return x;
+  };
+
+  it('every table is in the same place on both, relative to the drawing', () => {
+    const [setup, server] = pagesOf(() => r());
+    if (setup!.body.kind !== 'server' || server!.body.kind !== 'server') throw new Error('shared layout pages');
+    const rel = (room: ServerRoom) => room.tables.map((t) => [t.id, Math.round(((t.l + t.w / 2) / room.w) * 1000), Math.round(((t.t + t.h / 2) / room.h) * 1000), Math.round((t.w / room.w) * 1000)]);
+    expect(rel(setup!.body.room)).toEqual(rel(server!.body.room));
+    expect(setup!.paper).toBe('tabloid');
+    expect(server!.paper).toBe('letter');
+  });
+
+  it('the setup sheet shows chips, chairs and the red dot; the server sheet names and drinks', () => {
+    const [setup, server] = pagesOf(() => r());
+    if (setup!.body.kind !== 'server' || server!.body.kind !== 'server') throw new Error('shared layout pages');
+    const s0 = setup!.body.room.labels[0]!;
+    expect([s0.name, s0.items.length, s0.chips.map((c) => c.text)]).toEqual(['', 0, ['+Juice', 'Banana']]);
+    expect(setup!.body.room.pills).toHaveLength(setup!.body.room.labels.length);
+    expect(setup!.body.room.mugs.every((m) => m.dot)).toBe(true);
+    expect([setup!.body.legend, setup!.body.notesShown]).toEqual(['setup', false]);
+    expect(setup!.body.roomScale).toBeGreaterThan(1); // the Letter drawing, enlarged to fill 11 × 17
+    const v0 = server!.body.room.labels[0]!;
+    expect([v0.name, v0.items.map((i) => i.cap), v0.chips]).toEqual(['Agatha H.', ['2% Milk', 'Orange'], []]);
+    expect(server!.body.room.pills).toEqual([]);
+    expect([server!.body.legend, server!.body.notesShown]).toEqual([null, true]);
+  });
+});
+
 describe('Supper: + on added cups', () => {
   const plus = (r: Resident) => serverPills(r, 'Dinner', data().beverages, { adds: true }).map((p) => `${p.plus ? '+' : ''}${p.cap}`);
   it('the first drink in a glass uses the usual glass; every other cup is added; mugs never are', () => {
@@ -476,7 +510,7 @@ describe('Supper: one combined page', () => {
     const pg = buildPage(data(), site(), 'Supper', opening(), sheet, () => r, 1, 1, 'Nov 18, 2026');
     if (pg.body.kind !== 'server') throw new Error('server-style page');
     const room = pg.body.room;
-    expect(pg.body.legend).toBe(true);
+    expect(pg.body.legend).toBe('supper');
     expect(room.labels.length).toBeGreaterThan(0);
     expect(room.pills).toHaveLength(room.labels.length); // a chair pill at every seated seat
     // Only the extras are chips; added cups get a + on their band instead of +Glass / +Juice chips.

@@ -319,6 +319,8 @@ const CHIP_H = 16;
 const CHIP_GAP = 3;
 export const chipW = (c: Change) => Math.round(c.text.length * 6.3) + 14;
 export const chipsH = (cs: Change[]) => (cs.length ? cs.length * CHIP_H + (cs.length - 1) * CHIP_GAP + NAME_GAP : 0);
+/** Chips stacked on their own (a setup-only label). */
+export const stackH = (cs: Change[]) => (cs.length ? cs.length * CHIP_H + (cs.length - 1) * CHIP_GAP : 0);
 
 /** A label with two drinks, both with cup bands: the least room any seat keeps. */
 const TWO_DRINKS_H = 14 + NAME_GAP + PILL_GAP + 2 * (2 + PILL_ROW_H + CUP_BAND_H);
@@ -385,20 +387,35 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[], op
  * next table's, sized by what's actually at each seat. If a section is too full for that at full
  * size, every label on the sheet shrinks by the same amount (never below MIN_SHEET_SCALE).
  */
-export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[], opts: { withSetup?: boolean; area?: Area } = {}): ServerRoom {
+/**
+ * What a sheet draws at each seat: 'server' names and drinks; 'setup' the setup chips (with chair
+ * pills, the no-mug dot and creamer tint); 'both' all of it (Supper). With shared, a seat keeps
+ * room for the bigger of its setup and server labels, so a meal's setup and server sheets put every
+ * table in the same place (Breakfast).
+ */
+export type SeatDraw = 'server' | 'setup' | 'both';
+
+export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[], opts: { draw?: SeatDraw; shared?: boolean; area?: Area } = {}): ServerRoom {
   const area = opts.area ?? LETTER_AREA;
+  const draw = opts.draw ?? 'server';
   const pillsAt = new Map<string, Pill[]>();
   const chipsAt = new Map<string, Change[]>();
+  const roomAt = new Map<string, number>();
   for (const t of T) seatGeom(t.shape).forEach((_, i) => {
     const r = occupant(t.id, i);
     if (!r) return;
+    const key = `${t.id}:${i}`;
     // Supper's sheet: + squares on added cups instead of +Glass chips, so only the extras are chips.
-    pillsAt.set(`${t.id}:${i}`, serverPills(r, meal, beverages, { adds: opts.withSetup }));
-    chipsAt.set(`${t.id}:${i}`, opts.withSetup ? extraChips(r, meal) : []);
+    const pills = serverPills(r, meal, beverages, { adds: draw === 'both' });
+    const setup = setupChanges(r, meal);
+    pillsAt.set(key, draw === 'setup' ? [] : pills);
+    chipsAt.set(key, draw === 'both' ? extraChips(r, meal) : draw === 'setup' ? setup : []);
+    const serverH = labelH(pills);
+    roomAt.set(key, draw === 'both' ? serverH + chipsH(extraChips(r, meal)) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setup)) : serverH);
   });
   // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
   // place whoever is seated; only a seat with more than that needs extra.
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const p = pillsAt.get(`${t.id}:${i}`); return Math.max(TWO_DRINKS_H, p ? labelH(p) + chipsH(chipsAt.get(`${t.id}:${i}`)!) : 0); }]));
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => Math.max(TWO_DRINKS_H, roomAt.get(`${t.id}:${i}`) ?? 0)]));
   let sheetK = 1;
   let at = serverFit(T, lhOf, 1, area);
   if (crowded(T, at, lhOf, 1)) {
@@ -436,7 +453,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const ang = edgeAngle(nx, ny);
       const items = pillsAt.get(`${t.id}:${i}`) ?? [];
       const chips = chipsAt.get(`${t.id}:${i}`) ?? [];
-      if (opts.withSetup) {
+      if (draw !== 'server') {
         if (takesCreamer(r, meal)) creamer = true;
         // Chair pill on the table edge; a red dot on the table when the mug comes off.
         const m = edgeMarks(sx - nx * 13 * SG, sy - ny * 13 * SG, nx, ny, r.chair, noMug(r, meal), true);
@@ -446,11 +463,11 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       // The sheet's scale; a little less if a pill or chip is wider than a seat (the name is cut short instead).
       const pw = Math.max(PILL_W, ...items.map(pillW));
       const k = Math.floor(sheetK * Math.min(1, SEAT_W / Math.max(pw, ...chips.map(chipW))) * 100) / 100;
-      const H = (labelH(items) + chipsH(chips)) * k;
+      const H = (draw === 'setup' ? stackH(chips) : labelH(items) + chipsH(chips)) * k;
       const off = -13 * SG + 3 + H / 2;
       const ar = (ang * Math.PI) / 180;
       const outUp = nx * Math.sin(ar) - ny * Math.cos(ar) > 0;
-      labels.push({ tableId: t.id, l: sx + nx * off - (SEAT_W * sheetK) / 2, t: sy + ny * off - H / 2, w: SEAT_W * sheetK, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), items, chips, pillW: pw, scale: k });
+      labels.push({ tableId: t.id, l: sx + nx * off - (SEAT_W * sheetK) / 2, t: sy + ny * off - H / 2, w: SEAT_W * sheetK, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: draw === 'setup' ? '' : shortName(r), items, chips, pillW: pw, scale: k });
     });
     tables.push({
       id: t.id,
@@ -462,7 +479,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       radius: round ? '50%' : `${Math.max(3, Math.round(8 * SG))}px`,
       rotation: t.rotation,
       fontSize: 15,
-      // On the combined sheet, a table where anyone takes creamer is tinted, as on the setup sheet.
+      // With setup drawn, a table where anyone takes creamer is tinted, as on the setup sheet.
       bg: creamer ? '#EDE9FE' : '#F3F4F6',
       border: creamer ? '1.5px solid #6D28D9' : '1px solid #6B7280',
     });

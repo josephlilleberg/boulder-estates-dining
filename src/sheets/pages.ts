@@ -23,6 +23,9 @@ export interface SheetRef {
   section?: number;
 }
 
+/** A meal with one section and separate sheets (Breakfast): its setup and server sheets share one layout. */
+export const sharedLayout = (opening: MealOpening) => opening.sections.length === 1 && !COMBINED_MEALS.includes(opening.meal);
+
 /** Supper is one page: setup chips and drinks at each seat together, on 11 × 17. */
 export const COMBINED_MEALS: string[] = ['Supper'];
 /** Height kept under the combined sheet's drawing for its key. */
@@ -58,8 +61,10 @@ export type PageBody =
       notes: ServerNote[];
       /** The drawing's scale: 1, or smaller when the notes need more room than the page keeps for them. */
       roomScale: number;
-      /** Supper's combined sheet: the chair and chip key goes under the drawing. */
-      legend: boolean;
+      /** The key under the drawing: Supper's (+ squares) or a one-section setup sheet's (Breakfast); none on server sheets. */
+      legend: 'supper' | 'setup' | null;
+      /** Allergies and notes under the drawing (not on a setup sheet). */
+      notesShown: boolean;
     } | { kind: 'setup'; room: SetupRoom };
 
 export interface PageData {
@@ -97,25 +102,36 @@ export function buildPage(
   const base = { key: sheet.key, paper: sheet.paper, w, h, footer };
 
   if (sheet.kind === 'combined') {
-    const room = serverRoom(tables, occupant, meal, data.beverages, { withSetup: true, area: areaFor(w, h, LEGEND_ROOM) });
+    const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'both', area: areaFor(w, h, LEGEND_ROOM) });
     const notes = serverNotes(tables, occupant, meal);
     return {
       ...base,
       title: `${meal} · Setup & drinks`,
       right: `Setup & drinks · ${site.name}`,
-      body: { kind: 'server', room, notes, legend: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
+      body: { kind: 'server', room, notes, legend: 'supper', notesShown: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
     };
   }
   if (sheet.kind === 'server') {
     const T = tables.filter((t) => t.section === sheet.section);
-    const room = serverRoom(T, occupant, meal, data.beverages);
+    const room = serverRoom(T, occupant, meal, data.beverages, { shared: sharedLayout(opening) });
     const notes = serverNotes(T, occupant, meal);
     const label = opening.sections.find((s) => s.section === sheet.section)?.label ?? '';
     return {
       ...base,
       title: `${meal} · ${label}`,
       right: `Server sheet · ${site.name}`,
-      body: { kind: 'server', room, notes, legend: false, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
+      body: { kind: 'server', room, notes, legend: null, notesShown: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
+    };
+  }
+  // A one-section meal (Breakfast): the same layout as its server sheet, drawn at Letter size and
+  // enlarged to fill the 11 × 17 page, so tables, gaps and labels keep identical proportions.
+  if (sharedLayout(opening)) {
+    const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'setup', shared: true });
+    return {
+      ...base,
+      title: `${meal} · Setup`,
+      right: `Setup sheet · ${site.name}`,
+      body: { kind: 'server', room, notes: [], legend: 'setup', notesShown: false, roomScale: Math.min((w - 84) / (room.w + 2), (h - 150 - 20 - 84) / (room.h + 2)) },
     };
   }
   // Setup: 150 px of header/footer, 20 px gap and 84 px kept free for the chair key.

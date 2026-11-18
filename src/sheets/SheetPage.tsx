@@ -50,9 +50,12 @@ function ServerBody({ room }: { room: ServerRoom }) {
           <div
             style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: NAME_GAP, textAlign: 'center' }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-              <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
-            </div>
+            {/* A setup-only label (Breakfast's setup sheet) has no name: just the chips. */}
+            {l.name && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
+              </div>
+            )}
             {l.items.length > 0 && (
               // Same direction as the label, so the first pill (milk, then juice…) is always next to the name.
               <div style={{ display: 'flex', flexDirection: l.dir, alignItems: 'center', gap: PILL_GAP }}>
@@ -172,7 +175,7 @@ const key = (mark: ReactNode, text: string) => (
 );
 
 /** The setup sheet's key. `vertical` stacks it (View puts it beside the drawing). */
-export function SetupLegend({ vertical = false, supper = false }: { vertical?: boolean; supper?: boolean }) {
+export function SetupLegend({ vertical = false, supper = false, dot = false }: { vertical?: boolean; supper?: boolean; dot?: boolean }) {
   const grid = (cols: number): CSSProperties => ({ display: 'grid', gridTemplateColumns: Array(vertical ? 1 : cols).fill('max-content').join(' '), gap: '6px 18px' });
   const div: CSSProperties | undefined = vertical ? { borderLeft: 0, borderTop: '1px solid #D1D5DB' } : undefined;
   return (
@@ -203,7 +206,9 @@ export function SetupLegend({ vertical = false, supper = false }: { vertical?: b
         ) : (
           <div style={grid(3)}>
             {key(tag('#86EFAC', '+ Item'), 'Add drinkware')}
-            {key(tag(NO_MUG.bg, 'Mug', NO_MUG.color), 'On a table: take the mug away')}
+            {dot
+              ? key(<span style={{ width: 9, height: 9, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />, 'On a table: take the mug away')
+              : key(tag(NO_MUG.bg, 'Mug', NO_MUG.color), 'On a table: take the mug away')}
             {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
           </div>
         )}
@@ -217,7 +222,7 @@ export function SetupLegend({ vertical = false, supper = false }: { vertical?: b
 }
 
 /** Page height a server drawing gives up for its notes. */
-const roomTrim = (b: PageData['body']) => (b.kind === 'server' ? Math.round((b.room.h + 2) * (1 - b.roomScale)) : 0);
+const roomTrim = (b: PageData['body']) => (b.kind === 'server' && b.notesShown ? Math.round((b.room.h + 2) * (1 - b.roomScale)) : 0);
 
 /**
  * A server sheet's notes: allergies, notes and ½ portions by table, in columns under the drawing.
@@ -255,13 +260,13 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
       </div>
 
         <div
-          style={{ height: b.kind === 'setup' ? page.h - 150 : page.h - 124 - roomTrim(b), boxSizing: 'border-box', paddingTop: 12, display: 'grid', gridTemplateColumns: 'max-content', gap: '12px 20px', alignContent: b.kind === 'setup' ? 'start' : 'center', justifyContent: 'center' }}
+          style={{ height: b.kind === 'setup' || !b.notesShown ? page.h - 150 : page.h - 124 - roomTrim(b), boxSizing: 'border-box', paddingTop: 12, display: 'grid', gridTemplateColumns: 'max-content', gap: '12px 20px', alignContent: b.kind === 'setup' ? 'start' : 'center', justifyContent: 'center' }}
         >
           <div data-sheet-room>
             {b.kind === 'server' ? (
-              // Drawn smaller only when a long notes list needs the room.
+              // Smaller when a long notes list needs the room; larger on Breakfast's 11 × 17 setup sheet.
               <div style={{ width: (b.room.w + 2) * b.roomScale, height: (b.room.h + 2) * b.roomScale }}>
-                <div style={{ transform: b.roomScale < 1 ? `scale(${b.roomScale})` : undefined, transformOrigin: '0 0' }}>
+                <div style={{ transform: b.roomScale !== 1 ? `scale(${b.roomScale})` : undefined, transformOrigin: '0 0' }}>
                   <ServerBody room={b.room} />
                 </div>
               </div>
@@ -275,10 +280,10 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
             )}
           </div>
           {b.kind === 'setup' && <SetupLegend />}
-          {b.kind === 'server' && b.legend && <SetupLegend supper />}
+          {b.kind === 'server' && b.legend && <SetupLegend supper={b.legend === 'supper'} dot />}
         </div>
 
-      {b.kind === 'server' ? (
+      {b.kind === 'server' && b.notesShown ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderTop: '1px solid #E5E7EB', fontSize: 10.5, color: '#4B5563' }}>
           <div style={{ flex: 1, paddingTop: 6 }}>
             <ServerNotes notes={b.notes} />

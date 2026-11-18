@@ -161,7 +161,7 @@ dependencies = [
 
 [[package]]
 name = "boulder-estates-dining"
-version = "0.1.16"
+version = "0.1.17"
 dependencies = [
  "log",
  "rusqlite",

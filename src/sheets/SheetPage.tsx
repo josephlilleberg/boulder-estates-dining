@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CHAIR_PILL, CUP_BAND_H, EXTRA_BG, NO_MUG, type Change, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { CHAIR_PILL, CUP_BAND_H, EXTRA_BG, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -40,6 +40,9 @@ function ServerBody({ room }: { room: ServerRoom }) {
       {room.pills.map((p, i) => (
         <ChairPill key={i} p={p} />
       ))}
+      {room.mugs.map((m, i) => (
+        <MugMarker key={i} m={m} />
+      ))}
       {room.labels.map((l, i) => (
         // The seat's label, turned to face the table; drawn at full size inside, then scaled to
         // the sheet's scale (smaller only when a full section needs the room).
@@ -47,14 +50,6 @@ function ServerBody({ room }: { room: ServerRoom }) {
           <div
             style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: NAME_GAP, textAlign: 'center' }}
           >
-            {/* Supper's combined sheet: what to set, nearest the table, before the name. */}
-            {l.chips.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: l.dir, alignItems: 'center', gap: 3 }}>
-                {l.chips.map((c, k) => (
-                  <Chip key={k} c={c} />
-                ))}
-              </div>
-            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
             </div>
@@ -74,9 +69,25 @@ function ServerBody({ room }: { room: ServerRoom }) {
                     {/* The band: what the server fills (or which tea), in the same dark as the ½ tab. A white
                         hairline separates it from the drink on every pill. */}
                     {it.cup && (
-                      <div style={{ height: CUP_BAND_H, boxSizing: 'border-box', borderTop: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>{it.cup}</div>
+                      <div style={{ position: 'relative', height: CUP_BAND_H, boxSizing: 'border-box', borderTop: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: it.plus ? `0 4px 0 ${CUP_BAND_H + 1}px` : '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                        {/* Supper: this cup is added to the usual setting. */}
+                        {it.plus && (
+                          <span style={{ position: 'absolute', left: 1, top: 0.5, width: CUP_BAND_H - 2.5, height: CUP_BAND_H - 2.5, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#86EFAC', color: '#111827', borderRadius: 1.5, fontSize: 9, fontWeight: 900, letterSpacing: 0 }}>
+                            +
+                          </span>
+                        )}
+                        {it.cup}
+                      </div>
                     )}
                   </div>
+                ))}
+              </div>
+            )}
+            {/* Supper's combined sheet: the extras, furthest from the table. */}
+            {l.chips.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: l.dir, alignItems: 'center', gap: 3 }}>
+                {l.chips.map((c, k) => (
+                  <Chip key={k} c={c} />
                 ))}
               </div>
             )}
@@ -87,12 +98,22 @@ function ServerBody({ room }: { room: ServerRoom }) {
   );
 }
 
-/** One setup chip (+Glass, −Mug, an extra), as on the setup sheet. */
+/** One setup chip (+Glass, an extra), as on the setup sheet. */
 function Chip({ c }: { c: Change }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', height: 16, padding: '0 6px', border: '1px solid #111827', borderRadius: 8, background: c.bg, fontSize: 10, fontWeight: 700, color: c.color ?? '#111827', whiteSpace: 'nowrap', flex: 'none' }}>
       {c.text}
     </span>
+  );
+}
+
+/** "Mug" on the table at a seat: take the mug away (no coffee or tea). */
+function MugMarker({ m }: { m: MugMark }) {
+  if (m.dot) return <div aria-hidden="true" style={{ position: 'absolute', left: m.l, top: m.t, width: m.w, height: m.h, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />;
+  return (
+    <div style={{ position: 'absolute', left: m.l, top: m.t, width: m.w, height: m.h, transform: `rotate(${m.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: '1px solid #111827', borderRadius: 6, background: NO_MUG.bg, color: NO_MUG.color, fontSize: 8, fontWeight: 800, lineHeight: 1 }}>
+      Mug
+    </div>
   );
 }
 
@@ -118,13 +139,20 @@ function SetupBody({ room }: { room: SetupRoom }) {
       {room.pills.map((p, i) => (
         <ChairPill key={i} p={p} />
       ))}
+      {room.mugs.map((m, i) => (
+        <MugMarker key={i} m={m} />
+      ))}
       {room.changes.map((c, i) => (
         <div
           key={i}
           style={{ position: 'absolute', left: c.l, top: c.t, width: c.w, height: c.h, transform: `rotate(${c.ang}deg)`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}
         >
-          {c.items.map((it, k) => (
-            <Chip key={k} c={it} />
+          {c.rows.map((row, k) => (
+            <div key={k} style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+              {row.map((it, j) => (
+                <Chip key={j} c={it} />
+              ))}
+            </div>
           ))}
         </div>
       ))}
@@ -144,11 +172,11 @@ const key = (mark: ReactNode, text: string) => (
 );
 
 /** The setup sheet's key. `vertical` stacks it (View puts it beside the drawing). */
-export function SetupLegend({ vertical = false }: { vertical?: boolean }) {
+export function SetupLegend({ vertical = false, supper = false }: { vertical?: boolean; supper?: boolean }) {
   const grid = (cols: number): CSSProperties => ({ display: 'grid', gridTemplateColumns: Array(vertical ? 1 : cols).fill('max-content').join(' '), gap: '6px 18px' });
   const div: CSSProperties | undefined = vertical ? { borderLeft: 0, borderTop: '1px solid #D1D5DB' } : undefined;
   return (
-    <div data-sheet-legend style={{ marginTop: vertical ? 0 : 12, width: 'max-content', maxWidth: '100%', display: 'flex', flexDirection: vertical ? 'column' : 'row', alignItems: 'stretch', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden', fontSize: 13, color: '#111827', background: '#FFFFFF' }}>
+    <div data-sheet-legend style={{ marginTop: vertical ? 0 : 12, width: 'max-content', maxWidth: '100%', display: 'flex', flexDirection: vertical ? 'column' : 'row', flexWrap: vertical ? undefined : 'wrap', alignItems: 'stretch', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden', fontSize: 13, color: '#111827', background: '#FFFFFF' }}>
       <div className="lgcell">
         <div className="lghead">Resident seats</div>
         <div style={grid(3)}>
@@ -159,11 +187,26 @@ export function SetupLegend({ vertical = false }: { vertical?: boolean }) {
       </div>
       <div className="lgcell lgdiv" style={div}>
         <div className="lghead">Labels</div>
-        <div style={grid(3)}>
-          {key(tag('#86EFAC', '+ Item'), 'Add drinkware')}
-          {key(tag(NO_MUG.bg, '−Mug', NO_MUG.color), 'No mug')}
-          {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
-        </div>
+        {supper ? (
+          // Supper's sheet: a + on the cup band instead of +Glass chips, and a dot for no mug.
+          <div style={grid(3)}>
+            {key(
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, height: 13, padding: '0 6px 0 2px', background: '#111827', color: '#FFFFFF', borderRadius: 2, fontSize: 8, fontWeight: 700, letterSpacing: '.04em' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 9, height: 9, background: '#86EFAC', color: '#111827', borderRadius: 1.5, fontSize: 9, fontWeight: 900 }}>+</span>
+                JUICE GLASS
+              </span>,
+              'Add this cup',
+            )}
+            {key(<span style={{ width: 9, height: 9, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />, 'On a table: take the mug away')}
+            {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
+          </div>
+        ) : (
+          <div style={grid(3)}>
+            {key(tag('#86EFAC', '+ Item'), 'Add drinkware')}
+            {key(tag(NO_MUG.bg, 'Mug', NO_MUG.color), 'On a table: take the mug away')}
+            {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
+          </div>
+        )}
       </div>
       <div className="lgcell lgdiv" style={div}>
         <div className="lghead">Tables</div>
@@ -231,7 +274,8 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
               </div>
             )}
           </div>
-          {(b.kind === 'setup' || (b.kind === 'server' && b.legend)) && <SetupLegend />}
+          {b.kind === 'setup' && <SetupLegend />}
+          {b.kind === 'server' && b.legend && <SetupLegend supper />}
         </div>
 
       {b.kind === 'server' ? (

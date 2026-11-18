@@ -92,6 +92,8 @@ export interface Pill {
   half: boolean;
   /** The dark band under the drink: what the server fills (GLASS, TO-GO…), or for tea which tea (CHAMOMILE, GREEN…). */
   cup: string | null;
+  /** Supper's combined sheet: this cup is added to the usual setting (a green + square on the band). */
+  plus?: boolean;
 }
 
 /** Short names for the cup band on server sheets. */
@@ -129,7 +131,7 @@ export interface ServerLabel {
   dir: 'column' | 'column-reverse';
   name: string;
   items: Pill[];
-  /** Setup chips nearest the table (Supper's combined sheet only): +Glass, −Mug, extras. */
+  /** Supper's combined sheet: the resident's extras as chips, furthest from the table. */
   chips: Change[];
   /** Width of every pill on this label, so they line up. */
   pillW: number;
@@ -142,8 +144,9 @@ export interface ServerRoom {
   h: number;
   /** Every label on the sheet is drawn at this scale: 1, or less when a full section needs the room. */
   scale: number;
-  /** Chair pills on the table edges (Supper's combined sheet only). */
+  /** Chair pills on the table edges and "Mug" markers on the tables (Supper's combined sheet only). */
   pills: SeatPill[];
+  mugs: MugMark[];
   tables: TableDraw[];
   labels: ServerLabel[];
 }
@@ -296,7 +299,7 @@ const PLAIN = '#F9FAFB';
  */
 export const CHAR_W = 6.0;
 /** Full-size width of one drink pill: PILL_W, or more if its ½ tab and name or its cup band need it. */
-export const pillW = (p: Pill) => Math.max(PILL_W, 2 + 6 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 : 0);
+export const pillW = (p: Pill) => Math.max(PILL_W, 2 + 6 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 + (p.plus ? CUP_BAND_H + 1 - 4 : 0) : 0);
 /** Full-size height of a label: the name line, then its pills (a cup band adds a little). */
 export const labelH = (items: Pill[]) =>
   14 + (items.length ? NAME_GAP + (items.length - 1) * PILL_GAP : 0) + items.reduce((h, p) => h + 2 + PILL_ROW_H + (p.cup ? CUP_BAND_H : 0), 0);
@@ -321,17 +324,18 @@ export const chipsH = (cs: Change[]) => (cs.length ? cs.length * CHIP_H + (cs.le
 const TWO_DRINKS_H = 14 + NAME_GAP + PILL_GAP + 2 * (2 + PILL_ROW_H + CUP_BAND_H);
 
 /** Pill order on every label, first next to the name: milk, juice, tea, anything else, then water. */
-const PILL_RANK: Record<string, number> = { milk: 0, juice: 1, tea: 2, other: 3, ro: 4, hot: 5 };
+const PILL_RANK: Record<string, number> = { milk: 0, juice: 1, tea: 2, other: 3, water: 4, ro: 5, hot: 6 };
 
 /**
  * One pill per drink, then RO water (a glass) and hot water (a pitcher): everything the server
  * fills. Coffee isn't shown (everyone is offered it); tea has no cup band (a mug isn't filled).
  */
-export function serverPills(r: Resident, meal: string, beverages: Beverage[]): Pill[] {
+export function serverPills(r: Resident, meal: string, beverages: Beverage[], opts: { adds?: boolean } = {}): Pill[] {
   const p = prefsOf(r, meal);
   if (!p) return [];
-  const ranked: [number, Pill][] = [];
-  const items = { push: (rank: number, x: Pill) => ranked.push([rank, x]) };
+  // [order, pill, cup it's served in] — the cup decides the + square on Supper's sheet.
+  const ranked: [number, Pill, string][] = [];
+  const items = { push: (rank: number, x: Pill, served = '') => ranked.push([rank, x, served]) };
   const together = pouredTogether(p.drinks);
   let shown = false;
   for (const d of p.drinks) {
@@ -354,12 +358,26 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       half: !pair && d.amount === 'Half' && hasAmount(served),
       // Tea's mug isn't filled by the server, so its band says which tea instead ("Green Tea" → GREEN).
       cup: bev?.kind === 'tea' ? (d.tea ? d.tea.replace(/ Tea$/, '') : null) : served === 'Mug' ? null : cupTag(served),
-    });
+    }, served);
   }
-  if (p.roWater) items.push(PILL_RANK.ro!, { cap: 'RO water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' });
-  if (p.hotWater) items.push(PILL_RANK.hot!, { cap: 'Hot water', bg: PLAIN, color: '#111827', half: false, cup: 'Pitcher' });
+  // On Supper's sheet an extra glass (for water) is a pill too, so the server fills it and setup adds it.
+  if (opts.adds) for (const d of p.drinks) if (d.extraGlass) items.push(PILL_RANK.water!, { cap: 'Water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' }, 'Glass');
+  if (p.roWater) items.push(PILL_RANK.ro!, { cap: 'RO water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' }, 'Glass');
+  if (p.hotWater) items.push(PILL_RANK.hot!, { cap: 'Hot water', bg: PLAIN, color: '#111827', half: false, cup: 'Pitcher' }, 'added');
   // The same order at every seat (stable within a kind: drink 1 before drink 2).
-  return ranked.sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+  const sorted = ranked.sort((a, b) => a[0] - b[0]);
+  if (!opts.adds) return sorted.map(([, x]) => x);
+  // Which cups are added to the usual setting (a glass and a mug), as the setup sheet counts them:
+  // the first thing served in a glass (a drink first, else RO water or the water glass) uses the
+  // usual glass; every other glass, juice glass, to-go cup and pitcher is added. Mugs never are.
+  let usualGlass = false;
+  return sorted.map(([, x, served]) => {
+    if (served === 'Glass' && !usualGlass) {
+      usualGlass = true;
+      return x;
+    }
+    return served && served !== 'Mug' ? { ...x, plus: true } : x;
+  });
 }
 
 /**
@@ -374,8 +392,9 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   for (const t of T) seatGeom(t.shape).forEach((_, i) => {
     const r = occupant(t.id, i);
     if (!r) return;
-    pillsAt.set(`${t.id}:${i}`, serverPills(r, meal, beverages));
-    chipsAt.set(`${t.id}:${i}`, opts.withSetup ? setupChanges(r, meal) : []);
+    // Supper's sheet: + squares on added cups instead of +Glass chips, so only the extras are chips.
+    pillsAt.set(`${t.id}:${i}`, serverPills(r, meal, beverages, { adds: opts.withSetup }));
+    chipsAt.set(`${t.id}:${i}`, opts.withSetup ? extraChips(r, meal) : []);
   });
   // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
   // place whoever is seated; only a seat with more than that needs extra.
@@ -397,6 +416,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   const tables: TableDraw[] = [];
   const labels: ServerLabel[] = [];
   const pills: SeatPill[] = [];
+  const mugs: MugMark[] = [];
   for (const t of T) {
     let creamer = false;
     const round = t.shape === 'round';
@@ -418,11 +438,10 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const chips = chipsAt.get(`${t.id}:${i}`) ?? [];
       if (opts.withSetup) {
         if (takesCreamer(r, meal)) creamer = true;
-        // Chair pill just inside the table edge, lying along it (as on the setup sheet).
-        const ex = sx - nx * 13 * SG;
-        const ey = sy - ny * 13 * SG;
-        const pin = 3 + 7 / 2;
-        pills.push({ l: ex - nx * pin - 9, t: ey - ny * pin - 3.5, w: 18, h: 7, ang: Math.round((Math.atan2(ny, nx) * 180) / Math.PI + 90), chair: r.chair });
+        // Chair pill on the table edge; a red dot on the table when the mug comes off.
+        const m = edgeMarks(sx - nx * 13 * SG, sy - ny * 13 * SG, nx, ny, r.chair, noMug(r, meal), true);
+        pills.push(m.pill);
+        if (m.mug) mugs.push(m.mug);
       }
       // The sheet's scale; a little less if a pill or chip is wider than a seat (the name is cut short instead).
       const pw = Math.max(PILL_W, ...items.map(pillW));
@@ -448,7 +467,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       border: creamer ? '1.5px solid #6D28D9' : '1px solid #6B7280',
     });
   }
-  return { w: area.w, h: area.h, scale: sheetK, tables, labels, pills };
+  return { w: area.w, h: area.h, scale: sheetK, tables, labels, pills, mugs };
 }
 
 /** One line in a server sheet's notes: who (by table) and their allergies, notes and ½ portion. */
@@ -494,29 +513,77 @@ export interface Change {
   color?: string;
 }
 
-/** The one removal, −Mug: solid red with white text, so it stands out from the pale chips (and prints dark). */
+/** A resident's extras for a meal as chips, as written ("Banana", "Napkins ×2"). */
+export const extraChips = (r: Resident, meal: string): Change[] => (prefsOf(r, meal)?.extras ?? []).map((x) => ({ text: extraText(x), bg: EXTRA_BG }));
+
+/** "Mug" on the table at a seat that has no coffee or tea: take the mug away. Solid red with white text, so it stands out (and prints dark). */
 export const NO_MUG = { bg: '#DC2626', color: '#FFFFFF' };
+
+/** No coffee or tea at this meal, so the usual mug comes off the table (hot water comes in a pitcher). */
+export const noMug = (r: Resident, meal: string): boolean => !(prefsOf(r, meal)?.drinks ?? []).some((x) => x.drinkware === 'Mug');
+
+/** A "Mug" marker on a table, just inside the edge at the seat, reading along the edge. */
+export interface MugMark {
+  l: number;
+  t: number;
+  w: number;
+  h: number;
+  ang: number;
+  /** Supper's sheet: a small red dot instead of the word. */
+  dot?: boolean;
+}
+export const MUG_DOT = 7;
+export const MUG_W = 26;
+export const MUG_H = 12;
+
+/**
+ * Where a seat's chair pill and "Mug" marker go: the pill centred on the table edge, lying along it,
+ * and the marker on the table just inside it. (ex, ey) is the edge point, (nx, ny) the outward normal.
+ */
+function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair, mug: boolean, dot = false): { pill: SeatPill; mug: MugMark | null } {
+  const pill = { l: ex - 9, t: ey - 3.5, w: 18, h: 7, ang: Math.round((Math.atan2(ny, nx) * 180) / Math.PI + 90), chair };
+  const [w, h] = dot ? [MUG_DOT, MUG_DOT] : [MUG_W, MUG_H];
+  const inset = 3.5 + 2 + h / 2;
+  return { pill, mug: mug ? { l: ex - nx * inset - w / 2, t: ey - ny * inset - h / 2, w, h, ang: edgeAngle(nx, ny), dot } : null };
+}
+
+/** Chips in rows, side by side while they fit in maxW (4 px apart), in order. */
+export function chipRows(items: Change[], maxW: number): Change[][] {
+  const rows: Change[][] = [];
+  let w = Infinity;
+  for (const c of items) {
+    const cw = Math.round(c.text.length * 6.3) + 14;
+    if (rows.length && w + 4 + cw <= maxW) {
+      rows[rows.length - 1]!.push(c);
+      w += 4 + cw;
+    } else {
+      rows.push([c]);
+      w = cw;
+    }
+  }
+  return rows;
+}
+const rowW = (row: Change[]) => row.reduce((a, c) => a + Math.round(c.text.length * 6.3) + 14, 0) + (row.length - 1) * 4;
 
 /** Setup-sheet chip colour for a resident's extras (fruit, napkins, jelly…). */
 export const EXTRA_BG = '#FDE68A';
 
 /**
- * What differs from the usual setting (one glass, one coffee mug) at a seat, then the
- * resident's extras. Additions first (green), then removals (red), then extras (yellow).
+ * What's added to the usual setting (one glass, one coffee mug) at a seat (green), then the
+ * resident's extras (yellow). Taking the mug away is shown on the table instead (see noMug).
  */
 export function setupChanges(r: Resident, meal: string): Change[] {
   const p = prefsOf(r, meal);
   const dr = p?.drinks ?? [];
   // Hot water comes in a pitcher, not a mug.
-  const hasMug = dr.some((x) => x.drinkware === 'Mug');
   // Two halves of the same drink are poured together: one glass instead of two juice
   // glasses, or one to-go cup instead of two.
   const into = pouredInto(dr);
   // The usual setting has one glass. It holds the first drink served in a glass (milk, a full
-  // glass of juice, a juice pair poured together); any further glass, an extra glass (for
-  // water) and RO water each add one.
+  // glass of juice, a juice pair poured together), or else RO water / the water glass; every
+  // further glass (drinks, an extra glass for water, RO water) adds one.
   const glassDrinks = dr.filter((x) => x.slot === 'drink' && x.drinkware === 'Glass').length + (into === 'Glass' ? 1 : 0);
-  const extraGlass = Math.max(0, glassDrinks - 1) + dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0);
+  const extraGlass = Math.max(0, glassDrinks + dr.filter((x) => x.extraGlass).length + (p?.roWater ? 1 : 0) - 1);
   const juice = dr.filter((x) => x.drinkware === 'Juice glass').length - (into === 'Glass' ? 2 : 0);
   const togo = dr.filter((x) => x.drinkware === 'To-go cup').length - (into === 'To-go cup' ? 1 : 0);
   const pitcher = dr.filter((x) => x.drinkware === 'Milk pitcher').length + (p?.hotWater ? 1 : 0);
@@ -528,9 +595,8 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   add(juice, 'Juice');
   add(togo, 'To-Go');
   add(pitcher, pitcher > 1 ? 'Pitchers' : 'Pitcher');
-  if (!hasMug) out.push({ text: '−Mug', ...NO_MUG }); // a true minus, to match +Glass
   // Extras for this meal, as written ("Banana", "Napkins ×2"), in their own colour after the drinkware.
-  for (const x of p?.extras ?? []) out.push({ text: extraText(x), bg: EXTRA_BG });
+  out.push(...extraChips(r, meal));
   return out;
 }
 
@@ -555,6 +621,8 @@ export interface SeatPill {
 export interface ChangeLabel {
   /** The table whose seat this is. */
   tableId: string;
+  /** The chips in rows, side by side where the seat has room. */
+  rows: Change[][];
   l: number;
   t: number;
   w: number;
@@ -570,6 +638,8 @@ export interface SetupRoom {
   titles: { l: number; t: number; text: string }[];
   dividers: { l: number; h: number }[];
   pills: SeatPill[];
+  /** "Mug" markers on the tables, at seats with no coffee or tea. */
+  mugs: MugMark[];
   changes: ChangeLabel[];
   /** Drawn at this scale: 1, or less when the sections' chips need more width than the page has. */
   scale: number;
@@ -602,13 +672,16 @@ const labelAABB = (L: { l: number; t: number; w: number; h: number; bw: number; 
  * Then each section takes the width its tables and chips need, side by side; spare width is shared
  * out. Returns the room's width, which is more than PW only when the sheet must be drawn smaller.
  */
-function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: number; h: number; bw: number; bh: number; tix: number }[], pillTix: number[], secOf: number[], titles: string[], PW: number, H: number): number {
+function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: number; h: number; bw: number; bh: number; tix: number }[], pillTix: number[], mugTix: number[], secOf: number[], titles: string[], PW: number, H: number): number {
   const n = out.tables.length;
   const move = (i: number, dx: number) => {
     out.tables[i]!.l += dx;
     for (const L of labels) if (L.tix === i) L.l += dx;
     out.pills.forEach((p, k) => {
       if (pillTix[k] === i) p.l += dx;
+    });
+    out.mugs.forEach((p, k) => {
+      if (mugTix[k] === i) p.l += dx;
     });
   };
   const parts = (i: number): AABB[] => [tableAABB(out.tables[i]!), ...labels.filter((L) => L.tix === i).map(labelAABB)];
@@ -695,7 +768,7 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
       y0: Math.min(...b.ts.map((t) => ay.get(t.id)! - footprint(t)[1])),
       y1: Math.max(...b.ts.map((t) => ay.get(t.id)! + footprint(t)[1])),
     }));
-  const out: SetupRoom = { w: 0, h: 0, tables: [], titles: [], dividers: [], pills: [], changes: [], scale: 1 };
+  const out: SetupRoom = { w: 0, h: 0, tables: [], titles: [], dividers: [], pills: [], mugs: [], changes: [], scale: 1 };
   if (!boxes.length) return out;
   const y0 = Math.min(...boxes.map((b) => b.y0)) - pad - 24;
   const y1 = Math.max(...boxes.map((b) => b.y1)) + pad;
@@ -706,6 +779,7 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
   const fy = Math.max(sc, Math.min(PH / totalH, sc * 1.8));
   const labels: (Omit<ChangeLabel, 'tableId'> & { bw: number; bh: number; tix: number })[] = [];
   const pillTix: number[] = []; // which table each seat pill belongs to
+  const mugTix: number[] = []; // and each "Mug" marker
   const secOf: number[] = []; // each table's section (index into boxes)
 
   let ox = 0;
@@ -735,24 +809,30 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         const edge = 13 * sc * TG; // seat point → table edge
         const ex = sx - nx * edge;
         const ey = sy - ny * edge;
-        // Seat pill just inside the edge, lying along it.
-        const PW2 = 18;
-        const PH2 = 7;
-        const pin = 3 + PH2 / 2;
-        out.pills.push({ l: ex - nx * pin - PW2 / 2, t: ey - ny * pin - PH2 / 2, w: PW2, h: PH2, ang: Math.round((Math.atan2(ny, nx) * 180) / Math.PI + 90), chair: r.chair });
+        // Chair pill centred on the table edge; "Mug" on the table inside it when there's no coffee or tea.
+        const m = edgeMarks(ex, ey, nx, ny, r.chair, noMug(r, meal));
+        out.pills.push(m.pill);
         pillTix.push(out.tables.length);
+        if (m.mug) {
+          out.mugs.push(m.mug);
+          mugTix.push(out.tables.length);
+        }
         const items = setupChanges(r, meal);
         if (!items.length) return;
-        const w = Math.max(...items.map((x) => Math.round(x.text.length * 6.3) + 14));
-        const h = items.length * 16 + (items.length - 1) * 3;
+        // Side by side where the seat has room without reaching the next seat's chips: one seat's width
+        // along a rectangle's long side; at an end or a round table, up to the neighbouring seats' edge.
+        const longSide = t.shape !== 'round' && g[3] !== 0;
+        const rows = chipRows(items, longSide ? 92 * sc * TG - 6 : 2 * (46 * sc * TG + 7) - 6);
+        const w = Math.max(...rows.map(rowW));
+        const h = rows.length * 16 + (rows.length - 1) * 3;
         // The block runs along the table edge (never upside down), just outside it.
         const la = edgeAngle(nx, ny);
-        const gx = ex + nx * (5 + h / 2);
-        const gy = ey + ny * (5 + h / 2);
+        const gx = ex + nx * (7 + h / 2);
+        const gy = ey + ny * (7 + h / 2);
         const lr = (la * Math.PI) / 180;
         const bw = Math.abs(Math.cos(lr)) * w + Math.abs(Math.sin(lr)) * h;
         const bh = Math.abs(Math.sin(lr)) * w + Math.abs(Math.cos(lr)) * h;
-        labels.push({ l: gx - w / 2, t: gy - h / 2, w, h, ang: la, bw, bh, items, tix: out.tables.length });
+        labels.push({ l: gx - w / 2, t: gy - h / 2, w, h, ang: la, bw, bh, items, rows, tix: out.tables.length });
       });
       secOf.push(bi);
       out.tables.push({
@@ -772,9 +852,8 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
     ox += (b.x1 - b.x0) * sc;
   });
 
-  const roomW = spreadSetupTables(out, labels, pillTix, secOf, boxes.map((b) => b.s.label), PW, totalH * fy);
 
-  // Labels never overlap: when two label blocks (or a label and another table) touch,
+  // First each table's chips settle: when two label blocks (or a label and another table) touch,
   // slide them apart along the shorter overlap a few px at a time.
   const tbox = out.tables.map((t) => {
     const a = (t.rotation * Math.PI) / 180;
@@ -829,7 +908,9 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
     }
     if (!moved) break;
   }
-  out.changes = labels.map(({ l, t, w, h, ang, items, tix }) => ({ tableId: out.tables[tix]!.id, l, t, w, h, ang, items }));
+  // Then tables (each with its settled chips) slide apart so neighbours keep a clear gap.
+  const roomW = spreadSetupTables(out, labels, pillTix, mugTix, secOf, boxes.map((b) => b.s.label), PW, totalH * fy);
+  out.changes = labels.map(({ l, t, w, h, ang, items, rows, tix }) => ({ tableId: out.tables[tix]!.id, l, t, w, h, ang, items, rows }));
   out.w = Math.round(roomW);
   out.scale = Math.min(1, Math.floor((PW / roomW) * 100) / 100);
   out.h = Math.round(totalH * fy);

@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { corners, edgeAngle, EXTRA_BG, NO_MUG, labelInkWidth, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
+import { chipRows, corners, edgeAngle, EXTRA_BG, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -47,7 +47,8 @@ const resident = (drinks: Drink[], p: Partial<MealPrefs> = {}, chair: Chair = 'a
   attends: ['Dinner'],
   prefs: { Dinner: { roWater: false, hotWater: false, portion: 'Full', drinks, extras: [], ...p } },
 });
-const texts = (r: Resident) => setupChanges(r, 'Dinner').map((c) => c.text);
+// The setup chips, then "Mug" when the mug comes off the table (drawn on the table, not as a chip).
+const texts = (r: Resident) => [...setupChanges(r, 'Dinner').map((c) => c.text), ...(noMug(r, 'Dinner') ? ['Mug on table'] : [])];
 
 describe('Setup sheet rules', () => {
   it('the usual setting (glass + coffee mug) writes nothing', () => {
@@ -55,52 +56,52 @@ describe('Setup sheet rules', () => {
     expect(texts(resident([coffee(), drink('2% Milk')]))).toEqual([]);
   });
 
-  it('+Glass for an extra glass or RO water; +2 Glasses for both', () => {
+  it('+Glass for each glass beyond the usual one; RO water uses the usual glass when no drink does', () => {
     expect(texts(resident([coffee(), drink('2% Milk', { extraGlass: true })]))).toEqual(['+Glass']);
-    expect(texts(resident([coffee()], { roWater: true }))).toEqual(['+Glass']);
+    expect(texts(resident([coffee()], { roWater: true }))).toEqual([]); // RO water goes in the usual glass
     expect(texts(resident([coffee(), drink('2% Milk', { extraGlass: true })], { roWater: true }))).toEqual(['+2 Glasses']);
   });
 
-  it('+Juice per juice glass, +To-Go per to-go cup, additions before −Mug', () => {
+  it('+Juice per juice glass, +To-Go per to-go cup, additions; the mug comes off on the table', () => {
     expect(texts(resident([coffee(), drink('Orange Juice', { drinkware: 'Juice glass' })]))).toEqual(['+Juice']);
-    expect(texts(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['+2 Juice', '−Mug']);
-    expect(texts(resident([coffee({ drinkware: 'To-go cup' })]))).toEqual(['+To-Go', '−Mug']);
-    for (const c of setupChanges(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner')) expect(c.bg).toBe(c.text === '−Mug' ? NO_MUG.bg : '#86EFAC');
+    expect(texts(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['+2 Juice', 'Mug on table']);
+    expect(texts(resident([coffee({ drinkware: 'To-go cup' })]))).toEqual(['+To-Go', 'Mug on table']);
+    for (const c of setupChanges(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner')) expect(c.bg).toBe('#86EFAC');
   });
 
   it('two of the same juice are poured together into the usual glass: no +2 Juice, one "2 Cran Juice" pill', () => {
     const jg = { drinkware: 'Juice glass' };
     // Both drinks are juice, so there's no coffee mug either; the juice uses the usual glass.
     const pair = resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]);
-    expect(texts(pair)).toEqual(['−Mug']);
+    expect(texts(pair)).toEqual(['Mug on table']);
     expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cranberry']);
     // With an extra glass (for water), one more glass; hot water adds its pitcher.
-    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+Glass', '+Pitcher', '−Mug']);
+    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+Glass', '+Pitcher', 'Mug on table']);
     // Not the same juice, or not both in juice glasses: nothing is combined.
-    expect(texts(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]))).toEqual(['+2 Juice', '−Mug']);
-    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+Juice', '+To-Go', '−Mug']);
+    expect(texts(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]))).toEqual(['+2 Juice', 'Mug on table']);
+    expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+Juice', '+To-Go', 'Mug on table']);
     expect(serverPills(resident([drink('Cranberry Juice', jg), drink('Apple Juice', jg)]), 'Dinner', data().beverages)).toHaveLength(2);
   });
 
   it('two half to-go cups of the same drink become one to-go cup', () => {
     const half = { drinkware: 'To-go cup', amount: 'Half' as const };
     const pair = resident([drink('Cranberry Juice', half), drink('Cranberry Juice', half)]);
-    expect(texts(pair)).toEqual(['+To-Go', '−Mug']);
+    expect(texts(pair)).toEqual(['+To-Go', 'Mug on table']);
     expect(serverPills(pair, 'Dinner', data().beverages).map((p) => [p.cap, p.half])).toEqual([['2 Cranberry', false]]); // two halves make a full cup
     // Full to-go cups aren't combined.
-    expect(texts(resident([drink('Cranberry Juice', { drinkware: 'To-go cup' }), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+2 To-Go', '−Mug']);
+    expect(texts(resident([drink('Cranberry Juice', { drinkware: 'To-go cup' }), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+2 To-Go', 'Mug on table']);
   });
 
   it('glasses: the usual glass holds the first drink in a glass; more glasses are added', () => {
-    expect(texts(resident([drink('Orange Juice', { drinkware: 'Glass', amount: 'Full' })]))).toEqual(['−Mug']); // full glass of juice
-    expect(texts(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Glass', amount: 'Half' })]))).toEqual(['+Glass', '−Mug']);
+    expect(texts(resident([drink('Orange Juice', { drinkware: 'Glass', amount: 'Full' })]))).toEqual(['Mug on table']); // full glass of juice
+    expect(texts(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Glass', amount: 'Half' })]))).toEqual(['+Glass', 'Mug on table']);
     const half = serverPills(resident([drink('Orange Juice', { drinkware: 'To-go cup', amount: 'Half' })]), 'Dinner', data().beverages)[0]!;
     expect([half.cap, half.half, half.cup]).toEqual(['Orange', true, 'To-go']);
   });
 
-  it('−Mug when there is no coffee or tea; hot water comes in a pitcher, not a mug', () => {
-    expect(texts(resident([drink('2% Milk')]))).toEqual(['−Mug']);
-    expect(texts(resident([drink('2% Milk')], { hotWater: true }))).toEqual(['+Pitcher', '−Mug']);
+  it('Mug comes off when there is no coffee or tea; hot water comes in a pitcher, not a mug', () => {
+    expect(texts(resident([drink('2% Milk')]))).toEqual(['Mug on table']);
+    expect(texts(resident([drink('2% Milk')], { hotWater: true }))).toEqual(['+Pitcher', 'Mug on table']);
     expect(texts(resident([coffee(), drink('2% Milk', { drinkware: 'Milk pitcher' })], { hotWater: true }))).toEqual(['+2 Pitchers']);
     expect(texts(resident([drink('Tea', { drinkware: 'Mug', tea: 'Green Tea' })]))).toEqual([]);
   });
@@ -413,7 +414,51 @@ describe('pill order and extras', () => {
       ['Banana', EXTRA_BG],
       ['Napkins ×2', EXTRA_BG],
     ]);
-    expect(texts(resident([drink('2% Milk')], { extras: [{ id: 'e3', name: 'Soup Spoon', variant: null, backup: null, count: 1 }] }))).toEqual(['−Mug', 'Soup Spoon']);
+    expect(texts(resident([drink('2% Milk')], { extras: [{ id: 'e3', name: 'Soup Spoon', variant: null, backup: null, count: 1 }] }))).toEqual(['Soup Spoon', 'Mug on table']);
+  });
+});
+
+describe('setup chip layout', () => {
+  it('chips sit side by side while they fit, in order: drinkware, then extras', () => {
+    const c = (text: string) => ({ text, bg: '#86EFAC' });
+    expect(chipRows([c('+Glass'), c('+Juice'), c('Banana')], 116).map((r) => r.map((x) => x.text))).toEqual([['+Glass', '+Juice'], ['Banana']]);
+    expect(chipRows([c('+Glass'), c('+Juice')], 70).map((r) => r.length)).toEqual([1, 1]);
+  });
+
+  it('the chair pill sits centred on the table edge, and "Mug" on the table just inside it', () => {
+    const opening = getOpening(site(), 'Dinner');
+    const T = layoutTables().filter((t) => t.section === 1 && t.shape === 'round').slice(0, 1);
+    const room = setupRoom(opening.sections, T, (_t, s) => (s === 2 ? resident([drink('2% Milk')]) : null), 'Dinner', 1552, 802);
+    const t = room.tables[0]!;
+    const [p] = room.pills;
+    const [m] = room.mugs;
+    const cy = t.t + t.h / 2;
+    // Seat 2 is the bottom seat: the pill's centre is on the bottom edge, the marker above it, inside the table.
+    expect(Math.abs(p!.t + p!.h / 2 - (t.t + t.h))).toBeLessThan(1);
+    expect(m!.t + m!.h).toBeLessThanOrEqual(p!.t + 0.5);
+    expect(m!.t).toBeGreaterThan(cy);
+  });
+});
+
+describe('Supper: + on added cups', () => {
+  const plus = (r: Resident) => serverPills(r, 'Dinner', data().beverages, { adds: true }).map((p) => `${p.plus ? '+' : ''}${p.cap}`);
+  it('the first drink in a glass uses the usual glass; every other cup is added; mugs never are', () => {
+    expect(plus(resident([coffee(), drink('2% Milk')]))).toEqual(['2% Milk']);
+    expect(plus(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Glass', amount: 'Half' })]))).toEqual(['2% Milk', '+Orange']);
+    expect(plus(resident([drink('Orange Juice', { drinkware: 'To-go cup' })], { hotWater: true }))).toEqual(['+Orange', '+Hot water']);
+    expect(plus(resident([drink('Tea', { drinkware: 'Mug', tea: 'Green Tea' })]))).toEqual(['Tea']);
+    // Two of the same juice poured together go into the usual glass.
+    expect(plus(resident([drink('Cranberry Juice', { drinkware: 'Juice glass' }), drink('Cranberry Juice', { drinkware: 'Juice glass' })]))).toEqual(['2 Cranberry']);
+    // An extra glass (for water) is a Water pill with a +.
+    expect(plus(resident([drink('2% Milk', { extraGlass: true })]))).toEqual(['2% Milk', '+Water']);
+    // No drink in a glass: RO water uses the usual glass, so only the juice glass is added.
+    expect(plus(resident([drink('Orange Juice', { drinkware: 'Juice glass' })], { roWater: true }))).toEqual(['+Orange', 'RO water']);
+  });
+  it('Breakfast and Dinner pills have no + and no Water pill', () => {
+    expect(serverPills(resident([drink('2% Milk', { extraGlass: true }), drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner', data().beverages).map((p) => [p.cap, !!p.plus])).toEqual([
+      ['2% Milk', false],
+      ['Orange', false],
+    ]);
   });
 });
 
@@ -434,8 +479,15 @@ describe('Supper: one combined page', () => {
     expect(pg.body.legend).toBe(true);
     expect(room.labels.length).toBeGreaterThan(0);
     expect(room.pills).toHaveLength(room.labels.length); // a chair pill at every seated seat
-    expect(room.labels[0]!.chips.map((c) => c.text)).toEqual(['+Glass', '+Juice', '−Mug', 'Napkins']);
-    expect(room.labels[0]!.items.map((i) => i.cap)).toEqual(['2% Milk', 'Orange', 'RO water']);
+    // Only the extras are chips; added cups get a + on their band instead of +Glass / +Juice chips.
+    expect(room.labels[0]!.chips.map((c) => c.text)).toEqual(['Napkins']);
+    expect(room.labels[0]!.items.map((i) => [i.cap, !!i.plus])).toEqual([
+      ['2% Milk', false], // the usual glass
+      ['Orange', true], // a juice glass is added
+      ['RO water', true], // and a glass for RO water
+    ]);
+    expect(room.mugs.every((m) => m.dot)).toBe(true); // no coffee or tea: a red dot on the table at every seat
+    expect(room.mugs).toHaveLength(room.labels.length);
     const boxes = [
       ...room.labels.map((l) => ({ cx: l.l + l.w / 2, cy: l.t + l.h / 2, hw: l.w / 2, hh: l.h / 2, ang: l.ang, table: l.tableId, label: true })),
       ...room.tables.map((t) => ({ cx: t.l + t.w / 2, cy: t.t + t.h / 2, hw: t.w / 2, hh: t.h / 2, ang: t.rotation, table: t.id, label: false })),

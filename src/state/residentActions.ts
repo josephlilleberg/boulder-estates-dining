@@ -1,5 +1,5 @@
 import type { AppData } from '../db/repo';
-import { canHaveExtraGlass, drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
+import { canHaveExtraGlass, drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, milkCupsFor, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { defaultCoffeeRow, setAttendance } from './actions';
 import { del, patch, put, type Op } from './ops';
@@ -271,7 +271,8 @@ export const updateDrink = (drinkId: string, p: DrinkPatch) => (data: AppData): 
   if (p.drinkware !== undefined && p.drinkware !== d.drinkware) {
     const kind = beverage(data, r.siteId, String(set.beverage ?? d.beverage)).kind;
     if (inMug(kind) && p.drinkware !== COFFEE_CUP) throw new Error(`${kind === 'tea' ? 'Tea' : 'Coffee'} always goes in a mug`);
-    if (kind === 'milk' && !MILK_CUPS.includes(p.drinkware)) throw new Error('Milk goes in a glass, juice glass or to-go cup');
+    if (kind === 'milk' && !milkCupsFor(String(set.beverage ?? d.beverage), findDrink(data, drinkId).meal).includes(p.drinkware))
+      throw new Error(milkCupsFor(String(set.beverage ?? d.beverage), findDrink(data, drinkId).meal).length > MILK_CUPS.length ? 'This milk goes in a glass, juice glass, to-go cup or pitcher' : 'Milk goes in a glass, juice glass or to-go cup');
     if (kind === 'juice' && !JUICE_CUPS.includes(p.drinkware)) throw new Error('Juice goes in a glass, juice glass or to-go cup');
     set.drinkware = p.drinkware;
     // Only a glass or to-go cup has Full / Half. Juice: a glass starts full (2 drinks) if

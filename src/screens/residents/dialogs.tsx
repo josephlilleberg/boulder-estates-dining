@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { extraText } from '../../domain/labels';
-import { ANY_KIND, canHaveExtraGlass, fullName, JUICE_CUPS, hasAmount, MILK_CUPS, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
+import { ANY_KIND, canHaveExtraGlass, fullName, JUICE_CUPS, hasAmount, milkCupsFor, shortName, tidyName, type Beverage, type BeverageKind, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { act, actUndoable } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -320,7 +320,7 @@ export function DrinkDialog({ target, resident: r, onTarget, onClose }: { target
             <Field label="Cup">
               {/* Chips, not pills: five options wrap badly in a segmented track. */}
               <div className="chips" role="group" aria-label="Cup">
-                {(kind === 'milk' ? drinkware.filter((w) => MILK_CUPS.includes(w) || w === drink.drinkware) : kind === 'juice' ? drinkware.filter((w) => JUICE_CUPS.includes(w) || w === drink.drinkware) : drinkware).map((w) => (
+                {(kind === 'milk' ? drinkware.filter((w) => milkCupsFor(drink.beverage, target.meal).includes(w) || w === drink.drinkware) : kind === 'juice' ? drinkware.filter((w) => JUICE_CUPS.includes(w) || w === drink.drinkware) : drinkware).map((w) => (
                   <button key={w} type="button" className={w === drink.drinkware ? 'chipbtn on' : 'chipbtn'} aria-pressed={w === drink.drinkware} onClick={() => w !== drink.drinkware && set(`Cup: ${w}`, { drinkware: w })}>
                     {w}
                   </button>

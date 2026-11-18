@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { corners, edgeAngle, labelInkWidth, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
+import { corners, edgeAngle, EXTRA_BG, labelInkWidth, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -388,6 +388,56 @@ describe('cup bands', () => {
 
   it('the setup sheet sets a pitcher: +Pitcher', () => {
     expect(texts(resident([coffee(), drink('2% Milk', { drinkware: 'Milk pitcher' })]))).toEqual(['+Pitcher']);
+  });
+});
+
+describe('pill order and extras', () => {
+  it('pills go milk, juice, tea, other, then water, whatever order the card has them in', () => {
+    const caps = (r: Resident) => serverPills(r, 'Dinner', data().beverages).map((p) => p.cap);
+    expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { roWater: true }))).toEqual(['2% Milk', 'Orange', 'RO water']);
+    expect(caps(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })], { hotWater: true }))).toEqual(['2% Milk', 'Orange', 'Hot water']);
+    expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Chamomile' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['Apple', 'Tea']);
+  });
+
+  it('the setup sheet lists extras after the drinkware, in their own colour', () => {
+    const r = resident([coffee()], { extras: [{ id: 'e1', name: 'Fruit', variant: 'Banana', backup: null, count: 1 }, { id: 'e2', name: 'Napkins', variant: null, backup: null, count: 2 }] });
+    expect(setupChanges(r, 'Dinner').map((c) => [c.text, c.bg])).toEqual([
+      ['Banana', EXTRA_BG],
+      ['Napkins ×2', EXTRA_BG],
+    ]);
+    expect(texts(resident([drink('2% Milk')], { extras: [{ id: 'e3', name: 'Soup Spoon', variant: null, backup: null, count: 1 }] }))).toEqual(['−Mug', 'Soup Spoon']);
+  });
+});
+
+describe('Supper: one combined page', () => {
+  const opening = () => getOpening(site(), 'Supper');
+  it('Supper has a single 11 × 17 "Setup & drinks" page; Breakfast and Dinner keep theirs', () => {
+    expect(sheetsFor(opening()).map((s) => [s.key, s.paper])).toEqual([['combined', 'tabloid']]);
+    expect(sheetsFor(getOpening(site(), 'Dinner')).map((s) => s.key)).toEqual(['setup', 'server-1', 'server-2', 'server-3']);
+  });
+
+  it('each seat has its setup chips and chair, then the name and drinks; tables keep a clear gap', () => {
+    const r: Resident = { ...resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { roWater: true, extras: [{ id: 'e', name: 'Napkins', variant: null, backup: null, count: 1 }] }), attends: ['Supper'] };
+    r.prefs = { Supper: r.prefs.Dinner! };
+    const sheet = sheetsFor(opening())[0]!;
+    const pg = buildPage(data(), site(), 'Supper', opening(), sheet, () => r, 1, 1, 'Nov 18, 2026');
+    if (pg.body.kind !== 'server') throw new Error('server-style page');
+    const room = pg.body.room;
+    expect(pg.body.legend).toBe(true);
+    expect(room.labels.length).toBeGreaterThan(0);
+    expect(room.pills).toHaveLength(room.labels.length); // a chair pill at every seated seat
+    expect(room.labels[0]!.chips.map((c) => c.text)).toEqual(['+Glass', '+Juice', '−Mug', 'Napkins']);
+    expect(room.labels[0]!.items.map((i) => i.cap)).toEqual(['2% Milk', 'Orange', 'RO water']);
+    const boxes = [
+      ...room.labels.map((l) => ({ cx: l.l + l.w / 2, cy: l.t + l.h / 2, hw: l.w / 2, hh: l.h / 2, ang: l.ang, table: l.tableId, label: true })),
+      ...room.tables.map((t) => ({ cx: t.l + t.w / 2, cy: t.t + t.h / 2, hw: t.w / 2, hh: t.h / 2, ang: t.rotation, table: t.id, label: false })),
+    ];
+    const clashes: string[] = [];
+    boxes.forEach((a, i) => boxes.forEach((b, j) => {
+      if (j > i && a.table !== b.table && (a.label || b.label) && separation(a, b, SERVER_GAP - 3)) clashes.push(`${a.table}/${b.table}`);
+    }));
+    expect(clashes).toEqual([]);
+    expect(room.scale).toBeGreaterThanOrEqual(MIN_SHEET_SCALE);
   });
 });
 

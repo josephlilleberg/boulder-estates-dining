@@ -1,4 +1,5 @@
 import type { Beverage, Chair, DiningTable, MealPrefs, Resident } from '../domain/model';
+import { extraText } from '../domain/labels';
 import { hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
@@ -128,6 +129,8 @@ export interface ServerLabel {
   dir: 'column' | 'column-reverse';
   name: string;
   items: Pill[];
+  /** Setup chips nearest the table (Supper's combined sheet only): +Glass, −Mug, extras. */
+  chips: Change[];
   /** Width of every pill on this label, so they line up. */
   pillW: number;
   /** Drawn at this scale: the sheet's scale, a little less if a pill is wider than a seat. */
@@ -139,14 +142,18 @@ export interface ServerRoom {
   h: number;
   /** Every label on the sheet is drawn at this scale: 1, or less when a full section needs the room. */
   scale: number;
+  /** Chair pills on the table edges (Supper's combined sheet only). */
+  pills: SeatPill[];
   tables: TableDraw[];
   labels: ServerLabel[];
 }
 
 /** Tables drawn 25% smaller than the room scale; the drawing area inside a Letter page. */
 const SG = 0.825;
-const AW = 972;
-const AH = 676;
+/** The drawing area inside a page: a Letter server sheet, or an 11 × 17 page (Supper's combined sheet). */
+export type Area = { w: number; h: number };
+const LETTER_AREA: Area = { w: 972, h: 676 };
+export const areaFor = (pageW: number, pageH: number, below = 0): Area => ({ w: pageW - 84, h: pageH - 140 - below });
 const EDGE = 8;
 /**
  * Widest a server label is drawn: the two seats on a rectangle's long side are 76 px apart,
@@ -190,7 +197,8 @@ function serverShapes(t: DiningTable, p: Spot, lh: SeatHeight, k: number): (RotB
  * fill the page, then any two tables whose labels would touch are nudged apart a
  * few px at a time, staying on the page. The room layout itself never changes.
  */
-export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: number): Map<string, Spot> {
+export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: number, area: Area = LETTER_AREA): Map<string, Spot> {
+  const { w: AW, h: AH } = area;
   const lh = (t: DiningTable): SeatHeight => lhOf.get(t.id) ?? (() => 0);
   const bbox = (spx: number, spy: number) => {
     let x0 = 1e9;
@@ -303,6 +311,15 @@ export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { s
   return Math.min(l.w, Math.max(name, ...l.items.map(pillW)) * (l.scale ?? 1));
 }
 
+/** Setup chips as drawn: 16 px tall, 3 px apart, 10 px bold text. */
+const CHIP_H = 16;
+const CHIP_GAP = 3;
+export const chipW = (c: Change) => Math.round(c.text.length * 6.3) + 14;
+export const chipsH = (cs: Change[]) => (cs.length ? cs.length * CHIP_H + (cs.length - 1) * CHIP_GAP + NAME_GAP : 0);
+
+/** Pill order on every label, first next to the name: milk, juice, tea, anything else, then water. */
+const PILL_RANK: Record<string, number> = { milk: 0, juice: 1, tea: 2, other: 3, ro: 4, hot: 5 };
+
 /**
  * One pill per drink, then RO water (a glass) and hot water (a pitcher): everything the server
  * fills. Coffee isn't shown (everyone is offered it); tea has no cup band (a mug isn't filled).
@@ -310,7 +327,8 @@ export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { s
 export function serverPills(r: Resident, meal: string, beverages: Beverage[]): Pill[] {
   const p = prefsOf(r, meal);
   if (!p) return [];
-  const items: Pill[] = [];
+  const ranked: [number, Pill][] = [];
+  const items = { push: (rank: number, x: Pill) => ranked.push([rank, x]) };
   const together = pouredTogether(p.drinks);
   let shown = false;
   for (const d of p.drinks) {
@@ -325,7 +343,7 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
     const pair = !!together && d.beverage === together && d.slot === 'drink';
     // The cup it's actually served in (a poured-together pair goes into one glass or to-go cup).
     const served = pair ? pouredInto(p.drinks)! : d.drinkware;
-    items.push({
+    items.push(PILL_RANK[bev?.kind ?? 'other'] ?? PILL_RANK.other!, {
       cap: pair ? `2 ${short}` : short,
       bg: bev?.color ?? PLAIN,
       color: bev?.textColor.toUpperCase() === '#FFFFFF' ? '#FFFFFF' : '#111827',
@@ -335,9 +353,10 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
       cup: bev?.kind === 'tea' ? (d.tea ? d.tea.replace(/ Tea$/, '') : null) : served === 'Mug' ? null : cupTag(served),
     });
   }
-  if (p.roWater) items.push({ cap: 'RO water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' });
-  if (p.hotWater) items.push({ cap: 'Hot water', bg: PLAIN, color: '#111827', half: false, cup: 'Pitcher' });
-  return items;
+  if (p.roWater) items.push(PILL_RANK.ro!, { cap: 'RO water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' });
+  if (p.hotWater) items.push(PILL_RANK.hot!, { cap: 'Hot water', bg: PLAIN, color: '#111827', half: false, cup: 'Pitcher' });
+  // The same order at every seat (stable within a kind: drink 1 before drink 2).
+  return ranked.sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 }
 
 /**
@@ -345,22 +364,26 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[]): P
  * next table's, sized by what's actually at each seat. If a section is too full for that at full
  * size, every label on the sheet shrinks by the same amount (never below MIN_SHEET_SCALE).
  */
-export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[]): ServerRoom {
+export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[], opts: { withSetup?: boolean; area?: Area } = {}): ServerRoom {
+  const area = opts.area ?? LETTER_AREA;
   const pillsAt = new Map<string, Pill[]>();
+  const chipsAt = new Map<string, Change[]>();
   for (const t of T) seatGeom(t.shape).forEach((_, i) => {
     const r = occupant(t.id, i);
-    if (r) pillsAt.set(`${t.id}:${i}`, serverPills(r, meal, beverages));
+    if (!r) return;
+    pillsAt.set(`${t.id}:${i}`, serverPills(r, meal, beverages));
+    chipsAt.set(`${t.id}:${i}`, opts.withSetup ? setupChanges(r, meal) : []);
   });
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const p = pillsAt.get(`${t.id}:${i}`); return p ? labelH(p) : 0; }]));
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const p = pillsAt.get(`${t.id}:${i}`); return p ? labelH(p) + chipsH(chipsAt.get(`${t.id}:${i}`)!) : 0; }]));
   let sheetK = 1;
-  let at = serverFit(T, lhOf, 1);
+  let at = serverFit(T, lhOf, 1, area);
   if (crowded(T, at, lhOf, 1)) {
     let lo = MIN_SHEET_SCALE;
     let hi = 1;
-    let best = { k: MIN_SHEET_SCALE, at: serverFit(T, lhOf, MIN_SHEET_SCALE) };
+    let best = { k: MIN_SHEET_SCALE, at: serverFit(T, lhOf, MIN_SHEET_SCALE, area) };
     for (let n = 0; n < 7; n++) {
       const mid = (lo + hi) / 2;
-      const m = serverFit(T, lhOf, mid);
+      const m = serverFit(T, lhOf, mid, area);
       if (crowded(T, m, lhOf, mid)) hi = mid;
       else [lo, best] = [mid, { k: mid, at: m }];
     }
@@ -368,7 +391,9 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   }
   const tables: TableDraw[] = [];
   const labels: ServerLabel[] = [];
+  const pills: SeatPill[] = [];
   for (const t of T) {
+    let creamer = false;
     const round = t.shape === 'round';
     const tw = (round ? 92 : 182) * SG;
     const th = 92 * SG;
@@ -385,17 +410,23 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const ny = g[2] * s + g[3] * c;
       const ang = edgeAngle(nx, ny);
       const items = pillsAt.get(`${t.id}:${i}`) ?? [];
-      // The sheet's scale; a little less if a pill is wider than a seat (the name is cut short instead).
+      const chips = chipsAt.get(`${t.id}:${i}`) ?? [];
+      if (opts.withSetup) {
+        if (takesCreamer(r, meal)) creamer = true;
+        // Chair pill just inside the table edge, lying along it (as on the setup sheet).
+        const ex = sx - nx * 13 * SG;
+        const ey = sy - ny * 13 * SG;
+        const pin = 3 + 7 / 2;
+        pills.push({ l: ex - nx * pin - 9, t: ey - ny * pin - 3.5, w: 18, h: 7, ang: Math.round((Math.atan2(ny, nx) * 180) / Math.PI + 90), chair: r.chair });
+      }
+      // The sheet's scale; a little less if a pill or chip is wider than a seat (the name is cut short instead).
       const pw = Math.max(PILL_W, ...items.map(pillW));
-      const k = Math.floor(sheetK * Math.min(1, SEAT_W / pw) * 100) / 100;
-      const H = labelH(items) * k;
+      const k = Math.floor(sheetK * Math.min(1, SEAT_W / Math.max(pw, ...chips.map(chipW))) * 100) / 100;
+      const H = (labelH(items) + chipsH(chips)) * k;
       const off = -13 * SG + 3 + H / 2;
       const ar = (ang * Math.PI) / 180;
       const outUp = nx * Math.sin(ar) - ny * Math.cos(ar) > 0;
-      // Pyramid: longest drink next to the name, shortest farthest out.
-      const len = (p: Pill) => p.cap.length + (p.half ? 2 : 0);
-      items.sort((p, q) => (outUp ? 1 : -1) * (len(p) - len(q)));
-      labels.push({ tableId: t.id, l: sx + nx * off - (SEAT_W * sheetK) / 2, t: sy + ny * off - H / 2, w: SEAT_W * sheetK, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), items, pillW: pw, scale: k });
+      labels.push({ tableId: t.id, l: sx + nx * off - (SEAT_W * sheetK) / 2, t: sy + ny * off - H / 2, w: SEAT_W * sheetK, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: shortName(r), items, chips, pillW: pw, scale: k });
     });
     tables.push({
       id: t.id,
@@ -407,11 +438,12 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       radius: round ? '50%' : `${Math.max(3, Math.round(8 * SG))}px`,
       rotation: t.rotation,
       fontSize: 15,
-      bg: '#F3F4F6',
-      border: '1px solid #6B7280',
+      // On the combined sheet, a table where anyone takes creamer is tinted, as on the setup sheet.
+      bg: creamer ? '#EDE9FE' : '#F3F4F6',
+      border: creamer ? '1.5px solid #6D28D9' : '1px solid #6B7280',
     });
   }
-  return { w: AW, h: AH, scale: sheetK, tables, labels };
+  return { w: area.w, h: area.h, scale: sheetK, tables, labels, pills };
 }
 
 /** One line in a server sheet's notes: who (by table) and their allergies, notes and ½ portion. */
@@ -455,9 +487,12 @@ export interface Change {
   bg: string;
 }
 
+/** Setup-sheet chip colour for a resident's extras (fruit, napkins, jelly…). */
+export const EXTRA_BG = '#FDE68A';
+
 /**
- * What differs from the usual setting (one glass, one coffee mug) at a seat.
- * Additions first (green), then removals (red). Title case.
+ * What differs from the usual setting (one glass, one coffee mug) at a seat, then the
+ * resident's extras. Additions first (green), then removals (red), then extras (yellow).
  */
 export function setupChanges(r: Resident, meal: string): Change[] {
   const p = prefsOf(r, meal);
@@ -484,6 +519,8 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   add(togo, 'To-Go');
   add(pitcher, pitcher > 1 ? 'Pitchers' : 'Pitcher');
   if (!hasMug) out.push({ text: '−Mug', bg: '#FCA5A5' }); // a true minus, to match +Glass
+  // Extras for this meal, as written ("Banana", "Napkins ×2"), in their own colour after the drinkware.
+  for (const x of p?.extras ?? []) out.push({ text: extraText(x), bg: EXTRA_BG });
   return out;
 }
 

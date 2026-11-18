@@ -116,6 +116,11 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
         {/* Drawing view crops to the tables, so a server sheet's notes go underneath. */}
         {keyKind === 'below' && pg.body.kind === 'server' && (
           <div ref={keyRef} style={{ paddingTop: 8, maxWidth: 1000, margin: '0 auto' }}>
+            {pg.body.legend && (
+              <div style={{ marginBottom: 8 }}>
+                <SetupLegend />
+              </div>
+            )}
             <ServerNotes notes={pg.body.notes} />
           </div>
         )}

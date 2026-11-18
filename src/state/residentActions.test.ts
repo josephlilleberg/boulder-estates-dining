@@ -345,6 +345,22 @@ describe('extra glass and milk cups', () => {
     await store.change('To-go', A.updateDrink(m.id, { drinkware: 'To-go cup' }));
     expect([jg(m.id).drinkware, jg(m.id).extraGlass]).toEqual(['To-go cup', false]);
   });
+
+  it('at Breakfast, Skim and 2% Milk can go in a pitcher; not chocolate milk, and not at other meals', async () => {
+    const bk = res(store, 'R0').prefs.Breakfast?.drinks.filter((x) => x.slot === 'drink') ?? [];
+    for (const o of bk) await store.change('Remove', A.removeDrink(o.id));
+    const skim = A.addDrink('R0', 'Breakfast', 'drink', 'Skim Milk');
+    await store.change('Add', skim.ops);
+    await store.change('Pitcher', A.updateDrink(skim.id, { drinkware: 'Milk pitcher' }));
+    expect(res(store, 'R0').prefs.Breakfast!.drinks.find((x) => x.id === skim.id)!.drinkware).toBe('Milk pitcher');
+    const choc = A.addDrink('R0', 'Breakfast', 'drink', 'Chocolate Milk');
+    await store.change('Add', choc.ops);
+    expect(() => A.updateDrink(choc.id, { drinkware: 'Milk pitcher' })(store.get().data)).toThrow(/glass, juice glass or to-go cup/);
+    const sup = A.addDrink('R0', 'Supper', 'drink', '2% Milk');
+    for (const o of res(store, 'R0').prefs.Supper?.drinks.filter((x) => x.slot === 'drink') ?? []) await store.change('Remove', A.removeDrink(o.id));
+    await store.change('Add', sup.ops);
+    expect(() => A.updateDrink(sup.id, { drinkware: 'Milk pitcher' })(store.get().data)).toThrow(/glass, juice glass or to-go cup/);
+  });
 });
 
 describe('extra backups: any kind', () => {

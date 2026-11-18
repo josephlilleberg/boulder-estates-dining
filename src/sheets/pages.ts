@@ -1,12 +1,12 @@
 import type { AppData } from '../db/repo';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
-import { NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
+import { areaFor, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
 
 // The printable sheets for a meal and the data each page draws. Shared by View,
 // Print preview and the printed output, so all three are the same page.
 
-export type SheetKind = 'setup' | 'server';
+export type SheetKind = 'setup' | 'server' | 'combined';
 
 export interface SheetRef {
   key: string;
@@ -23,7 +23,15 @@ export interface SheetRef {
   section?: number;
 }
 
+/** Supper is one page: setup chips and drinks at each seat together, on 11 × 17. */
+export const COMBINED_MEALS: string[] = ['Supper'];
+/** Height kept under the combined sheet's drawing for its key. */
+const LEGEND_ROOM = 96;
+
 export function sheetsFor(opening: MealOpening): SheetRef[] {
+  if (COMBINED_MEALS.includes(opening.meal)) {
+    return [{ key: 'combined', kind: 'combined', label: 'Setup & drinks', printLabel: 'Setup & drinks', sub: 'Setup and drinks at every seat, on one 11 × 17 page', tab: 'Setup & drinks', paper: 'tabloid' }];
+  }
   const many = opening.sections.length > 1;
   return [
     { key: 'setup', kind: 'setup', label: 'Setup', printLabel: 'Setup sheet', sub: 'The whole dining room on one 11 × 17 page', tab: 'Setup', paper: 'tabloid' },
@@ -50,6 +58,8 @@ export type PageBody =
       notes: ServerNote[];
       /** The drawing's scale: 1, or smaller when the notes need more room than the page keeps for them. */
       roomScale: number;
+      /** Supper's combined sheet: the chair and chip key goes under the drawing. */
+      legend: boolean;
     } | { kind: 'setup'; room: SetupRoom };
 
 export interface PageData {
@@ -86,6 +96,16 @@ export function buildPage(
   const footer = `${name} · Printed ${today} · Page ${pageNo} of ${Math.max(pageCount, 1)}`;
   const base = { key: sheet.key, paper: sheet.paper, w, h, footer };
 
+  if (sheet.kind === 'combined') {
+    const room = serverRoom(tables, occupant, meal, data.beverages, { withSetup: true, area: areaFor(w, h, LEGEND_ROOM) });
+    const notes = serverNotes(tables, occupant, meal);
+    return {
+      ...base,
+      title: `${meal} · Setup & drinks`,
+      right: `Setup & drinks · ${site.name}`,
+      body: { kind: 'server', room, notes, legend: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
+    };
+  }
   if (sheet.kind === 'server') {
     const T = tables.filter((t) => t.section === sheet.section);
     const room = serverRoom(T, occupant, meal, data.beverages);
@@ -95,7 +115,7 @@ export function buildPage(
       ...base,
       title: `${meal} · ${label}`,
       right: `Server sheet · ${site.name}`,
-      body: { kind: 'server', room, notes, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
+      body: { kind: 'server', room, notes, legend: false, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
     };
   }
   // Setup: 150 px of header/footer, 20 px gap and 84 px kept free for the chair key.

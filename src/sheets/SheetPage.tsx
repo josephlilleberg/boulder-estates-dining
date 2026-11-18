@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CHAIR_PILL, CUP_BAND_H, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { CHAIR_PILL, CUP_BAND_H, EXTRA_BG, type Change, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -37,6 +37,9 @@ function ServerBody({ room }: { room: ServerRoom }) {
       {room.tables.map((t) => (
         <Table key={t.id} t={t} />
       ))}
+      {room.pills.map((p, i) => (
+        <ChairPill key={i} p={p} />
+      ))}
       {room.labels.map((l, i) => (
         // The seat's label, turned to face the table; drawn at full size inside, then scaled to
         // the sheet's scale (smaller only when a full section needs the room).
@@ -44,11 +47,20 @@ function ServerBody({ room }: { room: ServerRoom }) {
           <div
             style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: NAME_GAP, textAlign: 'center' }}
           >
+            {/* Supper's combined sheet: what to set, nearest the table, before the name. */}
+            {l.chips.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: l.dir, alignItems: 'center', gap: 3 }}>
+                {l.chips.map((c, k) => (
+                  <Chip key={k} c={c} />
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
               <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
             </div>
             {l.items.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: PILL_GAP }}>
+              // Same direction as the label, so the first pill (milk, then juice…) is always next to the name.
+              <div style={{ display: 'flex', flexDirection: l.dir, alignItems: 'center', gap: PILL_GAP }}>
                 {l.items.map((it, k) => (
                   <div
                     key={k}
@@ -75,6 +87,20 @@ function ServerBody({ room }: { room: ServerRoom }) {
   );
 }
 
+/** One setup chip (+Glass, −Mug, an extra), as on the setup sheet. */
+function Chip({ c }: { c: Change }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', height: 16, padding: '0 6px', border: '1px solid #111827', borderRadius: 8, background: c.bg, fontSize: 10, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', flex: 'none' }}>
+      {c.text}
+    </span>
+  );
+}
+
+/** A chair pill on a table edge: the chair type, as in the key. */
+function ChairPill({ p }: { p: SeatPill }) {
+  return <div aria-hidden="true" style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, boxSizing: 'border-box', borderRadius: 4, background: CHAIR_PILL[p.chair].bg, border: CHAIR_PILL[p.chair].border, transform: `rotate(${p.ang}deg)` }} />;
+}
+
 function SetupBody({ room }: { room: SetupRoom }) {
   return (
     <div style={roomBox(room.w, room.h)}>
@@ -90,11 +116,7 @@ function SetupBody({ room }: { room: SetupRoom }) {
         </div>
       ))}
       {room.pills.map((p, i) => (
-        <div
-          key={i}
-          aria-hidden="true"
-          style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, boxSizing: 'border-box', borderRadius: 4, background: CHAIR_PILL[p.chair].bg, border: CHAIR_PILL[p.chair].border, transform: `rotate(${p.ang}deg)` }}
-        />
+        <ChairPill key={i} p={p} />
       ))}
       {room.changes.map((c, i) => (
         <div
@@ -102,12 +124,7 @@ function SetupBody({ room }: { room: SetupRoom }) {
           style={{ position: 'absolute', left: c.l, top: c.t, width: c.w, height: c.h, transform: `rotate(${c.ang}deg)`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}
         >
           {c.items.map((it, k) => (
-            <span
-              key={k}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', height: 16, padding: '0 6px', border: '1px solid #111827', borderRadius: 8, background: it.bg, fontSize: 10, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', flex: 'none' }}
-            >
-              {it.text}
-            </span>
+            <Chip key={k} c={it} />
           ))}
         </div>
       ))}
@@ -142,9 +159,10 @@ export function SetupLegend({ vertical = false }: { vertical?: boolean }) {
       </div>
       <div className="lgcell lgdiv" style={div}>
         <div className="lghead">Labels</div>
-        <div style={grid(2)}>
+        <div style={grid(3)}>
           {key(tag('#86EFAC', '+ Item'), 'Add drinkware')}
           {key(tag('#FCA5A5', '− Item'), 'Remove drinkware')}
+          {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
         </div>
       </div>
       <div className="lgcell lgdiv" style={div}>
@@ -213,7 +231,7 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
               </div>
             )}
           </div>
-          {b.kind === 'setup' && <SetupLegend />}
+          {(b.kind === 'setup' || (b.kind === 'server' && b.legend)) && <SetupLegend />}
         </div>
 
       {b.kind === 'server' ? (

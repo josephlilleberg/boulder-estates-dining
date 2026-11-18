@@ -104,8 +104,9 @@ The list (sortable by last or first name, searchable) and each resident's card.
     kitchen is out of the first choice: "Banana, else Apple" or "…, else any kind" (no
     backup means nothing).
   - **Special water** (None / RO / Hot water) and portion (Full / Half).
-- **Drinks** have a cup, and creamer for coffee. Coffee always goes in a mug; milk goes in a
-  glass, juice glass, to-go cup or milk pitcher; juice in a glass, juice glass or to-go cup.
+- **Drinks** have a cup, and creamer for coffee. Coffee and tea always go in a mug; milk goes in a
+  glass, juice glass or to-go cup (at Breakfast, Skim and 2% Milk can also go in a milk pitcher);
+  juice in a glass, juice glass or to-go cup.
   A full glass or full to-go cup of juice counts as **2 drinks** (a juice glass or a half
   counts as 1), and adding the same juice again makes one full glass. **Extra glass** (one for water) is offered beside a drink in a glass,
   or beside two of the same juice poured into one glass. Only a glass or a to-go cup comes in
@@ -153,8 +154,9 @@ label shows what it will undo. The history is cleared when the app closes or aft
 
 | Sheet | Paper | For | Shows |
 | --- | --- | --- | --- |
-| **Setup** | 11×17 | Setting the tables | Every section on one page. At each seat, only what differs from the usual setting (a glass and a coffee mug): **+Glass**, **+Juice**, **+To-Go**, **+Pitcher** (milk pitcher or hot water), **−Mug**. A seat pill shows the chair type. Tables where anyone takes creamer are tinted. Tables slide apart sideways so neighbouring chips keep a clear gap; each section gets the width it needs, and a very full sheet is drawn a little smaller. |
-| **Server** | Letter, one per section | Pouring drinks | Each resident's name with a pill for everything the server fills, all one width: drinks (short names from Settings: Orange, Apple, Cranberry…), **RO water** and **Hot water**. A dark band under each pill names what it goes in (GLASS, JUICE GLASS, TO-GO, PITCHER); tea's band says which tea instead (CHAMOMILE, BLACK, GREEN), since a mug isn't filled by the server. A dark ½ tab means half. Two of the same juice show as one "2 …" pill. Under the drawing, **Notes** lists each resident's allergies, notes and half portion by table. Tables spread apart by what's actually at each seat, keeping a clear gap; a section too full for that is drawn smaller, every label by the same amount. |
+| **Setup** | 11×17 | Setting the tables | Every section on one page. At each seat, only what differs from the usual setting (a glass and a coffee mug): **+Glass**, **+Juice**, **+To-Go**, **+Pitcher** (milk pitcher or hot water), **−Mug**, then the resident's **extras** in yellow (Banana, Napkins ×2, Grape Jelly). A seat pill shows the chair type. Tables where anyone takes creamer are tinted. Tables slide apart sideways so neighbouring chips keep a clear gap; each section gets the width it needs, and a very full sheet is drawn a little smaller. |
+| **Server** | Letter, one per section | Pouring drinks | Each resident's name with a pill for everything the server fills, all one width and always in the same order from the name: milk, juice, tea, other drinks (short names from Settings: Orange, Apple, Cranberry…), then **RO water** and **Hot water**. A dark band under each pill names what it goes in (GLASS, JUICE GLASS, TO-GO, PITCHER); tea's band says which tea instead (CHAMOMILE, BLACK, GREEN), since a mug isn't filled by the server. A dark ½ tab means half. Two of the same juice show as one "2 …" pill. Under the drawing, **Notes** lists each resident's allergies, notes and half portion by table. Tables spread apart by what's actually at each seat, keeping a clear gap; a section too full for that is drawn smaller, every label by the same amount. |
+| **Setup & drinks** | 11×17, Supper only | Setting and pouring | Supper's one page, in place of its setup and server sheets. At each seat, from the table outward: the setup chips (as on the setup sheet, extras included), the name, then the drink pills (as on the server sheet). Chair pills, the creamer tint, the key and the notes are all on it. |
 
 Each page footer shows the paper size, the print date and the page number.
 

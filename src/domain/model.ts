@@ -74,6 +74,10 @@ export function drinkUnits(d: Pick<Drink, 'slot' | 'drinkware' | 'amount'>, kind
  * pitcher; it's kept until someone changes the cup.)
  */
 export const MILK_CUPS = ['Glass', 'Juice glass', 'To-go cup'];
+/** At Breakfast, Skim and 2% Milk can also come in a milk pitcher. */
+export const PITCHER_MILKS = ['Skim Milk', '2% Milk'];
+/** The cups a milk can be served in at a meal. */
+export const milkCupsFor = (beverage: string, meal: string): string[] => (meal === 'Breakfast' && PITCHER_MILKS.includes(beverage) ? [...MILK_CUPS, 'Milk pitcher'] : MILK_CUPS);
 
 /**
  * "Extra glass" (a second glass, for water) only makes sense beside a drink in a glass:

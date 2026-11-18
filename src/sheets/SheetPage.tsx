@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CHAIR_PILL, CUP_BAND_H, EXTRA_BG, type Change, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { CHAIR_PILL, CUP_BAND_H, EXTRA_BG, NO_MUG, type Change, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -90,7 +90,7 @@ function ServerBody({ room }: { room: ServerRoom }) {
 /** One setup chip (+Glass, −Mug, an extra), as on the setup sheet. */
 function Chip({ c }: { c: Change }) {
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', height: 16, padding: '0 6px', border: '1px solid #111827', borderRadius: 8, background: c.bg, fontSize: 10, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', flex: 'none' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', height: 16, padding: '0 6px', border: '1px solid #111827', borderRadius: 8, background: c.bg, fontSize: 10, fontWeight: 700, color: c.color ?? '#111827', whiteSpace: 'nowrap', flex: 'none' }}>
       {c.text}
     </span>
   );
@@ -133,8 +133,8 @@ function SetupBody({ room }: { room: SetupRoom }) {
 }
 
 const swatch = (s: CSSProperties) => <span style={{ display: 'inline-block', boxSizing: 'border-box', borderRadius: 4, ...s }} />;
-const tag = (bg: string, text: string) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', height: 18, padding: '0 7px', border: '1px solid #111827', borderRadius: 9, background: bg, fontSize: 11, fontWeight: 700 }}>{text}</span>
+const tag = (bg: string, text: string, color = '#111827') => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', height: 18, padding: '0 7px', border: '1px solid #111827', borderRadius: 9, background: bg, color, fontSize: 11, fontWeight: 700 }}>{text}</span>
 );
 const key = (mark: ReactNode, text: string) => (
   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
@@ -161,7 +161,7 @@ export function SetupLegend({ vertical = false }: { vertical?: boolean }) {
         <div className="lghead">Labels</div>
         <div style={grid(3)}>
           {key(tag('#86EFAC', '+ Item'), 'Add drinkware')}
-          {key(tag('#FCA5A5', '− Item'), 'Remove drinkware')}
+          {key(tag(NO_MUG.bg, '−Mug', NO_MUG.color), 'No mug')}
           {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
         </div>
       </div>

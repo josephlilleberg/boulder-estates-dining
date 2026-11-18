@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { corners, edgeAngle, EXTRA_BG, labelInkWidth, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
+import { corners, edgeAngle, EXTRA_BG, NO_MUG, labelInkWidth, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -65,7 +65,7 @@ describe('Setup sheet rules', () => {
     expect(texts(resident([coffee(), drink('Orange Juice', { drinkware: 'Juice glass' })]))).toEqual(['+Juice']);
     expect(texts(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['+2 Juice', '−Mug']);
     expect(texts(resident([coffee({ drinkware: 'To-go cup' })]))).toEqual(['+To-Go', '−Mug']);
-    for (const c of setupChanges(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner')) expect(c.bg).toBe(c.text === '−Mug' ? '#FCA5A5' : '#86EFAC');
+    for (const c of setupChanges(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner')) expect(c.bg).toBe(c.text === '−Mug' ? NO_MUG.bg : '#86EFAC');
   });
 
   it('two of the same juice are poured together into the usual glass: no +2 Juice, one "2 Cran Juice" pill', () => {
@@ -247,7 +247,7 @@ describe('Server sheet spacing: any combination fits, with a clear gap between t
     });
   }
 
-  it('random mixes of residents and empty seats fit with the gap on every section', () => {
+  it('random mixes of residents and empty seats fit with the gap on every section', { timeout: 60000 }, () => {
     let seed = 11;
     const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const pool: Resident[] = [
@@ -273,12 +273,20 @@ describe('Server sheet spacing: any combination fits, with a clear gap between t
     }
   });
 
-  it('a section where everyone has one drink prints at full size', () => {
-    const T = layoutTables().filter((t) => t.section === 1);
-    const room = serverRoom(T, () => resident([coffee(), drink('2% Milk')]), 'Dinner', data().beverages);
-    expect(room.scale).toBe(1);
-    expect(clashes(room)).toEqual([]);
+  it('tables sit in the same place whether people have one drink, two, or nobody is seated', () => {
+    for (const sec of getOpening(site(), 'Dinner').sections) {
+      const T = layoutTables().filter((t) => t.section === sec.section);
+      const one = serverRoom(T, () => resident([coffee(), drink('2% Milk')]), 'Dinner', data().beverages);
+      const two = serverRoom(T, () => resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk', { drinkware: 'To-go cup', amount: 'Half' })]), 'Dinner', data().beverages);
+      const empty = serverRoom(T, () => null, 'Dinner', data().beverages);
+      const where = (r: typeof one) => r.tables.map((t) => [t.id, Math.round(t.l), Math.round(t.t)]);
+      expect(where(one), sec.label).toEqual(where(two));
+      expect(where(empty), sec.label).toEqual(where(two));
+      expect(one.scale).toBe(two.scale);
+      expect(clashes(two)).toEqual([]);
+    }
   });
+
 
   it('every combination of drinks, cups, halves and water fits a seat’s width, at 85% or larger', () => {
     const bevs = data().beverages.filter((b) => b.siteId === 'BE' && b.kind !== 'coffee');

@@ -317,6 +317,9 @@ const CHIP_GAP = 3;
 export const chipW = (c: Change) => Math.round(c.text.length * 6.3) + 14;
 export const chipsH = (cs: Change[]) => (cs.length ? cs.length * CHIP_H + (cs.length - 1) * CHIP_GAP + NAME_GAP : 0);
 
+/** A label with two drinks, both with cup bands: the least room any seat keeps. */
+const TWO_DRINKS_H = 14 + NAME_GAP + PILL_GAP + 2 * (2 + PILL_ROW_H + CUP_BAND_H);
+
 /** Pill order on every label, first next to the name: milk, juice, tea, anything else, then water. */
 const PILL_RANK: Record<string, number> = { milk: 0, juice: 1, tea: 2, other: 3, ro: 4, hot: 5 };
 
@@ -374,7 +377,9 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
     pillsAt.set(`${t.id}:${i}`, serverPills(r, meal, beverages));
     chipsAt.set(`${t.id}:${i}`, opts.withSetup ? setupChanges(r, meal) : []);
   });
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const p = pillsAt.get(`${t.id}:${i}`); return p ? labelH(p) + chipsH(chipsAt.get(`${t.id}:${i}`)!) : 0; }]));
+  // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
+  // place whoever is seated; only a seat with more than that needs extra.
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const p = pillsAt.get(`${t.id}:${i}`); return Math.max(TWO_DRINKS_H, p ? labelH(p) + chipsH(chipsAt.get(`${t.id}:${i}`)!) : 0); }]));
   let sheetK = 1;
   let at = serverFit(T, lhOf, 1, area);
   if (crowded(T, at, lhOf, 1)) {
@@ -485,7 +490,12 @@ export function notesHeight(notes: ServerNote[]): number {
 export interface Change {
   text: string;
   bg: string;
+  /** Text colour; dark unless set (−Mug is white on solid red). */
+  color?: string;
 }
+
+/** The one removal, −Mug: solid red with white text, so it stands out from the pale chips (and prints dark). */
+export const NO_MUG = { bg: '#DC2626', color: '#FFFFFF' };
 
 /** Setup-sheet chip colour for a resident's extras (fruit, napkins, jelly…). */
 export const EXTRA_BG = '#FDE68A';
@@ -518,7 +528,7 @@ export function setupChanges(r: Resident, meal: string): Change[] {
   add(juice, 'Juice');
   add(togo, 'To-Go');
   add(pitcher, pitcher > 1 ? 'Pitchers' : 'Pitcher');
-  if (!hasMug) out.push({ text: '−Mug', bg: '#FCA5A5' }); // a true minus, to match +Glass
+  if (!hasMug) out.push({ text: '−Mug', ...NO_MUG }); // a true minus, to match +Glass
   // Extras for this meal, as written ("Banana", "Napkins ×2"), in their own colour after the drinkware.
   for (const x of p?.extras ?? []) out.push({ text: extraText(x), bg: EXTRA_BG });
   return out;

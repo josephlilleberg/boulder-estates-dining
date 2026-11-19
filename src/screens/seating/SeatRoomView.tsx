@@ -13,6 +13,8 @@ interface Props {
   onDrop: (residentId: string, target: SeatKey) => void;
   /** The "Who sits here?" pop-up, positioned in room pixels by the parent. */
   children?: ReactNode;
+  /** Seats placed by hand (event seating): a small blue pin before the name. */
+  pinned?: Set<SeatKey>;
 }
 
 interface Drag {
@@ -33,7 +35,7 @@ const seatAt = (x: number, y: number): SeatKey | null => {
 // The section drawn to scale: tables, names against the table edge, "+" circles
 // on empty seats. Names drag with the pointer (not HTML5 drag and drop, which the
 // Windows webview hands to the app shell for file drops).
-export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, children }: Props) {
+export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, children, pinned }: Props) {
   const drag = useRef<Drag | null>(null);
   const justDragged = useRef(false);
   const [ghost, setGhost] = useState<{ name: string; x: number; y: number; over: SeatKey | null } | null>(null);
@@ -119,6 +121,12 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
           >
             {r ? (
               <>
+                {pinned?.has(lab.key) && (
+                  <svg viewBox="0 0 10 10" width={Math.max(8, lab.fontSize - 3)} height={Math.max(8, lab.fontSize - 3)} aria-label="pinned" style={{ flex: 'none', marginRight: 2 }}>
+                    <circle cx="5" cy="5" r="4" fill="#2563EB" />
+                    <circle cx="5" cy="5" r="1.5" fill="#FFFFFF" />
+                  </svg>
+                )}
                 {hasAlert(r) && <AlertBadge size={Math.max(10, lab.fontSize - 1)} />}
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: hasAlert(r) ? 3 : 0 }}>{lab.name}</span>
               </>

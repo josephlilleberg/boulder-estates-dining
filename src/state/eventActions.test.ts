@@ -2,7 +2,7 @@ import initSqlJs from 'sql.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sqljsDb } from '../db/sqljsDb';
 import { seedTestDb } from '../test/seed';
-import { addToEvent, arrangeSeats, createEvent, deleteEvent, editEvent, eventTotals, guestList, removeFromEvent, seatingState, setAttendeeStatus, setGuests } from './eventActions';
+import { addToEvent, arrangeSeats, createEvent, eventTables, moveSeat, planMove, setPinned, unpinAll, unseat, deleteEvent, editEvent, eventTotals, guestList, removeFromEvent, seatingState, setAttendeeStatus, setGuests } from './eventActions';
 import { addResident, deleteResident, setAttendance, setMealPlan } from './residentActions';
 import { Store } from './store';
 
@@ -102,12 +102,16 @@ describe('events', () => {
 });
 
 describe('event seating', () => {
-  it('with no changes, everyone keeps their everyday Dinner seat', async () => {
+  it('with no changes, everyone at a table still in use keeps their everyday Dinner seat', async () => {
     const id = await thanksgiving();
     await store.change('arrange', arrangeSeats(id));
     const e = ev(id);
     const everyday = data().seating.filter((s) => s.meal === 'Dinner');
-    for (const s of everyday) expect(e.seats.find((x) => x.residentId === s.residentId)).toMatchObject({ tableId: s.tableId, seat: s.seat, guest: 0 });
+    const used = new Set(e.seats.map((s) => s.tableId));
+    // Half-empty tables merge, so no more tables than every day.
+    expect(used.size).toBeLessThanOrEqual(new Set(everyday.map((s) => s.tableId)).size);
+    for (const s of everyday.filter((x) => used.has(x.tableId) && e.seats.find((y) => y.residentId === x.residentId)?.tableId === x.tableId))
+      expect(e.seats.find((x) => x.residentId === s.residentId)).toMatchObject({ tableId: s.tableId, seat: s.seat, guest: 0 });
     const st = seatingState(data(), e);
     expect(st.over.size).toBe(0);
     // Regulars without an everyday seat get one too.
@@ -136,5 +140,65 @@ describe('event seating', () => {
     expect(mine()).toEqual([]);
     await store.undoLast();
     expect(mine()).toHaveLength(2);
+  });
+});
+
+describe('moving by hand', () => {
+  async function arranged() {
+    const id = await thanksgiving();
+    await store.change('arrange', arrangeSeats(id));
+    return id;
+  }
+  const seatOf = (id: string, rid: string, guest = 0) => ev(id).seats.find((s) => s.residentId === rid && s.guest === guest);
+  const emptySeat = (id: string, minFree = 1) => {
+    const e = ev(id);
+    for (const t of eventTables(data(), e)) {
+      const n = t.shape === 'round' ? 4 : 6;
+      const used = new Set(e.seats.filter((s) => s.tableId === t.id).map((s) => s.seat));
+      if (n - used.size >= minFree) for (let k = 0; k < n; k++) if (!used.has(k)) return { tableId: t.id, seat: k };
+    }
+    throw new Error('no room');
+  };
+
+  it('moving someone pins them, and Arrange again leaves them there', async () => {
+    const id = await arranged();
+    const rid = ev(id).seats[0]!.residentId;
+    const to = emptySeat(id);
+    await store.change('move', moveSeat(id, { residentId: rid, guest: 0 }, to));
+    expect(seatOf(id, rid)).toMatchObject({ ...to, pinned: true });
+    await store.change('again', arrangeSeats(id));
+    expect(seatOf(id, rid)).toMatchObject(to);
+    await store.change('unpin', setPinned(id, rid, false));
+    expect(seatOf(id, rid)!.pinned).toBe(false);
+  });
+
+  it('a resident brings their guests; the table must have room', async () => {
+    const id = await thanksgiving();
+    const rid = data().seating.find((s) => s.meal === 'Dinner')!.residentId;
+    await store.change('g', setGuests(id, rid, 2));
+    await store.change('arrange', arrangeSeats(id));
+    const to = emptySeat(id, 3);
+    await store.change('move', moveSeat(id, { residentId: rid, guest: 0 }, to));
+    const mine = ev(id).seats.filter((s) => s.residentId === rid);
+    expect(mine).toHaveLength(3);
+    expect(mine.every((s) => s.tableId === to.tableId && s.pinned)).toBe(true);
+    // A guest can't leave their host's table.
+    const other = eventTables(data(), ev(id)).find((t) => t.id !== to.tableId)!;
+    const res = planMove(data(), ev(id), { residentId: rid, guest: 1 }, { tableId: other.id, seat: 0 });
+    expect(res).toHaveProperty('error');
+  });
+
+  it('two people at the same table swap; unseat and unpin all', async () => {
+    const id = await arranged();
+    const e = ev(id);
+    const t = e.seats.find((x) => e.seats.filter((y) => y.tableId === x.tableId).length >= 2)!.tableId;
+    const [a, b] = e.seats.filter((s) => s.tableId === t);
+    await store.change('swap', moveSeat(id, { residentId: a!.residentId, guest: 0 }, { tableId: t, seat: b!.seat }));
+    expect(seatOf(id, a!.residentId)!.seat).toBe(b!.seat);
+    expect(seatOf(id, b!.residentId)!.seat).toBe(a!.seat);
+    await store.change('off', unseat(id, { residentId: a!.residentId, guest: 0 }));
+    expect(seatOf(id, a!.residentId)).toBeUndefined();
+    await store.change('unpin', unpinAll(id));
+    expect(ev(id).seats.some((s) => s.pinned)).toBe(false);
   });
 });

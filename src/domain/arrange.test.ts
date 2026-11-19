@@ -11,7 +11,7 @@ const adjacent = (a: number, b: number, n: number) => (a - b + n) % n === 1 || (
 
 describe('arrange', () => {
   it('keeps everyone at their usual table and seat when nothing changed', () => {
-    const r = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T1', 2), p('c', 'T2', 1)]);
+    const r = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T1', 2), p('x', 'T1', 3), p('c', 'T2', 1), p('d', 'T2', 2), p('e', 'T2', 3)]);
     expect(where(r, 'a')).toMatchObject({ tableId: 'T1', seat: 0 });
     expect(where(r, 'b')).toMatchObject({ tableId: 'T1', seat: 2 });
     expect(where(r, 'c')).toMatchObject({ tableId: 'T2', seat: 1 });
@@ -36,10 +36,10 @@ describe('arrange', () => {
   });
 
   it('fills the space left with added residents, biggest party first, best fit', () => {
-    const r = arrange([round(1), rect(2)], [p('a', 'T1', 0), p('new1', null, null, 0, true), p('new3', null, null, 3, true)]);
+    const r = arrange([round(1), rect(2)], [p('a', 'T1', 0, 2), p('new1', null, null, 0, true), p('new3', null, null, 3, true)]);
     expect(tableOf(r, 'a')).toBe('T1');
-    expect(tableOf(r, 'new3')).toBe('T2'); // a party of 4 doesn't fit the 3 left at Table 1
-    expect(tableOf(r, 'new1')).toBe('T2'); // best fit: Table 2 has 2 left, Table 1 has 3
+    expect(tableOf(r, 'new3')).toBe('T2'); // a party of 4 doesn't fit the 1 left at Table 1
+    expect(tableOf(r, 'new1')).toBe('T1'); // best fit: Table 1 has 1 left, Table 2 has 2
   });
 
   it('never goes over without permission, and says who doesn’t fit', () => {
@@ -62,5 +62,46 @@ describe('arrange', () => {
   it('a party never splits across tables', () => {
     const r = arrange([round(1), round(2)], [p('big', null, null, 5, true)]);
     expect(r.unplaced.map((x) => x.residentId)).toEqual(['big']);
+  });
+
+  it('works around pinned seats, and a pinned party’s new guest sits beside them', () => {
+    const r = arrange([round(1), round(2)], [p('a', 'T1', 0, 1), p('b', 'T1', 1)], { fixed: [{ tableId: 'T2', seat: 2, residentId: 'a', guest: 0 }] });
+    expect(r.seats.some((s) => s.residentId === 'a' && s.guest === 0)).toBe(false); // pinned seat isn't repeated
+    const g = where(r, 'a', 1)!;
+    expect(g.tableId).toBe('T2');
+    expect(adjacent(g.seat, 2, 4)).toBe(true);
+    expect(tableOf(r, 'b')).toBe('T2'); // alone at Table 1, so joins the pinned table rather than leave gaps
+  });
+
+  it('merges half-empty tables: the smaller group joins the bigger one', () => {
+    // After cancellations Table 1 has 1 person and Table 2 has 2.
+    const r = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T2', 0), p('c', 'T2', 2)]);
+    expect(['a', 'b', 'c'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2']);
+    expect(where(r, 'b')!.seat).toBe(0); // the group that stays keeps its seats
+    expect(where(r, 'c')!.seat).toBe(2);
+    expect(r.notes).toEqual(['a joined Table 2 so Table 1 isn’t needed.']);
+  });
+
+  it('leaves tables more than half full alone, and never opens an empty table to merge', () => {
+    const full = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T1', 1), p('c', 'T1', 2), p('d', 'T2', 0), p('e', 'T2', 1), p('f', 'T2', 2)]);
+    expect(full.notes).toEqual([]);
+    const alone = arrange([round(1), round(2)], [p('a', 'T1', 0)]);
+    expect(tableOf(alone, 'a')).toBe('T1');
+  });
+
+  it('moves a table’s group whole or not at all', () => {
+    // Table 3's 3 would fit only by splitting between Table 1 and Table 2 (2 free each).
+    const r = arrange(
+      [rect(1), rect(2), rect(3)],
+      [...['a', 'b', 'c', 'd'].map((id, i) => p(id, 'T1', i)), ...['e', 'f', 'g', 'h'].map((id, i) => p(id, 'T2', i)), p('x', 'T3', 0), p('y', 'T3', 1), p('z', 'T3', 2)],
+    );
+    expect(['x', 'y', 'z'].map((id) => tableOf(r, id))).toEqual(['T3', 'T3', 'T3']);
+  });
+
+  it('an added resident fills a table that has people before opening an empty one', () => {
+    const r = arrange([round(1), rect(2)], [p('a', 'T2', 0), p('b', 'T2', 1), p('c', 'T2', 2), p('new', null, null, 0, true)]);
+    // Empty Table 1 isn't opened while Table 2 has room.
+    expect(tableOf(r, 'new')).toBe('T2');
+    expect(r.notes).toEqual(['new added at Table 2.']);
   });
 });

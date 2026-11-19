@@ -168,27 +168,119 @@ export function eventParties(data: AppData, e: DiningEvent): Party[] {
     });
 }
 
-/** What arranging would do, without saving (the screen asks before going over). */
-export function planSeats(data: AppData, e: DiningEvent, allowOver = false): ArrangeResult {
+/** "Table 3", or "Table 3 (Section 2)" when the meal has more than one section (numbers repeat). */
+export function tableLabel(data: AppData, e: DiningEvent, t: DiningTable): string {
   const sections = data.sites.find((x) => x.id === e.siteId)?.meals.find((m) => m.meal === e.meal)?.sections ?? [];
-  const tables: ArrangeTable[] = eventTables(data, e).map((t) => {
-    const sec = sections.length > 1 ? sections.find((x) => x.section === t.section)?.label : undefined;
-    return { id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: sec ? `Table ${t.number} (${sec})` : `Table ${t.number}` };
-  });
-  return arrange(tables, eventParties(data, e), { allowOver });
+  const sec = sections.length > 1 ? sections.find((x) => x.section === t.section)?.label : undefined;
+  return sec ? `Table ${t.number} (${sec})` : `Table ${t.number}`;
 }
 
-/** Replaces the event's seating with a fresh arrangement (one undo step). */
-export const arrangeSeats =
-  (eventId: string, allowOver = false) =>
-  (data: AppData): Op[] => {
-    const e = event(data, eventId);
-    const plan = planSeats(data, e, allowOver);
-    return [
-      ...e.seats.map((s) => del('event_seat', seatKey(eventId, s))),
-      ...plan.seats.map((s) => put('event_seat', { ...seatKey(eventId, s), resident_id: s.residentId, guest: s.guest, pinned: 0 })),
-    ];
-  };
+/** What arranging would do, without saving (the screen asks before going over). Pinned seats stay. */
+export function planSeats(data: AppData, e: DiningEvent, allowOver = false): ArrangeResult {
+  const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t) }));
+  const fixed = e.seats.filter((s) => s.pinned);
+  return arrange(tables, eventParties(data, e), { allowOver, fixed });
+}
+
+/** Re-seats everyone who isn't pinned (one undo step). */
+export const arrangeSeats = (eventId: string, allowOver = false) => (data: AppData): Op[] => {
+  const e = event(data, eventId);
+  const plan = planSeats(data, e, allowOver);
+  return [
+    ...e.seats.filter((s) => !s.pinned).map((s) => del('event_seat', seatKey(eventId, s))),
+    ...plan.seats.map((s) => put('event_seat', { ...seatKey(eventId, s), resident_id: s.residentId, guest: s.guest, pinned: 0 })),
+  ];
+};
+
+// ---- Moving by hand ----------------------------------------------------------------------------
+// Anything moved by hand is pinned, so Arrange again leaves it where it is.
+
+export interface Who {
+  residentId: string;
+  /** 0 is the resident, 1..n their guests. */
+  guest: number;
+}
+
+const seatRow = (eventId: string, s: Pick<EventSeat, 'tableId' | 'seat'>, who: Who) => ({ ...seatKey(eventId, s), resident_id: who.residentId, guest: who.guest, pinned: 1 });
+
+/**
+ * Seats someone (seated or not) at an empty seat, or swaps two people. A resident brings their
+ * guests to the new table; a guest stays at their host's table. Returns the ops, or why not.
+ */
+export function planMove(data: AppData, e: DiningEvent, who: Who, target: Pick<EventSeat, 'tableId' | 'seat'>): { ops: Op[] } | { error: string } {
+  const t = eventTables(data, e).find((x) => x.id === target.tableId);
+  const a = e.attendees.find((x) => x.residentId === who.residentId && x.status === 'coming');
+  const r = data.residents.find((x) => x.id === who.residentId);
+  if (!t || target.seat >= seatCount(t.shape) || !a || !r || who.guest > a.guests) return { error: 'That seat isn’t available.' };
+  const n = seatCount(t.shape);
+  const label = tableLabel(data, e, t);
+  const party = e.seats.filter((s) => s.residentId === who.residentId);
+  const cur = party.find((s) => s.guest === who.guest);
+  const occ = e.seats.find((s) => s.tableId === t.id && s.seat === target.seat);
+  if (occ && cur && occ.tableId === cur.tableId && occ.seat === cur.seat) return { ops: [] };
+  const del2 = (x: EventSeat) => del('event_seat', seatKey(e.id, x));
+  const swap = (x: EventSeat, y: EventSeat): { ops: Op[] } => ({ ops: [del2(x), del2(y), put('event_seat', seatRow(e.id, y, x)), put('event_seat', seatRow(e.id, x, y))] });
+
+  // Someone's in the seat: swap, when nobody ends up away from their party.
+  if (occ) {
+    if (!cur) return { error: 'That seat is taken. Drop them on an empty seat.' };
+    if (cur.tableId === occ.tableId) return swap(cur, occ);
+    const solo = (x: EventSeat) => x.guest === 0 && (e.attendees.find((y) => y.residentId === x.residentId)?.guests ?? 0) === 0;
+    if (solo(cur) && solo(occ)) return swap(cur, occ);
+    return { error: 'That seat is taken. Only two people sitting on their own can swap tables; drop on an empty seat instead.' };
+  }
+
+  // A guest: anywhere at their host's table.
+  if (who.guest > 0) {
+    const host = party.find((s) => s.guest === 0);
+    if (host && host.tableId !== t.id) {
+      const ht = data.tables.find((x) => x.id === host.tableId);
+      return { error: `Guests sit at their host’s table${ht ? ` (${tableLabel(data, e, ht)})` : ''}.` };
+    }
+    return { ops: [...(cur ? [del2(cur)] : []), put('event_seat', seatRow(e.id, target, who))] };
+  }
+
+  // The resident, within the same table: just them.
+  if (cur && cur.tableId === t.id) return { ops: [del2(cur), put('event_seat', seatRow(e.id, target, who))] };
+
+  // The resident to another table: the whole party comes, guests beside them.
+  const others = new Set(e.seats.filter((s) => s.tableId === t.id && s.residentId !== who.residentId && s.seat < n).map((s) => s.seat));
+  const room = n - others.size;
+  if (room < 1 + a.guests) return { error: `${label} has room for ${room}; ${shortName(r)}’s party is ${1 + a.guests}.` };
+  const taken = new Set([...others, target.seat]);
+  const dist = (x: number, y: number) => Math.min((x - y + n) % n, (y - x + n) % n);
+  const placed: { seat: number; guest: number }[] = [{ seat: target.seat, guest: 0 }];
+  for (let g = 1; g <= a.guests; g++) {
+    let best = -1;
+    for (let s2 = 0; s2 < n; s2++) if (!taken.has(s2) && (best < 0 || dist(s2, target.seat) < dist(best, target.seat))) best = s2;
+    taken.add(best);
+    placed.push({ seat: best, guest: g });
+  }
+  return { ops: [...party.map(del2), ...placed.map((p) => put('event_seat', seatRow(e.id, { tableId: t.id, seat: p.seat }, { residentId: who.residentId, guest: p.guest })))] };
+}
+
+export const moveSeat = (eventId: string, who: Who, target: Pick<EventSeat, 'tableId' | 'seat'>) => (data: AppData): Op[] => {
+  const res = planMove(data, event(data, eventId), who, target);
+  if ('error' in res) throw new Error(res.error);
+  return res.ops;
+};
+
+/** Pins or unpins a whole party. */
+export const setPinned = (eventId: string, residentId: string, pinned: boolean) => (data: AppData): Op[] =>
+  event(data, eventId)
+    .seats.filter((s) => s.residentId === residentId && s.pinned !== pinned)
+    .map((s) => patch('event_seat', seatKey(eventId, s), { pinned: pinned ? 1 : 0 }));
+
+export const unpinAll = (eventId: string) => (data: AppData): Op[] =>
+  event(data, eventId)
+    .seats.filter((s) => s.pinned)
+    .map((s) => patch('event_seat', seatKey(eventId, s), { pinned: 0 }));
+
+/** Takes a resident and their guests off their seats, or just one guest. */
+export const unseat = (eventId: string, who: Who) => (data: AppData): Op[] => {
+  const e = event(data, eventId);
+  return e.seats.filter((s) => s.residentId === who.residentId && (who.guest === 0 || s.guest === who.guest)).map((s) => del('event_seat', seatKey(eventId, s)));
+};
 
 export interface SeatingState {
   /** People coming without a seat (a resident is guest 0, their guests 1..n). */

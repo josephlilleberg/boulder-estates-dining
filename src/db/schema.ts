@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -134,6 +134,26 @@ export const MIGRATIONS: Record<number, string[]> = {
       ] as const
     ).map(([name, from, to]) => `UPDATE beverage SET short_label = '${to}' WHERE name = '${name}' AND short_label = '${from}'`),
   ],
+  // v7: "on the meal plan" is its own fact, apart from "comes to" (attendance). A row means
+  // on the plan for that meal; everyone who comes today starts on it.
+  // Special events (Thanksgiving Dinner): one day, one meal, with their own guest list.
+  // event_attendee is a snapshot taken when the event is made: `added` marks someone who
+  // doesn't usually come, `guests` is how many they bring.
+  7: [
+    `CREATE TABLE IF NOT EXISTS meal_plan (
+      resident_id TEXT NOT NULL REFERENCES resident(id), meal TEXT NOT NULL,
+      PRIMARY KEY (resident_id, meal))`,
+    `INSERT OR IGNORE INTO meal_plan (resident_id, meal) SELECT resident_id, meal FROM attendance`,
+    `CREATE TABLE IF NOT EXISTS event (
+      id TEXT PRIMARY KEY, site_id TEXT NOT NULL REFERENCES site(id),
+      name TEXT NOT NULL, date TEXT NOT NULL, meal TEXT NOT NULL)`,
+    `CREATE TABLE IF NOT EXISTS event_attendee (
+      event_id TEXT NOT NULL REFERENCES event(id), resident_id TEXT NOT NULL REFERENCES resident(id),
+      added INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'coming' CHECK (status IN ('coming', 'cancelled')),
+      guests INTEGER NOT NULL DEFAULT 0 CHECK (guests >= 0),
+      PRIMARY KEY (event_id, resident_id))`,
+  ],
 };
 
 /** Primary key columns per table; the undo log needs them to build inverse operations. */
@@ -154,6 +174,9 @@ export const PRIMARY_KEYS = {
   drink: ['id'],
   extra: ['id'],
   seating: ['site_id', 'meal', 'table_id', 'seat'],
+  meal_plan: ['resident_id', 'meal'],
+  event: ['id'],
+  event_attendee: ['event_id', 'resident_id'],
 } as const;
 
 export type TableName = keyof typeof PRIMARY_KEYS;

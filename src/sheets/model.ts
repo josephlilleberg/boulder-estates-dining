@@ -970,6 +970,7 @@ export function stressOccupant(meal: string): Occupant {
     archived: false,
     notes: [{ id: 'sn', text: 'No nuts' }], // listed under the drawing
     attends: [meal as never],
+    onPlan: [meal as never],
     prefs: {
       [meal]: {
         roWater: false,

@@ -33,6 +33,9 @@ export const ResidentsIcon = () => (
 export const DesignerIcon = () => (
   <Svg><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="2.5" /><rect x="12" y="13" width="7" height="4" rx="1" /></Svg>
 );
+export const EventsIcon = () => (
+  <Svg><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /><path d="M12 13.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z" /></Svg>
+);
 export const ViewIcon = () => (
   <Svg><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></Svg>
 );

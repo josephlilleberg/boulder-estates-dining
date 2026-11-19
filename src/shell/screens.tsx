@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
-import { DesignerIcon, PrintIcon, ResidentsIcon, SeatingIcon, SettingsIcon, ViewIcon } from './icons';
+import { DesignerIcon, EventsIcon, PrintIcon, ResidentsIcon, SeatingIcon, SettingsIcon, ViewIcon } from './icons';
 
-export type Screen = 'seating' | 'residents' | 'designer' | 'view' | 'print' | 'settings';
+export type Screen = 'seating' | 'residents' | 'designer' | 'view' | 'print' | 'events' | 'settings';
 
 export interface ScreenDef {
   id: Screen;
@@ -20,6 +20,8 @@ export const SCREENS: ScreenDef[] = [
   { id: 'residents', label: 'Residents', icon: <ResidentsIcon />, usesMeal: true },
   { id: 'view', label: 'View', icon: <ViewIcon />, usesMeal: true },
   { id: 'print', label: 'Print', icon: <PrintIcon />, usesMeal: true },
+  // Holidays: an event has its own meal, so the shared meal switch doesn't apply.
+  { id: 'events', label: 'Events', icon: <EventsIcon />, usesMeal: false },
   { id: 'designer', label: 'Room Designer', icon: <DesignerIcon />, usesMeal: false, setup: true },
   { id: 'settings', label: 'Settings', icon: <SettingsIcon />, usesMeal: false, setup: true },
 ];

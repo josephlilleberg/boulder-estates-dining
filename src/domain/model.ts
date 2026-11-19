@@ -137,6 +137,8 @@ export interface Resident {
   notes: Note[];
   /** Meals they come to. */
   attends: MealName[];
+  /** Meals they're on the meal plan for. Separate from attends: on the plan doesn't mean they come, and some come without it. */
+  onPlan: MealName[];
   /** Per meal; present even for meals they've stopped coming to (restored if they return). */
   prefs: Partial<Record<MealName, MealPrefs>>;
 }
@@ -165,6 +167,28 @@ export interface SeatAssignment {
   tableId: string;
   seat: number;
   residentId: string;
+}
+
+export type AttendeeStatus = 'coming' | 'cancelled';
+
+export interface EventAttendee {
+  residentId: string;
+  /** Doesn't usually come to this meal; added for the event. */
+  added: boolean;
+  status: AttendeeStatus;
+  /** How many guests they bring; they sit at the resident's table. */
+  guests: number;
+}
+
+/** A special event (Thanksgiving Dinner): one day, one meal, its own guest list. */
+export interface DiningEvent {
+  id: string;
+  siteId: SiteId;
+  name: string;
+  /** YYYY-MM-DD */
+  date: string;
+  meal: MealName;
+  attendees: EventAttendee[];
 }
 
 /** The name on diagrams (seating map, server sheets): nickname if they have one, plus last initial. */

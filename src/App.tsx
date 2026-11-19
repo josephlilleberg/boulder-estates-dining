@@ -4,6 +4,7 @@ import { DEFAULT_MEAL, DEFAULT_SITE, getOpening } from './domain/sites';
 import { TopBar } from './shell/TopBar';
 import type { Screen } from './shell/screens';
 import { SCREENS } from './shell/screens';
+import { EventsScreen } from './screens/events/EventsScreen';
 import { DesignerScreen } from './screens/designer/DesignerScreen';
 import { PrintScreen } from './screens/print/PrintScreen';
 import { ResidentsScreen } from './screens/residents/ResidentsScreen';
@@ -20,6 +21,7 @@ const SCREEN_COMPONENTS: Record<Screen, (p: ScreenProps) => JSX.Element> = {
   designer: DesignerScreen,
   view: ViewScreen,
   print: PrintScreen,
+  events: EventsScreen,
   settings: SettingsScreen,
 };
 

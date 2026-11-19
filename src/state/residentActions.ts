@@ -103,6 +103,7 @@ export function addResident(n: NewResident): { id: string; ops: (data: AppData) 
         put('resident', { id, site_id: n.siteId, first, last, nickname, chair: 'arm', archived: 0 }),
         ...n.meals.flatMap((meal) => [
           put('attendance', { resident_id: id, meal }),
+          put('meal_plan', { resident_id: id, meal }),
           put('meal_pref', { resident_id: id, meal, ro_water: 0, hot_water: 0, portion: 'Full' }),
           put('drink', defaultCoffeeRow(id, meal)),
         ]),
@@ -152,6 +153,8 @@ export const deleteResident = (id: string) => (data: AppData): Op[] => {
     ...prefs.flatMap(([, p]) => [...p.drinks.map((d) => del('drink', { id: d.id })), ...p.extras.map((x) => del('extra', { id: x.id }))]),
     ...r.notes.map((n) => del('resident_note', { id: n.id })),
     ...r.attends.map((meal) => del('attendance', { resident_id: id, meal })),
+    ...r.onPlan.map((meal) => del('meal_plan', { resident_id: id, meal })),
+    ...data.events.flatMap((e) => (e.attendees.some((a) => a.residentId === id) ? [del('event_attendee', { event_id: e.id, resident_id: id })] : [])),
     ...prefs.map(([meal]) => del('meal_pref', { resident_id: id, meal })),
     del('resident', { id }),
   ];
@@ -171,6 +174,12 @@ export const removeNote = (noteId: string) => (): Op[] => [del('resident_note', 
 // ---- Attendance and per-meal flags -----------------------------------------
 
 export { setAttendance };
+
+/** On or off the meal plan for a meal. Doesn't change whether they come. */
+export const setMealPlan = (id: string, meal: MealName, on: boolean) => (data: AppData): Op[] => {
+  if (resident(data, id).onPlan.includes(meal) === on) return [];
+  return [on ? put('meal_plan', { resident_id: id, meal }) : del('meal_plan', { resident_id: id, meal })];
+};
 
 export type SpecialWater = 'none' | 'ro' | 'hot';
 export const SPECIAL_WATER: { value: SpecialWater; label: string }[] = [

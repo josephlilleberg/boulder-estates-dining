@@ -58,7 +58,7 @@ export function importLegacy(data: LegacyData): Stmt[] {
     // Prefs for every meal mentioned anywhere, attendance only for meals they come to.
     const meals = new Set<MealName>([...r.meals, ...(Object.keys(r.drinks) as MealName[]), ...(Object.keys(r.extras) as MealName[])]);
     for (const meal of meals) {
-      if (r.meals.includes(meal)) out.push(insert('attendance', { resident_id: r.id, meal }));
+      if (r.meals.includes(meal)) out.push(insert('attendance', { resident_id: r.id, meal }), insert('meal_plan', { resident_id: r.id, meal }));
       out.push(
         insert('meal_pref', {
           resident_id: r.id,

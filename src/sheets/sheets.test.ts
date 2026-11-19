@@ -45,6 +45,7 @@ const resident = (drinks: Drink[], p: Partial<MealPrefs> = {}, chair: Chair = 'a
   archived: false,
   notes: [],
   attends: ['Dinner'],
+  onPlan: ['Dinner'],
   prefs: { Dinner: { roWater: false, hotWater: false, portion: 'Full', drinks, extras: [], ...p } },
 });
 // The setup chips, then "Mug" when the mug comes off the table (drawn on the table, not as a chip).

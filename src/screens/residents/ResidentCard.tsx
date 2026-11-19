@@ -135,6 +135,7 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
     const onDrink = setDrink;
     const onExtra = setExtra;
     const on = resident.attends.includes(m);
+    const plan = resident.onPlan.includes(m);
     const seat = data.seating.find((s) => s.siteId === site.id && s.meal === m && s.residentId === resident.id);
     const where = !on ? `Turn on if they start coming to ${m}` : seat ? seatLabel(site, m, seat, data.tables) : 'Not seated yet';
     const p = resident.prefs[m];
@@ -159,6 +160,15 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                   <SwitchMark on={on} />
                 </button>
               )}
+            </div>
+            <div className="grow" style={{ cursor: 'default' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: '#111827' }}>On the meal plan</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>{plan === on ? (plan ? `On the plan for ${m}` : `Not on the plan for ${m}`) : plan ? 'On the plan, but doesn’t come' : 'Comes, but not on the plan'}</div>
+              </div>
+              <button type="button" className="swbtn" aria-pressed={plan} aria-label={`On the meal plan for ${m}`} onClick={() => act(`${plan ? 'Off' : 'On'} the ${m} meal plan`, A.setMealPlan(resident.id, m, !plan))}>
+                <SwitchMark on={plan} />
+              </button>
             </div>
           </div>
 

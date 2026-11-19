@@ -21,7 +21,7 @@ export interface AppData {
 const bool = (v: unknown) => v === 1 || v === true;
 
 export async function loadAll(db: Db): Promise<AppData> {
-  const [sites, meals, sections, layouts, tables, bevs, ware, xopts, res, notes, att, prefs, drinks, extras, seats, meta, plan, events, attendees] = await Promise.all([
+  const [sites, meals, sections, layouts, tables, bevs, ware, xopts, res, notes, att, prefs, drinks, extras, seats, meta, plan, events, attendees, eventSeats] = await Promise.all([
     db.select<{ id: SiteId; name: string; enabled: number }>(`SELECT * FROM site ORDER BY sort`),
     db.select<{ site_id: SiteId; meal: MealName }>(`SELECT * FROM site_meal ORDER BY site_id, sort`),
     db.select<{ site_id: SiteId; meal: MealName; section: number; label: string }>(`SELECT * FROM meal_section ORDER BY site_id, meal, sort`),
@@ -47,6 +47,7 @@ export async function loadAll(db: Db): Promise<AppData> {
     db.select<{ resident_id: string; meal: MealName }>(`SELECT p.* FROM meal_plan p JOIN site_meal m ON m.meal = p.meal JOIN resident r ON r.id = p.resident_id AND r.site_id = m.site_id ORDER BY p.resident_id, m.sort`),
     db.select<{ id: string; site_id: SiteId; name: string; date: string; meal: MealName }>(`SELECT * FROM event ORDER BY date DESC, name`),
     db.select<{ event_id: string; resident_id: string; added: number; status: AttendeeStatus; guests: number }>(`SELECT * FROM event_attendee`),
+    db.select<{ event_id: string; table_id: string; seat: number; resident_id: string; guest: number; pinned: number }>(`SELECT * FROM event_seat ORDER BY event_id, table_id, seat`),
   ]);
 
   const activeTables = tables.map((t): DiningTable => ({ id: t.id, layoutId: t.layout_id, section: t.section, number: t.number, shape: t.shape, x: t.x, y: t.y, rotation: t.rotation }));
@@ -95,6 +96,7 @@ export async function loadAll(db: Db): Promise<AppData> {
       date: e.date,
       meal: e.meal,
       attendees: attendees.filter((a) => a.event_id === e.id).map((a) => ({ residentId: a.resident_id, added: bool(a.added), status: a.status, guests: a.guests })),
+      seats: eventSeats.filter((x) => x.event_id === e.id).map((x) => ({ tableId: x.table_id, seat: x.seat, residentId: x.resident_id, guest: x.guest, pinned: bool(x.pinned) })),
     })),
     settings: Object.fromEntries(meta.map((m) => [m.key, m.value])),
   };

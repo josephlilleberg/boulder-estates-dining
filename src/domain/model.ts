@@ -180,6 +180,16 @@ export interface EventAttendee {
   guests: number;
 }
 
+export interface EventSeat {
+  tableId: string;
+  /** At or past the table's seat count: an extra place squeezed in. */
+  seat: number;
+  residentId: string;
+  /** 0 is the resident; 1..n are their guests. */
+  guest: number;
+  pinned: boolean;
+}
+
 /** A special event (Thanksgiving Dinner): one day, one meal, its own guest list. */
 export interface DiningEvent {
   id: string;
@@ -189,6 +199,7 @@ export interface DiningEvent {
   date: string;
   meal: MealName;
   attendees: EventAttendee[];
+  seats: EventSeat[];
 }
 
 /** The name on diagrams (seating map, server sheets): nickname if they have one, plus last initial. */

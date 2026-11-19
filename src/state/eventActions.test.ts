@@ -2,7 +2,7 @@ import initSqlJs from 'sql.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sqljsDb } from '../db/sqljsDb';
 import { seedTestDb } from '../test/seed';
-import { addToEvent, createEvent, deleteEvent, editEvent, eventTotals, guestList, removeFromEvent, setAttendeeStatus, setGuests } from './eventActions';
+import { addToEvent, arrangeSeats, createEvent, deleteEvent, editEvent, eventTotals, guestList, removeFromEvent, seatingState, setAttendeeStatus, setGuests } from './eventActions';
 import { addResident, deleteResident, setAttendance, setMealPlan } from './residentActions';
 import { Store } from './store';
 
@@ -98,5 +98,43 @@ describe('events', () => {
     expect(data().events).toHaveLength(0);
     await store.undoLast();
     expect(ev(id).attendees.length).toBeGreaterThan(0);
+  });
+});
+
+describe('event seating', () => {
+  it('with no changes, everyone keeps their everyday Dinner seat', async () => {
+    const id = await thanksgiving();
+    await store.change('arrange', arrangeSeats(id));
+    const e = ev(id);
+    const everyday = data().seating.filter((s) => s.meal === 'Dinner');
+    for (const s of everyday) expect(e.seats.find((x) => x.residentId === s.residentId)).toMatchObject({ tableId: s.tableId, seat: s.seat, guest: 0 });
+    const st = seatingState(data(), e);
+    expect(st.over.size).toBe(0);
+    // Regulars without an everyday seat get one too.
+    expect(st.unseated).toEqual([]);
+  });
+
+  it('guests are seated, and cancelling or fewer guests frees seats', async () => {
+    const id = await thanksgiving();
+    const host = data().seating.find((s) => s.meal === 'Dinner')!.residentId;
+    await store.change('g', setGuests(id, host, 2));
+    await store.change('arrange', arrangeSeats(id));
+    const mine = () => ev(id).seats.filter((s) => s.residentId === host);
+    expect(
+      mine()
+        .map((s) => s.guest)
+        .sort(),
+    ).toEqual([0, 1, 2]);
+    expect(new Set(mine().map((s) => s.tableId)).size).toBe(1);
+    await store.change('g', setGuests(id, host, 1));
+    expect(
+      mine()
+        .map((s) => s.guest)
+        .sort(),
+    ).toEqual([0, 1]);
+    await store.change('c', setAttendeeStatus(id, host, 'cancelled'));
+    expect(mine()).toEqual([]);
+    await store.undoLast();
+    expect(mine()).toHaveLength(2);
   });
 });

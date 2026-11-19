@@ -154,6 +154,7 @@ export const deleteResident = (id: string) => (data: AppData): Op[] => {
     ...r.notes.map((n) => del('resident_note', { id: n.id })),
     ...r.attends.map((meal) => del('attendance', { resident_id: id, meal })),
     ...r.onPlan.map((meal) => del('meal_plan', { resident_id: id, meal })),
+    ...data.events.flatMap((e) => e.seats.filter((s) => s.residentId === id).map((s) => del('event_seat', { event_id: e.id, table_id: s.tableId, seat: s.seat }))),
     ...data.events.flatMap((e) => (e.attendees.some((a) => a.residentId === id) ? [del('event_attendee', { event_id: e.id, resident_id: id })] : [])),
     ...prefs.map(([meal]) => del('meal_pref', { resident_id: id, meal })),
     del('resident', { id }),

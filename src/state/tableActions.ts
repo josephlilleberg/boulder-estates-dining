@@ -75,6 +75,7 @@ export const deleteTable = (id: string) => (data: AppData): Op[] => {
   table(data, id);
   return [
     ...seatedAt(data, id).map((s) => del('seating', { site_id: s.siteId, meal: s.meal, table_id: s.tableId, seat: s.seat })),
+    ...data.events.flatMap((e) => e.seats.filter((s) => s.tableId === id).map((s) => del('event_seat', { event_id: e.id, table_id: id, seat: s.seat }))),
     del('dining_table', { id }),
   ];
 };

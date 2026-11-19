@@ -6,7 +6,9 @@ import { act, actUndoable } from '../../state/act';
 import * as E from '../../state/eventActions';
 import { useStore } from '../../state/store';
 import { Dialog, Field } from '../../ui/Dialog';
+import { Segmented } from '../../shell/Segmented';
 import type { ScreenProps } from '../types';
+import { EventSeating } from './EventSeating';
 
 // Special events (Thanksgiving Dinner): a guest list of their own, made from whoever comes
 // to that meal today. Everyday seating and residents' cards are never changed here.
@@ -126,6 +128,7 @@ function EventCard({ event: e, site, onEdit, onDeleted }: { event: DiningEvent; 
   const data = useStore((s) => s.data);
   const [q, setQ] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [tab, setTab] = useState<'list' | 'seats'>('list');
   const list = E.guestList(data, e);
   const t = E.eventTotals(data, e);
   const over = t.people - t.seats;
@@ -199,87 +202,104 @@ function EventCard({ event: e, site, onEdit, onDeleted }: { event: DiningEvent; 
           <Stat value={t.guests} label={t.guests === 1 ? 'guest' : 'guests'} />
           <Stat value={t.seats} label="seats" warn={over > 0 ? `${over} over` : undefined} />
           {t.cancelled > 0 && <Stat value={t.cancelled} label="cancelled" />}
-        </div>
-
-        <div style={{ position: 'relative', marginTop: 14 }}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" aria-hidden="true" style={{ position: 'absolute', left: 11, top: 12 }}>
-            <circle cx="11" cy="11" r="7" />
-            <path d="M20 20l-4-4" />
-          </svg>
-          <input
-            type="search"
-            aria-label="Find or add a resident"
-            placeholder="Find or add a resident"
-            value={q}
-            onChange={(ev) => setQ(ev.target.value)}
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              height: 40,
-              padding: '0 12px 0 34px',
-              border: 0,
-              background: '#F1F3F5',
-              borderRadius: 10,
-              fontSize: 14,
-              fontFamily: 'inherit',
-              color: '#111827',
-            }}
+          <div style={{ flex: '1 1 0' }} />
+          <Segmented
+            label="Show"
+            role="tablist"
+            options={[
+              { value: 'list', label: 'Guest list' },
+              { value: 'seats', label: 'Seating' },
+            ]}
+            value={tab}
+            onChange={setTab}
           />
         </div>
+
+        {tab === 'list' && (
+          <div style={{ position: 'relative', marginTop: 14 }}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" aria-hidden="true" style={{ position: 'absolute', left: 11, top: 12 }}>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-4-4" />
+            </svg>
+            <input
+              type="search"
+              aria-label="Find or add a resident"
+              placeholder="Find or add a resident"
+              value={q}
+              onChange={(ev) => setQ(ev.target.value)}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                height: 40,
+                padding: '0 12px 0 34px',
+                border: 0,
+                background: '#F1F3F5',
+                borderRadius: 10,
+                fontSize: 14,
+                fontFamily: 'inherit',
+                color: '#111827',
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {addable.length > 0 && (
-          <Group title="Add to the list">
-            {addable.map((r) => (
-              <Row key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']}>
-                <button type="button" className="btn sm" onClick={() => act(label(`Add ${fullName(r)}`), E.addToEvent(e.id, r.id)).then(() => setQ(''))}>
-                  + Add
-                </button>
-              </Row>
-            ))}
-          </Group>
-        )}
-
-        {(coming.length > 0 || !needle) && (
-          <Group title={`Coming (${coming.length})`}>
-            {coming.map((a) => {
-              const name = fullName(a.resident);
-              return (
-                <Row key={a.residentId} name={name} tags={[...(a.added ? ['Added'] : []), ...(a.onPlan ? [] : ['Not on plan'])]}>
-                  <Guests n={a.guests} name={name} onSet={(n) => act(label(`${name}: ${n} ${n === 1 ? 'guest' : 'guests'}`), E.setGuests(e.id, a.residentId, n))} />
-                  {a.added ? (
-                    <button type="button" className="btn sm" style={{ width: 84 }} onClick={() => act(label(`Remove ${name}`), E.removeFromEvent(e.id, a.residentId))}>
-                      Remove
-                    </button>
-                  ) : (
-                    <button type="button" className="btn sm" style={{ width: 84 }} onClick={() => act(label(`${name} cancelled`), E.setAttendeeStatus(e.id, a.residentId, 'cancelled'))}>
-                      Cancel
-                    </button>
-                  )}
-                </Row>
-              );
-            })}
-            {coming.length === 0 && <Empty text="No one is coming yet. Find a resident above to add them." />}
-          </Group>
-        )}
-        {needle && !coming.length && !cancelled.length && !addable.length && <Empty text="No resident matches." />}
-
-        {cancelled.length > 0 && (
-          <Group title={`Cancelled (${cancelled.length})`}>
-            {cancelled.map((a) => {
-              const name = fullName(a.resident);
-              return (
-                <Row key={a.residentId} name={name} dim tags={a.onPlan ? [] : ['Not on plan']}>
-                  <button type="button" className="btn sm" style={{ width: 84 }} onClick={() => act(label(`${name} coming`), E.setAttendeeStatus(e.id, a.residentId, 'coming'))}>
-                    Coming
+      {tab === 'seats' ? (
+        <EventSeating event={e} site={site} />
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {addable.length > 0 && (
+            <Group title="Add to the list">
+              {addable.map((r) => (
+                <Row key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']}>
+                  <button type="button" className="btn sm" onClick={() => act(label(`Add ${fullName(r)}`), E.addToEvent(e.id, r.id)).then(() => setQ(''))}>
+                    + Add
                   </button>
                 </Row>
-              );
-            })}
-          </Group>
-        )}
-      </div>
+              ))}
+            </Group>
+          )}
+
+          {(coming.length > 0 || !needle) && (
+            <Group title={`Coming (${coming.length})`}>
+              {coming.map((a) => {
+                const name = fullName(a.resident);
+                return (
+                  <Row key={a.residentId} name={name} tags={[...(a.added ? ['Added'] : []), ...(a.onPlan ? [] : ['Not on plan'])]}>
+                    <Guests n={a.guests} name={name} onSet={(n) => act(label(`${name}: ${n} ${n === 1 ? 'guest' : 'guests'}`), E.setGuests(e.id, a.residentId, n))} />
+                    {a.added ? (
+                      <button type="button" className="btn sm" style={{ width: 84 }} onClick={() => act(label(`Remove ${name}`), E.removeFromEvent(e.id, a.residentId))}>
+                        Remove
+                      </button>
+                    ) : (
+                      <button type="button" className="btn sm" style={{ width: 84 }} onClick={() => act(label(`${name} cancelled`), E.setAttendeeStatus(e.id, a.residentId, 'cancelled'))}>
+                        Cancel
+                      </button>
+                    )}
+                  </Row>
+                );
+              })}
+              {coming.length === 0 && <Empty text="No one is coming yet. Find a resident above to add them." />}
+            </Group>
+          )}
+          {needle && !coming.length && !cancelled.length && !addable.length && <Empty text="No resident matches." />}
+
+          {cancelled.length > 0 && (
+            <Group title={`Cancelled (${cancelled.length})`}>
+              {cancelled.map((a) => {
+                const name = fullName(a.resident);
+                return (
+                  <Row key={a.residentId} name={name} dim tags={a.onPlan ? [] : ['Not on plan']}>
+                    <button type="button" className="btn sm" style={{ width: 84 }} onClick={() => act(label(`${name} coming`), E.setAttendeeStatus(e.id, a.residentId, 'coming'))}>
+                      Coming
+                    </button>
+                  </Row>
+                );
+              })}
+            </Group>
+          )}
+        </div>
+      )}
     </section>
   );
 }

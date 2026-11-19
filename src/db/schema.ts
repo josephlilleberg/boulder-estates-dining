@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -154,6 +154,17 @@ export const MIGRATIONS: Record<number, string[]> = {
       guests INTEGER NOT NULL DEFAULT 0 CHECK (guests >= 0),
       PRIMARY KEY (event_id, resident_id))`,
   ],
+  // v8: an event's own seating. guest 0 is the resident, 1..n their guests. A seat number at or
+  // past the table's seat count is an extra place squeezed in (the table is "over").
+  // pinned = placed by hand; arranging again leaves it where it is.
+  8: [
+    `CREATE TABLE IF NOT EXISTS event_seat (
+      event_id TEXT NOT NULL REFERENCES event(id), table_id TEXT NOT NULL REFERENCES dining_table(id),
+      seat INTEGER NOT NULL CHECK (seat >= 0), resident_id TEXT NOT NULL REFERENCES resident(id),
+      guest INTEGER NOT NULL DEFAULT 0 CHECK (guest >= 0), pinned INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (event_id, table_id, seat),
+      UNIQUE (event_id, resident_id, guest))`,
+  ],
 };
 
 /** Primary key columns per table; the undo log needs them to build inverse operations. */
@@ -177,6 +188,7 @@ export const PRIMARY_KEYS = {
   meal_plan: ['resident_id', 'meal'],
   event: ['id'],
   event_attendee: ['event_id', 'resident_id'],
+  event_seat: ['event_id', 'table_id', 'seat'],
 } as const;
 
 export type TableName = keyof typeof PRIMARY_KEYS;

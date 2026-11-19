@@ -1,0 +1,66 @@
+import { describe, expect, it } from 'vitest';
+import { arrange, type ArrangeTable, type Party } from './arrange';
+
+const round = (n: number, section = 1): ArrangeTable => ({ id: `T${n}`, section, number: n, seats: 4 });
+const rect = (n: number, section = 1): ArrangeTable => ({ id: `T${n}`, section, number: n, seats: 6 });
+const p = (id: string, usualTable: string | null, usualSeat: number | null, guests = 0, added = false): Party => ({ residentId: id, name: id, guests, usualTable, usualSeat, added });
+
+const where = (r: ReturnType<typeof arrange>, id: string, guest = 0) => r.seats.find((s) => s.residentId === id && s.guest === guest);
+const tableOf = (r: ReturnType<typeof arrange>, id: string) => where(r, id)?.tableId;
+const adjacent = (a: number, b: number, n: number) => (a - b + n) % n === 1 || (b - a + n) % n === 1;
+
+describe('arrange', () => {
+  it('keeps everyone at their usual table and seat when nothing changed', () => {
+    const r = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T1', 2), p('c', 'T2', 1)]);
+    expect(where(r, 'a')).toMatchObject({ tableId: 'T1', seat: 0 });
+    expect(where(r, 'b')).toMatchObject({ tableId: 'T1', seat: 2 });
+    expect(where(r, 'c')).toMatchObject({ tableId: 'T2', seat: 1 });
+    expect(r.notes).toEqual([]);
+    expect(r.unplaced).toEqual([]);
+  });
+
+  it('seats guests beside their host', () => {
+    const r = arrange([rect(1)], [p('a', 'T1', 0, 2), p('b', 'T1', 3)]);
+    const host = where(r, 'a')!.seat;
+    expect(host).toBe(0);
+    const g = [where(r, 'a', 1)!.seat, where(r, 'a', 2)!.seat];
+    expect(g.every((s) => adjacent(s, host, 6) || g.some((o) => adjacent(s, o, 6)))).toBe(true);
+    expect(where(r, 'b')!.seat).toBe(3);
+  });
+
+  it('moves a group that outgrew its table to another table, together', () => {
+    // Tim, Paul and Kim (Table 1, 4 seats) bring 2 guests: 5 people. Table 2 (6 seats) is free.
+    const r = arrange([round(1), rect(2)], [p('tim', 'T1', 0, 2), p('paul', 'T1', 1), p('kim', 'T1', 2)]);
+    expect(['tim', 'paul', 'kim'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2']);
+    expect(r.notes[0]).toMatch(/moved from Table 1 to Table 2 together/);
+  });
+
+  it('fills the space left with added residents, biggest party first, best fit', () => {
+    const r = arrange([round(1), rect(2)], [p('a', 'T1', 0), p('new1', null, null, 0, true), p('new3', null, null, 3, true)]);
+    expect(tableOf(r, 'a')).toBe('T1');
+    expect(tableOf(r, 'new3')).toBe('T2'); // a party of 4 doesn't fit the 3 left at Table 1
+    expect(tableOf(r, 'new1')).toBe('T2'); // best fit: Table 2 has 2 left, Table 1 has 3
+  });
+
+  it('never goes over without permission, and says who doesn’t fit', () => {
+    const r = arrange([round(1)], [p('a', 'T1', 0, 3), p('b', null, null, 1, true)]);
+    expect(r.unplaced.map((x) => x.residentId)).toEqual(['b']);
+    expect(r.seats.every((s) => s.seat < 4)).toBe(true);
+    const ok = arrange([round(1)], [p('a', 'T1', 0, 3), p('b', null, null, 1, true)], { allowOver: true });
+    expect(ok.unplaced).toEqual([]);
+    expect(ok.seats.filter((s) => s.seat >= 4)).toHaveLength(2);
+    expect(ok.notes.join(' ')).toMatch(/2 over/);
+  });
+
+  it('splits a group only when no table seats them all, keeping parties whole', () => {
+    const r = arrange([round(1), round(2)], [p('a', 'T1', 0, 1), p('b', 'T1', 1, 1), p('c', 'T1', 2)]);
+    expect(r.unplaced).toEqual([]);
+    for (const id of ['a', 'b', 'c']) expect(r.seats.filter((s) => s.residentId === id).every((s) => s.tableId === tableOf(r, id))).toBe(true);
+    expect(r.notes.join(' ')).toMatch(/had to split/);
+  });
+
+  it('a party never splits across tables', () => {
+    const r = arrange([round(1), round(2)], [p('big', null, null, 5, true)]);
+    expect(r.unplaced.map((x) => x.residentId)).toEqual(['big']);
+  });
+});

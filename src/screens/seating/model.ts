@@ -92,7 +92,15 @@ export interface SeatRoom {
  * Tables and one label per seat: a name for a seated resident, or a small "+"
  * circle (16 px; 20 px while placing someone) for an empty seat.
  */
-export function seatRoom(tables: DiningTable[], sc: number, crop: Crop | null, occupant: (k: SeatKey) => Resident | null, picking: boolean): SeatRoom {
+export function seatRoom(
+  tables: DiningTable[],
+  sc: number,
+  crop: Crop | null,
+  occupant: (k: SeatKey) => Resident | null,
+  picking: boolean,
+  /** The name shown at a seat (event seating shows "Guest" for a guest). */
+  nameOf: (r: Resident) => string = shortName,
+): SeatRoom {
   const ox = crop?.x0 ?? 0;
   const oy = crop?.y0 ?? 0;
   const hh = 10;
@@ -135,7 +143,7 @@ export function seatRoom(tables: DiningTable[], sc: number, crop: Crop | null, o
       const hwX = !round && geom[i]![3] !== 0 ? hw : hwFree;
       const base = { key, tableNumber: t.number, nx: p.nx, ny: p.ny };
       if (r) {
-        const name = shortName(r);
+        const name = nameOf(r);
         out.labels.push({
           ...base,
           resident: r,

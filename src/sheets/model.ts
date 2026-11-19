@@ -315,12 +315,20 @@ export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { s
 }
 
 /** Setup chips as drawn: 16 px tall, 3 px apart, 10 px bold text. */
-const CHIP_H = 16;
+/** A setup chip: wide enough for its words, but short. */
+export const CHIP_H = 12;
+/** Clear space between the chair pill (on the table edge) and the first chip. */
+export const CHAIR_GAP = 6;
 const CHIP_GAP = 3;
-export const chipW = (c: Change) => Math.round(c.text.length * 6.3) + 14;
-export const chipsH = (cs: Change[]) => (cs.length ? cs.length * CHIP_H + (cs.length - 1) * CHIP_GAP + NAME_GAP : 0);
+/** The extras box: one line per extra, 12 px each, inside 2 px padding and a 1 px border. */
+export const BOX_LINE_H = 12;
+/** Height of one chip, or of the extras box. */
+export const itemH = (c: Change) => (c.lines ? 2 + 4 + c.lines.length * BOX_LINE_H : CHIP_H);
+/** Width of one chip, or of the extras box (its longest line). */
+export const chipW = (c: Change) => Math.round(Math.max(...(c.lines ?? [c.text]).map((t) => t.length)) * 6.3) + 14;
+export const chipsH = (cs: Change[]) => (cs.length ? stackH(cs) + NAME_GAP : 0);
 /** Chips stacked on their own (a setup-only label). */
-export const stackH = (cs: Change[]) => (cs.length ? cs.length * CHIP_H + (cs.length - 1) * CHIP_GAP : 0);
+export const stackH = (cs: Change[]) => (cs.length ? cs.reduce((h, c) => h + itemH(c), 0) + (cs.length - 1) * CHIP_GAP : 0);
 
 /** A label with two drinks, both with cup bands: the least room any seat keeps. */
 const TWO_DRINKS_H = 14 + NAME_GAP + PILL_GAP + 2 * (2 + PILL_ROW_H + CUP_BAND_H);
@@ -415,7 +423,9 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   });
   // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
   // place whoever is seated; only a seat with more than that needs extra.
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => Math.max(TWO_DRINKS_H, roomAt.get(`${t.id}:${i}`) ?? 0)]));
+  // With chair pills drawn, labels start past the pill and a clear gap.
+  const lead = draw === 'server' ? 0 : 0.5 + CHAIR_GAP;
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => lead + Math.max(TWO_DRINKS_H, roomAt.get(`${t.id}:${i}`) ?? 0)]));
   let sheetK = 1;
   let at = serverFit(T, lhOf, 1, area);
   if (crowded(T, at, lhOf, 1)) {
@@ -464,7 +474,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const pw = Math.max(PILL_W, ...items.map(pillW));
       const k = Math.floor(sheetK * Math.min(1, SEAT_W / Math.max(pw, ...chips.map(chipW))) * 100) / 100;
       const H = (draw === 'setup' ? stackH(chips) : labelH(items) + chipsH(chips)) * k;
-      const off = -13 * SG + 3 + H / 2;
+      const off = -13 * SG + 3 + lead + H / 2;
       const ar = (ang * Math.PI) / 180;
       const outUp = nx * Math.sin(ar) - ny * Math.cos(ar) > 0;
       labels.push({ tableId: t.id, l: sx + nx * off - (SEAT_W * sheetK) / 2, t: sy + ny * off - H / 2, w: SEAT_W * sheetK, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: draw === 'setup' ? '' : shortName(r), items, chips, pillW: pw, scale: k });
@@ -528,10 +538,15 @@ export interface Change {
   bg: string;
   /** Text colour; dark unless set (−Mug is white on solid red). */
   color?: string;
+  /** The extras box: one line per extra (text is them joined, for reading aloud and tests). */
+  lines?: string[];
 }
 
-/** A resident's extras for a meal as chips, as written ("Banana", "Napkins ×2"). */
-export const extraChips = (r: Resident, meal: string): Change[] => (prefsOf(r, meal)?.extras ?? []).map((x) => ({ text: extraText(x), bg: EXTRA_BG }));
+/** A resident's extras for a meal as one box, an extra per line, as written ("Banana", "Napkins ×2"). */
+export const extraChips = (r: Resident, meal: string): Change[] => {
+  const lines = (prefsOf(r, meal)?.extras ?? []).map(extraText);
+  return lines.length ? [{ text: lines.join(', '), lines, bg: EXTRA_BG }] : [];
+};
 
 /** "Mug" on the table at a seat that has no coffee or tea: take the mug away. Solid red with white text, so it stands out (and prints dark). */
 export const NO_MUG = { bg: '#DC2626', color: '#FFFFFF' };
@@ -569,9 +584,10 @@ export function chipRows(items: Change[], maxW: number): Change[][] {
   const rows: Change[][] = [];
   let w = Infinity;
   for (const c of items) {
-    const cw = Math.round(c.text.length * 6.3) + 14;
-    if (rows.length && w + 4 + cw <= maxW) {
-      rows[rows.length - 1]!.push(c);
+    const cw = chipW(c);
+    const last = rows[rows.length - 1];
+    if (last && !c.lines && !last.some((x) => x.lines) && w + 4 + cw <= maxW) {
+      last.push(c);
       w += 4 + cw;
     } else {
       rows.push([c]);
@@ -580,10 +596,11 @@ export function chipRows(items: Change[], maxW: number): Change[][] {
   }
   return rows;
 }
-const rowW = (row: Change[]) => row.reduce((a, c) => a + Math.round(c.text.length * 6.3) + 14, 0) + (row.length - 1) * 4;
+const rowW = (row: Change[]) => row.reduce((a, c) => a + chipW(c), 0) + (row.length - 1) * 4;
+const rowH = (row: Change[]) => Math.max(...row.map(itemH));
 
 /** Setup-sheet chip colour for a resident's extras (fruit, napkins, jelly…). */
-export const EXTRA_BG = '#FDE68A';
+export const EXTRA_BG = '#FEF3C7';
 
 /**
  * What's added to the usual setting (one glass, one coffee mug) at a seat (green), then the
@@ -841,11 +858,12 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         const longSide = t.shape !== 'round' && g[3] !== 0;
         const rows = chipRows(items, longSide ? 92 * sc * TG - 6 : 2 * (46 * sc * TG + 7) - 6);
         const w = Math.max(...rows.map(rowW));
-        const h = rows.length * 16 + (rows.length - 1) * 3;
+        const h = rows.reduce((a, row) => a + rowH(row), 0) + (rows.length - 1) * 3;
         // The block runs along the table edge (never upside down), just outside it.
         const la = edgeAngle(nx, ny);
-        const gx = ex + nx * (7 + h / 2);
-        const gy = ey + ny * (7 + h / 2);
+        // Past the chair pill (half of it sticks out of the edge), then a clear gap.
+        const gx = ex + nx * (3.5 + CHAIR_GAP + h / 2);
+        const gy = ey + ny * (3.5 + CHAIR_GAP + h / 2);
         const lr = (la * Math.PI) / 180;
         const bw = Math.abs(Math.cos(lr)) * w + Math.abs(Math.sin(lr)) * h;
         const bh = Math.abs(Math.sin(lr)) * w + Math.abs(Math.cos(lr)) * h;

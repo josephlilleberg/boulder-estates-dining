@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { CHAIR_PILL, CUP_BAND_H, EXTRA_BG, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { BOX_LINE_H, CHAIR_PILL, CHIP_H, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -101,10 +101,19 @@ function ServerBody({ room }: { room: ServerRoom }) {
   );
 }
 
-/** One setup chip (+Glass, an extra), as on the setup sheet. */
+/** One setup chip (+Glass…), or the seat's extras box, as on the setup sheet. */
 function Chip({ c }: { c: Change }) {
+  // The extras box: one pale-yellow box, an extra per line.
+  if (c.lines)
+    return (
+      <div style={{ boxSizing: 'border-box', height: itemH(c), padding: '2px 6px', border: '1px solid #111827', borderRadius: 5, background: c.bg, fontSize: 10, fontWeight: 700, lineHeight: `${BOX_LINE_H}px`, color: '#111827', whiteSpace: 'nowrap', textAlign: 'center', flex: 'none' }}>
+        {c.lines.map((t, i) => (
+          <div key={i}>{t}</div>
+        ))}
+      </div>
+    );
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', height: 16, padding: '0 6px', border: '1px solid #111827', borderRadius: 8, background: c.bg, fontSize: 10, fontWeight: 700, color: c.color ?? '#111827', whiteSpace: 'nowrap', flex: 'none' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: CHIP_H, padding: '0 4px', border: '1px solid #111827', borderRadius: CHIP_H / 2, background: c.bg, fontSize: 9, lineHeight: 1, fontWeight: 700, color: c.color ?? '#111827', whiteSpace: 'nowrap', flex: 'none' }}>
       {c.text}
     </span>
   );

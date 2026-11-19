@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { chipRows, corners, edgeAngle, EXTRA_BG, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
+import { chipRows, corners, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -408,12 +408,16 @@ describe('pill order and extras', () => {
     expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Chamomile' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['Apple', 'Tea']);
   });
 
-  it('the setup sheet lists extras after the drinkware, in their own colour', () => {
-    const r = resident([coffee()], { extras: [{ id: 'e1', name: 'Fruit', variant: 'Banana', backup: null, count: 1 }, { id: 'e2', name: 'Napkins', variant: null, backup: null, count: 2 }] });
-    expect(setupChanges(r, 'Dinner').map((c) => [c.text, c.bg])).toEqual([
-      ['Banana', EXTRA_BG],
-      ['Napkins ×2', EXTRA_BG],
+  it('the setup sheet puts the extras in one box after the drinkware, an extra per line', () => {
+    const r = resident([coffee(), drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })], { extras: [{ id: 'e1', name: 'Fruit', variant: 'Banana', backup: null, count: 1 }, { id: 'e2', name: 'Napkins', variant: null, backup: null, count: 2 }] });
+    expect(setupChanges(r, 'Dinner').map((c) => [c.text, c.lines ?? null, c.bg])).toEqual([
+      ['+Juice', null, '#86EFAC'],
+      ['Banana, Napkins ×2', ['Banana', 'Napkins ×2'], EXTRA_BG],
     ]);
+    // The box is as tall as its lines and always gets a row of its own.
+    const [, box] = setupChanges(r, 'Dinner');
+    expect(itemH(box!)).toBe(2 + 4 + 2 * 12);
+    expect(chipRows(setupChanges(r, 'Dinner'), 500).map((row) => row.length)).toEqual([1, 1]);
     expect(texts(resident([drink('2% Milk')], { extras: [{ id: 'e3', name: 'Soup Spoon', variant: null, backup: null, count: 1 }] }))).toEqual(['Soup Spoon', 'Mug on table']);
   });
 });

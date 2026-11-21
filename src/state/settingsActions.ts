@@ -162,6 +162,18 @@ export const saveExtraOption = (siteId: SiteId, original: string | null, x: Extr
   return ops;
 };
 
+/** Moves an extra one place up (-1) or down (1) on the list: the order setup sheets list extras in. */
+export const moveExtraOption = (siteId: SiteId, name: string, dir: -1 | 1) => (data: AppData): Op[] => {
+  const site = data.extraOptions.filter((o) => o.siteId === siteId);
+  const i = site.findIndex((o) => o.name === name);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= site.length) return [];
+  // Renumber the whole list in its new order, so equal or gapped sort values can't confuse it.
+  const next = [...site];
+  [next[i], next[j]] = [next[j]!, next[i]!];
+  return next.flatMap((o, k) => (o.sort === k ? [] : [patch('extra_option', { site_id: siteId, name: o.name }, { sort: k })]));
+};
+
 export const removeExtraOption = (siteId: SiteId, name: string): Op[] => [del('extra_option', { site_id: siteId, name })];
 
 /** Extras offered on the resident card: the whole list, at every meal (the manager keeps it short). */

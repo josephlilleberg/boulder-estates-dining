@@ -6,9 +6,8 @@ import type { MealName, Site } from '../../domain/sites';
 import { act } from '../../state/act';
 import { BACKUP_KEEP, localDate, runDailyBackup } from '../../state/backup';
 import { SCHEMA_VERSION } from '../../db/schema';
-import { setBackupDir } from '../../state/settingsActions';
+import { moveExtraOption, setBackupDir } from '../../state/settingsActions';
 import { getStore, useStore } from '../../state/store';
-import { appVersion, checkForUpdate, installUpdate, useUpdateState } from '../../state/updates';
 import type { ScreenProps } from '../types';
 import { CupDialog, DrinkDialog, ExtraOptionDialog, MealSectionsDialog, RestoreDialog } from './dialogs';
 
@@ -37,9 +36,6 @@ export function SettingsScreen({ site }: ScreenProps) {
   const [defaultDir, setDefaultDir] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const desktop = isTauri();
-  const update = useUpdateState();
-  const [version, setVersion] = useState<string | null>(null);
-  useEffect(() => void appVersion().then(setVersion), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const [importNote, setImportNote] = useState<string | null>(null);
   const noResidents = !data.residents.some((r) => r.siteId === site.id);
@@ -124,14 +120,36 @@ export function SettingsScreen({ site }: ScreenProps) {
           </button>
 
           <h3 style={subhead}>Extras</h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-            {extras.map((x) => (
-              <button key={x.name} type="button" style={chip} onClick={() => setOpen({ kind: 'extra', option: x })}>
-                {x.name}
-              </button>
+          {/* In this order on the setup sheets: move one up or down to change it. */}
+          <ol style={{ listStyle: 'none', margin: '0 0 8px', padding: 0, border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
+            {extras.map((x, i) => (
+              <li key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px 4px 10px', borderTop: i ? '1px solid #EEF0F3' : undefined, background: '#FFFFFF' }}>
+                <span style={{ width: 18, fontSize: 12, color: '#6B7280', textAlign: 'right', flex: 'none' }}>{i + 1}</span>
+                <button type="button" className="linkbtn" style={{ flex: 1, minWidth: 0, textAlign: 'left', fontSize: 14, color: '#111827' }} title="Change this extra" onClick={() => setOpen({ kind: 'extra', option: x })}>
+                  {x.name}
+                </button>
+                <button type="button" className="iconbtn" aria-label={`Move ${x.name} up`} title="Move up" disabled={i === 0} style={{ opacity: i === 0 ? 0.3 : 1 }} onClick={() => void act(`Move ${x.name} up`, moveExtraOption(site.id, x.name, -1))}>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 15l6-6 6 6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="iconbtn"
+                  aria-label={`Move ${x.name} down`}
+                  title="Move down"
+                  disabled={i === extras.length - 1}
+                  style={{ opacity: i === extras.length - 1 ? 0.3 : 1 }}
+                  onClick={() => void act(`Move ${x.name} down`, moveExtraOption(site.id, x.name, 1))}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+              </li>
             ))}
-          </div>
-          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#4B5563' }}>Offered at every meal.</p>
+          </ol>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#4B5563' }}>Offered at every meal. Setup sheets list each seat’s extras in this order; click a name to change it.</p>
           <button type="button" className="btn sm" onClick={() => setOpen({ kind: 'extra', option: null })}>
             + Add an extra
           </button>
@@ -194,36 +212,6 @@ export function SettingsScreen({ site }: ScreenProps) {
           {note && <p style={{ margin: '12px 0 0', fontSize: 13, color: '#374151' }}>{note}</p>}
         </section>
       </div>
-
-      <section className="card" style={{ padding: 18, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <h2 className="h2" style={{ marginBottom: 4 }}>App updates</h2>
-          <p style={{ margin: 0, fontSize: 13, color: '#4B5563' }}>
-            {!desktop
-              ? 'Updates work in the installed app.'
-              : update.kind === 'checking'
-                ? 'Checking…'
-                : update.kind === 'current'
-                  ? `Version ${version ?? ''} is the latest.`
-                  : update.kind === 'available'
-                    ? `Version ${update.version} is available. Updating restarts the app; your data and backups are kept.`
-                    : update.kind === 'installing'
-                      ? `Updating${update.percent !== null ? ` (${update.percent}%)` : ''}… The app restarts when it’s done.`
-                      : update.kind === 'error'
-                        ? update.message
-                        : `Version ${version ?? ''}`}
-          </p>
-        </div>
-        {update.kind === 'available' || update.kind === 'installing' ? (
-          <button type="button" className="btn sm primary" disabled={update.kind === 'installing'} onClick={() => void installUpdate()}>
-            Update to {update.kind === 'available' ? update.version : '…'}
-          </button>
-        ) : (
-          <button type="button" className="btn sm" disabled={!desktop || update.kind === 'checking'} onClick={() => void checkForUpdate()}>
-            Check for updates
-          </button>
-        )}
-      </section>
 
       {open?.kind === 'drink' && <DrinkDialog site={site} drink={open.drink} onClose={() => setOpen(null)} />}
       {open?.kind === 'cup' && <CupDialog site={site} cup={open.cup} onClose={() => setOpen(null)} />}

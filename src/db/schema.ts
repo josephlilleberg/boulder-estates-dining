@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -164,6 +164,17 @@ export const MIGRATIONS: Record<number, string[]> = {
       guest INTEGER NOT NULL DEFAULT 0 CHECK (guest >= 0), pinned INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (event_id, table_id, seat),
       UNIQUE (event_id, resident_id, guest))`,
+  ],
+  // v9: the Extras list's order is the order setup sheets list them (reorderable in Settings). Start it
+  // utensils first, food last: Napkins, Soup Spoon, Butter, Jelly, Brown Sugar, anything else, Fruit.
+  9: [
+    `UPDATE extra_option SET sort = (
+      SELECT rn FROM (
+        SELECT site_id AS s, name AS n, ROW_NUMBER() OVER (PARTITION BY site_id ORDER BY
+          CASE name WHEN 'Napkins' THEN 0 WHEN 'Soup Spoon' THEN 1 WHEN 'Butter' THEN 2 WHEN 'Jelly' THEN 3 WHEN 'Brown Sugar' THEN 4 WHEN 'Fruit' THEN 2 ELSE 5 END
+          + CASE name WHEN 'Fruit' THEN 1000 ELSE 0 END, sort) - 1 AS rn
+        FROM extra_option)
+      WHERE s = extra_option.site_id AND n = extra_option.name)`,
   ],
 };
 

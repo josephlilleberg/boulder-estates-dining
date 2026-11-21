@@ -95,7 +95,8 @@ describe('Cups', () => {
 
 describe('Extras list', () => {
   it('is seeded with the resident card’s old choices, all offered at every meal', () => {
-    expect(data().extraOptions.filter((x) => x.siteId === 'BE').map((x) => x.name)).toEqual(['Napkins', 'Jelly', 'Fruit', 'Butter', 'Soup Spoon', 'Brown Sugar']);
+    // Utensils first, food last (migration 9): the order setup sheets list extras in.
+    expect(data().extraOptions.filter((x) => x.siteId === 'BE').map((x) => x.name)).toEqual(['Napkins', 'Soup Spoon', 'Butter', 'Jelly', 'Brown Sugar', 'Fruit']);
     expect(S.extrasFor(data(), 'BE')).toHaveLength(6);
     expect(data().extraOptions.find((x) => x.name === 'Fruit')).toMatchObject({ variants: ['Banana', 'Orange', 'Apple'], counted: false });
   });
@@ -110,6 +111,16 @@ describe('Extras list', () => {
     expect(S.extrasFor(data(), 'BE').map((x) => x.name)).toContain('Pancake syrup');
     await store.change('Remove', S.removeExtraOption('BE', 'Pancake syrup'));
     expect(names.length - 1).toBe(data().extraOptions.filter((x) => x.siteId === 'BE').length);
+  });
+
+  it('moves up and down, one undo step, and the ends stay put', async () => {
+    const names = () => data().extraOptions.filter((x) => x.siteId === 'BE').map((x) => x.name);
+    await store.change('Up', S.moveExtraOption('BE', 'Fruit', -1));
+    expect(names()).toEqual(['Napkins', 'Soup Spoon', 'Butter', 'Jelly', 'Fruit', 'Brown Sugar']);
+    expect(S.moveExtraOption('BE', 'Napkins', -1)(data())).toEqual([]);
+    expect(S.moveExtraOption('BE', 'Brown Sugar', 1)(data())).toEqual([]);
+    await store.undoLast();
+    expect(names()).toEqual(['Napkins', 'Soup Spoon', 'Butter', 'Jelly', 'Brown Sugar', 'Fruit']);
   });
 });
 

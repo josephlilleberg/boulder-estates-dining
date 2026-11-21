@@ -1,4 +1,5 @@
 import type { AppData } from '../db/repo';
+import type { Resident } from '../domain/model';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
 import { areaFor, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
@@ -78,10 +79,36 @@ export interface PageData {
   body: PageBody;
 }
 
-/** Who sits where at this meal (archived residents and non-attendees never show). */
-export function occupantFor(data: Pick<AppData, 'residents' | 'seating'>, siteId: string, meal: string): Occupant {
+/**
+ * Who sits where at this meal (archived residents and non-attendees never show), with their extras
+ * in the order of the Extras list in Settings, so every seat lists them the same way.
+ */
+export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Partial<Pick<AppData, 'extraOptions'>>, siteId: string, meal: string): Occupant {
   const r = mealRoster(data.residents, data.seating, siteId, meal);
-  return (tableId, seat) => r.bySeat.get(seatKey(tableId, seat)) ?? null;
+  const order = (data.extraOptions ?? []).filter((x) => x.siteId === siteId).map((x) => x.name);
+  const sorted = new Map<Resident, Resident>();
+  const inOrder = (res: Resident) => {
+    let out = sorted.get(res);
+    if (!out) {
+      const p = res.prefs[meal as MealName];
+      out = p ? { ...res, prefs: { ...res.prefs, [meal]: { ...p, extras: orderExtras(p.extras, order) } } } : res;
+      sorted.set(res, out);
+    }
+    return out;
+  };
+  return (tableId, seat) => {
+    const res = r.bySeat.get(seatKey(tableId, seat));
+    return res ? inOrder(res) : null;
+  };
+}
+
+/** Extras in the Settings list's order; any not on the list go last, alphabetically. */
+export function orderExtras<T extends { name: string }>(extras: T[], order: string[]): T[] {
+  const rank = (n: string) => {
+    const i = order.indexOf(n);
+    return i < 0 ? order.length : i;
+  };
+  return [...extras].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
 export function buildPage(

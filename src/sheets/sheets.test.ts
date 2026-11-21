@@ -7,7 +7,7 @@ import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
 import { CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
-import { buildPage, occupantFor, sheetsFor } from './pages';
+import { buildPage, occupantFor, orderExtras, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
 let store: Store;
@@ -114,7 +114,9 @@ describe('Setup sheet rules', () => {
     const chairs: Chair[] = ['arm', 'no_arm', 'none'];
     const room = plan((s) => (s < 3 ? resident([coffee()], {}, chairs[s]) : null));
     expect(room.pills.map((p) => p.chair)).toEqual(chairs);
-    expect(room.pills.every((p) => p.w === 18 && p.h === 7)).toBe(true);
+    // One size for every chair, reading along the edge, never upside down.
+    expect(new Set(room.pills.map((p) => `${p.w}x${p.h}`)).size).toBe(1);
+    for (const p of room.pills) expect(Math.abs(p.ang)).toBeLessThanOrEqual(90);
   });
 
   it('a table where anyone takes creamer is light purple with a purple outline', () => {
@@ -428,6 +430,13 @@ describe('setup chip layout', () => {
     const c = (text: string) => ({ text, bg: '#86EFAC' });
     expect(chipRows([c('+Glass'), c('+Juice'), c('Banana')]).map((r) => r.map((x) => x.text))).toEqual([['+Glass'], ['+Juice'], ['Banana']]);
     expect(new Set([c('+Glass'), c('+2 Pitchers'), { text: 'Napkins ×2', lines: ['Napkins ×2'], bg: EXTRA_BG }].map(chipW)).size).toBe(1);
+  });
+
+  it('extras follow the Settings list order on every seat; ones not on the list go last, alphabetically', () => {
+    const x = (name: string) => ({ name });
+    const order = ['Napkins', 'Soup Spoon', 'Butter', 'Jelly', 'Brown Sugar', 'Fruit'];
+    expect(orderExtras([x('Fruit'), x('Syrup'), x('Jelly'), x('Soup Spoon'), x('Napkins'), x('Honey')], order).map((e) => e.name)).toEqual(['Napkins', 'Soup Spoon', 'Jelly', 'Fruit', 'Honey', 'Syrup']);
+    expect(orderExtras([x('Soup Spoon'), x('Fruit')], ['Fruit', 'Soup Spoon']).map((e) => e.name)).toEqual(['Fruit', 'Soup Spoon']);
   });
 
   it('each extra is one line; the sheet’s chips all widen to the longest line, up to a cap', () => {

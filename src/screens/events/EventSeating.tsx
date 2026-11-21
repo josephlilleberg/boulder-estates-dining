@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { names } from '../../domain/arrange';
 import { fullName, shortName, type DiningEvent, type Resident } from '../../domain/model';
 import type { Site } from '../../domain/sites';
@@ -6,14 +6,15 @@ import { seatCount } from '../../domain/tables';
 import { Segmented } from '../../shell/Segmented';
 import { act } from '../../state/act';
 import * as E from '../../state/eventActions';
-import { useStore } from '../../state/store';
+import { getStore, useStore } from '../../state/store';
 import { Dialog } from '../../ui/Dialog';
 import { useSize } from '../../ui/useSize';
 import { cropOf, frameCrop, parseSeatKey, seatKey, seatingScale, seatRoom, type SeatKey, type SeatLabel } from '../seating/model';
-import { SeatRoomView } from '../seating/SeatRoomView';
+import { dropTargetAt, SeatRoomView } from '../seating/SeatRoomView';
 
-// An event's seating map. "Arrange seats" lays everyone out (see domain/arrange.ts). Drag a name
-// (or select it, then click an empty seat) to move it; moved people are pinned, so arranging
+// An event's seating map, with a side panel: who's selected, who isn't seated yet, and what's
+// changed from everyday seating. "Arrange seats" lays everyone out (see domain/arrange.ts). Drag a
+// name onto a seat (or a table, to sit wherever there's room); moved people are pinned, so arranging
 // again works around them. Guests show as "Guest" beside their host.
 
 const GUEST = 'guest:';
@@ -29,28 +30,30 @@ function whoOf(id: string): E.Who {
 
 export function EventSeating({ event: e, site }: { event: DiningEvent; site: Site }) {
   const data = useStore((s) => s.data);
+  const [boxRef, box] = useSize<HTMLDivElement>();
   const [fitRef, fit] = useSize<HTMLDivElement>();
   const sections = site.meals.find((m) => m.meal === e.meal)?.sections ?? [];
   const [sectionPick, setSection] = useState(sections[0]?.section ?? 1);
   const section = sections.some((s) => s.section === sectionPick) ? sectionPick : (sections[0]?.section ?? 1);
-  // Reasons from the last arrange, shown until the next one (not saved).
-  const [notes, setNotes] = useState<string[] | null>(null);
   const [asking, setAsking] = useState<ReturnType<typeof E.planSeats> | null>(null);
   const [sel, setSel] = useState<SeatKey | null>(null);
-  // Placing someone from the Not seated list: click a seat.
+  // Placing someone from the Not seated list: click a seat (or drag them onto one).
   const [pick, setPick] = useState<E.Who | null>(null);
+  const [drag, setDrag] = useState<{ who: E.Who; name: string; x: number; y: number; over: SeatKey | null } | null>(null);
+  const dragStart = useRef<{ who: E.Who; name: string; pointer: number; sx: number; sy: number; moved: boolean } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!pick) return;
-    const on = (ev: KeyboardEvent) => ev.key === 'Escape' && setPick(null);
+    if (!pick && !sel) return;
+    const on = (ev: KeyboardEvent) => ev.key === 'Escape' && (setPick(null), setSel(null));
     window.addEventListener('keydown', on);
     return () => window.removeEventListener('keydown', on);
-  }, [pick]);
+  }, [pick, sel]);
 
   const all = E.eventTables(data, e);
   const tables = all.filter((t) => t.section === section);
   const state = E.seatingState(data, e);
+  const changes = E.eventChanges(data, e);
   const byId = new Map(data.residents.map((r) => [r.id, r]));
   const bySeat = new Map<string, Resident>();
   const pinnedKeys = new Set(e.seats.filter((s) => s.pinned).map((s) => seatKey(s.tableId, s.seat)));
@@ -64,28 +67,48 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
     else bySeat.set(seatKey(s.tableId, s.seat), who);
   }
   const seated = e.seats.filter((s) => all.some((t) => t.id === s.tableId)).length;
+  const tableInfo = new Map(
+    all.map((t) => {
+      const n = e.seats.filter((s) => s.tableId === t.id).length;
+      return [t.id, { text: `${n}/${seatCount(t.shape)}`, dim: n === 0 }];
+    }),
+  );
+  const used = [...tableInfo.values()].filter((x) => !x.dim).length;
 
+  const wide = box.w >= 900;
   const crop = cropOf(tables);
   const sc = seatingScale(crop, fit.w, fit.h);
   const view = crop && fit.w ? frameCrop(crop, sc, fit.w, fit.h) : crop;
-  const room = seatRoom(tables, sc, view, (k) => bySeat.get(k) ?? null, !!pick, nameOf);
+  const placing = !!pick || !!drag;
+  const room = seatRoom(tables, sc, view, (k) => bySeat.get(k) ?? null, placing, nameOf);
   const seatedIn = (n: number) => e.seats.filter((s) => all.find((t) => t.id === s.tableId)?.section === n).length;
 
   const nameOfWho = (w: E.Who) => {
     const r = byId.get(w.residentId);
     return !r ? '' : w.guest ? `Guest of ${shortName(r)}` : fullName(r);
   };
+  const partyOf = (w: E.Who) => (w.guest === 0 && (e.attendees.find((a) => a.residentId === w.residentId)?.guests ?? 0) > 0 ? ' and their guests' : '');
 
-  /** Seat or swap; one undo step. A rule that stops it shows above the map instead. */
-  const move = async (who: E.Who, k: SeatKey) => {
-    const target = parseSeatKey(k);
-    const res = E.planMove(data, e, who, target);
+  /** Seat, swap, or seat at a table; one undo step. A rule that stops it shows in the panel instead. */
+  const apply = async (who: E.Who, res: { ops: unknown[] } | { error: string }, ops: Parameters<typeof act>[1], then?: () => void) => {
     if ('error' in res) return setMsg(res.error);
     setMsg(null);
     setPick(null);
     if (!res.ops.length) return;
-    if (await act(`Move ${nameOfWho(who)} · ${e.name}`, E.moveSeat(e.id, who, target))) setSel(k);
+    if (await act(`Move ${nameOfWho(who)} · ${e.name}`, ops)) then?.();
   };
+  const move = (who: E.Who, k: SeatKey) => {
+    const target = parseSeatKey(k);
+    return apply(who, E.planMove(data, e, who, target), E.moveSeat(e.id, who, target), () => setSel(k));
+  };
+  const moveToTable = (who: E.Who, tableId: string) =>
+    apply(who, E.planMoveToTable(data, e, who, tableId), E.moveToTable(e.id, who, tableId), () => {
+      const s = getStore()
+        .get()
+        .data.events.find((x) => x.id === e.id)
+        ?.seats.find((x) => x.residentId === who.residentId && x.guest === who.guest);
+      setSel(s ? seatKey(s.tableId, s.seat) : null);
+    });
 
   const onSeatClick = (lab: SeatLabel) => {
     if (pick) return void move(pick, lab.key);
@@ -98,6 +121,37 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
     if (selRes) void move(whoOf(selRes.id), lab.key);
   };
 
+  // Dragging a name from the Not seated list onto the map (pointer events, like the map's own drags).
+  const listDown = (who: E.Who, name: string) => (ev: PointerEvent<HTMLButtonElement>) => {
+    if (ev.button !== 0) return;
+    ev.currentTarget.setPointerCapture(ev.pointerId);
+    dragStart.current = { who, name, pointer: ev.pointerId, sx: ev.clientX, sy: ev.clientY, moved: false };
+  };
+  const listMove = (ev: PointerEvent<HTMLButtonElement>) => {
+    const g = dragStart.current;
+    if (!g || g.pointer !== ev.pointerId) return;
+    if (!g.moved && Math.abs(ev.clientX - g.sx) + Math.abs(ev.clientY - g.sy) < 5) return;
+    g.moved = true;
+    const t = dropTargetAt(ev.clientX, ev.clientY);
+    setDrag({ who: g.who, name: g.name, x: ev.clientX, y: ev.clientY, over: t && 'seat' in t ? t.seat : null });
+  };
+  const listUp = (ev: PointerEvent<HTMLButtonElement>) => {
+    const g = dragStart.current;
+    if (!g || g.pointer !== ev.pointerId) return;
+    dragStart.current = null;
+    setDrag(null);
+    if (!g.moved) {
+      // A click: pick them, then click a seat.
+      setSel(null);
+      setMsg(null);
+      setPick(pick && pick.residentId === g.who.residentId && pick.guest === g.who.guest ? null : g.who);
+      return;
+    }
+    const t = ev.type === 'pointerup' ? dropTargetAt(ev.clientX, ev.clientY) : null;
+    if (t && 'seat' in t) void move(g.who, t.seat);
+    else if (t && 'table' in t) void moveToTable(g.who, t.table);
+  };
+
   const selSeat = sel ? e.seats.find((s) => seatKey(s.tableId, s.seat) === sel) : undefined;
   const selWho = selSeat ? { residentId: selSeat.residentId, guest: selSeat.guest } : null;
   const selTable = selSeat && all.find((t) => t.id === selSeat.tableId);
@@ -107,11 +161,132 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
     const plan = E.planSeats(data, e, allowOver);
     if (!allowOver && plan.unplaced.length) return setAsking(plan);
     setAsking(null);
-    if (await act(`Arrange seats · ${e.name}`, E.arrangeSeats(e.id, allowOver))) setNotes(plan.notes);
+    await act(`Arrange seats · ${e.name}`, E.arrangeSeats(e.id, allowOver));
   };
 
+  /** Jump to someone on the map: their section, their seat selected. */
+  const show = (residentId: string) => {
+    const s = e.seats.find((x) => x.residentId === residentId && x.guest === 0);
+    const t = s && all.find((x) => x.id === s.tableId);
+    if (!s || !t) return;
+    setSection(t.section);
+    setPick(null);
+    setSel(seatKey(s.tableId, s.seat));
+  };
+
+  const panel = (
+    <aside
+      aria-label="Seating details"
+      style={{
+        width: wide ? 280 : undefined,
+        flex: wide ? 'none' : '0 0 auto',
+        maxHeight: wide ? undefined : 240,
+        minHeight: 0,
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      {msg && (
+        <div role="alert" style={{ ...card, background: '#FEF2F2', borderColor: '#FCA5A5', color: '#991B1B' }}>
+          <div style={{ marginBottom: 6 }}>{msg}</div>
+          <button type="button" className="linkbtn" onClick={() => setMsg(null)}>
+            OK
+          </button>
+        </div>
+      )}
+
+      {pick && (
+        <div style={{ ...card, background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1E3A8A' }}>
+          <div style={{ marginBottom: 8 }}>
+            Placing <strong>{nameOfWho(pick)}</strong>
+            {partyOf(pick)}. Click a seat, or a table to seat them wherever there’s room.
+          </div>
+          <button type="button" className="btn sm" onClick={() => setPick(null)}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {selSeat && selWho && !pick && (
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{nameOfWho(selWho)}</div>
+              <div style={{ color: '#4B5563', marginTop: 2 }}>
+                {selTable ? E.tableLabel(data, e, selTable) : ''}
+                {selSeat.pinned ? ' · pinned' : ''}
+              </div>
+            </div>
+            <button type="button" className="iconbtn" aria-label="Close" style={{ width: 28, height: 28 }} onClick={() => setSel(null)}>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+          <div style={{ color: '#6B7280', margin: '6px 0 10px', lineHeight: 1.45 }}>Drag to a seat or a table, or click an empty seat. Drop on someone to swap.</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn sm"
+              title={selSeat.pinned ? 'Arranging again may move them' : 'Arranging again leaves them here'}
+              onClick={() =>
+                void act(`${selSeat.pinned ? 'Unpin' : 'Pin'} ${nameOfWho({ residentId: selSeat.residentId, guest: 0 })} · ${e.name}`, E.setPinned(e.id, selSeat.residentId, !selSeat.pinned))
+              }
+            >
+              {selSeat.pinned ? 'Unpin' : 'Pin'}
+            </button>
+            <button type="button" className="btn sm" onClick={() => void act(`Take ${nameOfWho(selWho)} off their seat · ${e.name}`, E.unseat(e.id, selWho)).then(() => setSel(null))}>
+              Take off seat
+            </button>
+          </div>
+        </div>
+      )}
+
+      {state.unseated.length > 0 && (
+        <div style={{ ...card, padding: 0, borderColor: '#FCD34D' }}>
+          <div style={{ ...head, background: '#FFFBEB', color: '#78350F' }}>Not seated ({state.unseated.length})</div>
+          {state.unseated.map((w) => {
+            const on = pick?.residentId === w.residentId && pick.guest === w.guest;
+            const name = nameOfWho(w);
+            return (
+              <button
+                key={`${w.residentId}|${w.guest}`}
+                type="button"
+                aria-pressed={on}
+                title="Drag onto a seat or table, or click, then click a seat"
+                onPointerDown={listDown(w, name)}
+                onPointerMove={listMove}
+                onPointerUp={listUp}
+                onPointerCancel={listUp}
+                style={{ ...rowStyle, background: on ? '#DBEAFE' : '#FFFFFF', touchAction: 'none', cursor: drag ? 'grabbing' : 'grab' }}
+              >
+                <svg viewBox="0 0 10 16" width="7" height="12" aria-hidden="true" style={{ flex: 'none', color: '#9CA3AF' }}>
+                  {[3, 8, 13].flatMap((y) => [<circle key={`a${y}`} cx="2.5" cy={y} r="1.3" fill="currentColor" />, <circle key={`b${y}`} cx="7.5" cy={y} r="1.3" fill="currentColor" />])}
+                </svg>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ ...card, padding: 0 }}>
+        <div style={head}>Changes from everyday ({changes.length})</div>
+        {changes.length === 0 && <div style={{ padding: '8px 12px', color: '#4B5563' }}>{e.seats.length ? 'Everyone seated is at their usual table.' : 'Nothing arranged yet.'}</div>}
+        {changes.map((c) => (
+          <button key={c.residentId} type="button" onClick={() => show(c.residentId)} style={{ ...rowStyle, flexDirection: 'column', alignItems: 'flex-start', gap: 1 }} title="Show on the map">
+            <span style={{ fontWeight: 600, color: '#111827' }}>{c.name}</span>
+            <span style={{ color: '#4B5563', fontSize: 12 }}>{c.text}</span>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px', minHeight: 0, flex: 1 }}>
+    <div ref={boxRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px', minHeight: 0, flex: 1 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 14px' }}>
         <button type="button" className="btn sm primary" onClick={() => void run(false)}>
           {nPinned ? 'Arrange the rest' : e.seats.length ? 'Arrange again' : 'Arrange seats'}
@@ -124,6 +299,7 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
         <span style={{ fontSize: 13, color: '#4B5563' }}>
           {seated} seated{state.unseated.length ? ` · ${state.unseated.length} not seated` : ''}
           {state.over.size ? ` · ${[...state.over.values()].reduce((a, b) => a + b, 0)} over` : ''}
+          {` · ${used} of ${all.length} tables`}
         </span>
         <div style={{ flex: '1 1 0' }} />
         {sections.length > 1 && (
@@ -137,165 +313,74 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
         )}
       </div>
 
-      {state.unseated.length > 0 && e.seats.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 12px',
-            borderRadius: 8,
-            background: '#FFFBEB',
-            border: '1px solid #FCD34D',
-            fontSize: 13,
-            color: '#78350F',
-          }}
-        >
-          <strong style={{ marginRight: 4 }}>Not seated ({state.unseated.length})</strong>
-          {state.unseated.map((w) => {
-            const on = pick?.residentId === w.residentId && pick.guest === w.guest;
-            return (
-              <button
-                key={`${w.residentId}|${w.guest}`}
-                type="button"
-                aria-pressed={on}
-                onClick={() => (setSel(null), setMsg(null), setPick(on ? null : w))}
-                style={{
-                  height: 26,
-                  padding: '0 8px',
-                  borderRadius: 6,
-                  border: `1px solid ${on ? '#2563EB' : '#FCD34D'}`,
-                  background: on ? '#DBEAFE' : '#FFFFFF',
-                  fontSize: 12,
-                  fontFamily: 'inherit',
-                  color: '#111827',
-                  cursor: 'pointer',
-                }}
-              >
-                {nameOfWho(w)}
-              </button>
-            );
-          })}
-          <span style={{ marginLeft: 4 }}>Click one, then a seat, or use Arrange again.</span>
-        </div>
-      )}
-
-      {pick && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 12px', borderRadius: 8, background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: 14, color: '#1E3A8A' }}>
-          <span style={{ flex: 1 }}>
-            Placing <strong>{nameOfWho(pick)}</strong>
-            {pick.guest === 0 && (e.attendees.find((a) => a.residentId === pick.residentId)?.guests ?? 0) > 0 ? ' and their guests' : ''}. Click a seat.
-          </span>
-          <button type="button" className="btn sm" onClick={() => setPick(null)}>
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {selSeat && selWho && !pick && (
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: '6px 12px',
-            padding: '8px 12px',
-            borderRadius: 8,
-            background: '#F9FAFB',
-            border: '1px solid #E5E7EB',
-            fontSize: 13,
-            color: '#374151',
-          }}
-        >
-          <span style={{ flex: '1 1 240px' }}>
-            <strong style={{ color: '#111827' }}>{nameOfWho(selWho)}</strong>
-            {selTable ? ` · ${E.tableLabel(data, e, selTable)}` : ''}
-            {selSeat.pinned ? ' · pinned' : ''}
-            <span style={{ color: '#6B7280' }}> · Drag to move, or click an empty seat.</span>
-          </span>
-          <button
-            type="button"
-            className="btn sm"
-            onClick={() =>
-              void act(`${selSeat.pinned ? 'Unpin' : 'Pin'} ${nameOfWho({ residentId: selSeat.residentId, guest: 0 })} · ${e.name}`, E.setPinned(e.id, selSeat.residentId, !selSeat.pinned))
-            }
-          >
-            {selSeat.pinned ? 'Unpin' : 'Pin'}
-          </button>
-          <button type="button" className="btn sm" onClick={() => void act(`Take ${nameOfWho(selWho)} off their seat · ${e.name}`, E.unseat(e.id, selWho)).then(() => setSel(null))}>
-            Take off seat
-          </button>
-          <button type="button" className="iconbtn" aria-label="Close" style={{ width: 28, height: 28 }} onClick={() => setSel(null)}>
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
-      )}
-
-      {msg && (
-        <div
-          role="alert"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FCA5A5', fontSize: 13, color: '#991B1B' }}
-        >
-          <span style={{ flex: 1 }}>{msg}</span>
-          <button type="button" className="linkbtn" onClick={() => setMsg(null)}>
-            OK
-          </button>
-        </div>
-      )}
-
-      {notes && (
-        <div style={{ padding: '8px 12px', borderRadius: 8, background: '#F0F9FF', border: '1px solid #BAE6FD', fontSize: 13, color: '#0C4A6E', maxHeight: 132, overflowY: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: notes.length ? 4 : 0 }}>
-            <strong style={{ flex: 1 }}>{notes.length ? 'What changed from everyday seating' : 'Everyone is at their usual seat.'}</strong>
-            <button type="button" className="linkbtn" onClick={() => setNotes(null)}>
-              Hide
-            </button>
-          </div>
-          {notes.length > 0 && (
-            <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.5 }}>
-              {notes.map((n, i) => (
-                <li key={i}>{n}</li>
-              ))}
-            </ul>
+      <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: wide ? 'row' : 'column', gap: 12 }}>
+        <div ref={fitRef} style={{ flex: '1 1 0', minWidth: 0, minHeight: 0, overflow: 'auto', padding: 2, display: 'grid', justifyContent: 'safe center' }}>
+          {fit.w > 0 && (
+            <SeatRoomView
+              room={room}
+              selectedKey={drag ? drag.over : sel}
+              picking={placing}
+              pinned={pinnedKeys}
+              tableInfo={tableInfo}
+              onSeatClick={onSeatClick}
+              onDrop={(id, k) => void move(whoOf(id), k)}
+              onDropTable={(id, t) => void moveToTable(whoOf(id), t)}
+            >
+              {room.tables.map((t) => {
+                const over = state.over.get(t.id);
+                if (!over) return null;
+                return (
+                  <div
+                    key={`over-${t.id}`}
+                    title={(extras.get(t.id) ?? []).join(', ')}
+                    style={{
+                      position: 'absolute',
+                      left: t.l + t.w / 2,
+                      top: t.t + t.h / 2 + Math.round(22 * sc),
+                      transform: 'translateX(-50%)',
+                      zIndex: 3,
+                      padding: '1px 6px',
+                      borderRadius: 6,
+                      background: '#DC2626',
+                      color: '#FFFFFF',
+                      fontSize: Math.max(10, Math.round(12 * sc)),
+                      fontWeight: 700,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    +{over} over
+                  </div>
+                );
+              })}
+            </SeatRoomView>
           )}
         </div>
-      )}
-
-      <div ref={fitRef} style={{ flex: '1 1 0', minHeight: 0, overflow: 'auto', padding: 2, display: 'grid', justifyContent: 'safe center' }}>
-        {fit.w > 0 && (
-          <SeatRoomView room={room} selectedKey={sel} picking={!!pick} pinned={pinnedKeys} onSeatClick={onSeatClick} onDrop={(id, k) => void move(whoOf(id), k)}>
-            {room.tables.map((t) => {
-              const over = state.over.get(t.id);
-              if (!over) return null;
-              return (
-                <div
-                  key={`over-${t.id}`}
-                  title={(extras.get(t.id) ?? []).join(', ')}
-                  style={{
-                    position: 'absolute',
-                    left: t.l + t.w / 2,
-                    top: t.t + t.h / 2 + Math.round(16 * sc),
-                    transform: 'translateX(-50%)',
-                    zIndex: 3,
-                    padding: '1px 6px',
-                    borderRadius: 6,
-                    background: '#DC2626',
-                    color: '#FFFFFF',
-                    fontSize: Math.max(10, Math.round(12 * sc)),
-                    fontWeight: 700,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  +{over} over
-                </div>
-              );
-            })}
-          </SeatRoomView>
-        )}
+        {panel}
       </div>
+
+      {drag && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: drag.x + 10,
+            top: drag.y + 8,
+            zIndex: 50,
+            pointerEvents: 'none',
+            padding: '4px 8px',
+            borderRadius: 6,
+            background: '#FFFFFF',
+            border: '1px solid #93C5FD',
+            boxShadow: '0 4px 12px rgba(17,24,39,.18)',
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#111827',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {drag.name}
+        </div>
+      )}
 
       {asking && (
         <Dialog
@@ -322,3 +407,21 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
     </div>
   );
 }
+
+const card: CSSProperties = { padding: '10px 12px', borderRadius: 10, background: '#FFFFFF', border: '1px solid #E5E7EB', fontSize: 13, color: '#374151', overflow: 'hidden', flex: 'none' };
+const head: CSSProperties = { padding: '8px 12px', background: '#F7F8FA', borderBottom: '1px solid #EEF0F3', fontSize: 12, fontWeight: 700, color: '#4B5563' };
+const rowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  width: '100%',
+  padding: '7px 12px',
+  border: 0,
+  borderBottom: '1px solid #F0F1F3',
+  background: '#FFFFFF',
+  fontFamily: 'inherit',
+  fontSize: 13,
+  color: '#111827',
+  textAlign: 'left',
+  cursor: 'pointer',
+};

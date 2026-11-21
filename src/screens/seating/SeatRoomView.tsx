@@ -13,8 +13,12 @@ interface Props {
   onDrop: (residentId: string, target: SeatKey) => void;
   /** The "Who sits here?" pop-up, positioned in room pixels by the parent. */
   children?: ReactNode;
-  /** Seats placed by hand (event seating): a small blue pin before the name. */
+  /** Seats placed by hand (event seating): a small blue pin before the name, shown on hover or when selected. */
   pinned?: Set<SeatKey>;
+  /** A name was dragged onto a table (not a seat). Without it, those drops do nothing. */
+  onDropTable?: (residentId: string, tableId: string) => void;
+  /** Under each table number ("3/4"); dim greys out a table nobody sits at. */
+  tableInfo?: Map<string, { text: string; dim: boolean }>;
 }
 
 interface Drag {
@@ -32,10 +36,19 @@ const seatAt = (x: number, y: number): SeatKey | null => {
   return el?.dataset.seat ?? null;
 };
 
+/** What's under the pointer: a seat, else a table, else nothing. Also used to drag in from outside the map. */
+export function dropTargetAt(x: number, y: number): { seat: SeatKey } | { table: string } | null {
+  const el = document.elementFromPoint(x, y);
+  const seat = el?.closest<HTMLElement>('[data-seat]')?.dataset.seat;
+  if (seat) return { seat };
+  const table = el?.closest<HTMLElement>('[data-table]')?.dataset.table;
+  return table ? { table } : null;
+}
+
 // The section drawn to scale: tables, names against the table edge, "+" circles
 // on empty seats. Names drag with the pointer (not HTML5 drag and drop, which the
 // Windows webview hands to the app shell for file drops).
-export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, children, pinned }: Props) {
+export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, onDropTable, children, pinned, tableInfo }: Props) {
   const drag = useRef<Drag | null>(null);
   const justDragged = useRef(false);
   const [ghost, setGhost] = useState<{ name: string; x: number; y: number; over: SeatKey | null } | null>(null);
@@ -63,22 +76,39 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
     setGhost(null);
     if (!g.moved) return;
     justDragged.current = true; // swallow the click that follows pointerup
-    const target = e.type === 'pointerup' ? seatAt(e.clientX, e.clientY) : null;
-    if (target && target !== g.key) onDrop(g.residentId, target);
+    const target = e.type === 'pointerup' ? dropTargetAt(e.clientX, e.clientY) : null;
+    if (target && 'seat' in target && target.seat !== g.key) onDrop(g.residentId, target.seat);
+    else if (target && 'table' in target) onDropTable?.(g.residentId, target.table);
   };
 
   return (
     <div style={{ position: 'relative', width: room.w, height: room.h, background: '#FFFFFF', border: '1.5px solid #9CA3AF', borderRadius: 10, flex: 'none', userSelect: 'none' }}>
-      {room.tables.map((t) => (
-        <div
-          key={t.id}
-          className="tbl"
-          aria-hidden="true"
-          style={{ left: t.l, top: t.t, width: t.w, height: t.h, borderRadius: t.radius, transform: `rotate(${t.rotation}deg)`, background: '#FFFFFF', border: '1.5px solid #4B5563' }}
-        >
-          <div style={{ transform: `rotate(${-t.rotation}deg)`, fontSize: t.fontSize, fontWeight: 700, color: '#1F2937', lineHeight: 1 }}>{t.number}</div>
-        </div>
-      ))}
+      {room.tables.map((t) => {
+        const info = tableInfo?.get(t.id);
+        return (
+          <div
+            key={t.id}
+            className="tbl"
+            aria-hidden="true"
+            data-table={t.id}
+            style={{
+              left: t.l,
+              top: t.t,
+              width: t.w,
+              height: t.h,
+              borderRadius: t.radius,
+              transform: `rotate(${t.rotation}deg)`,
+              background: info?.dim ? '#F9FAFB' : '#FFFFFF',
+              border: `1.5px ${info?.dim ? 'dashed #D1D5DB' : 'solid #4B5563'}`,
+            }}
+          >
+            <div style={{ transform: `rotate(${-t.rotation}deg)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1, pointerEvents: 'none' }}>
+              <span style={{ fontSize: t.fontSize, fontWeight: 700, color: info?.dim ? '#9CA3AF' : '#1F2937' }}>{t.number}</span>
+              {info && <span style={{ fontSize: Math.max(9, Math.round(t.fontSize * 0.7)), fontWeight: 600, color: info.dim ? '#9CA3AF' : '#4B5563' }}>{info.text}</span>}
+            </div>
+          </div>
+        );
+      })}
       {room.labels.map((lab) => {
         const r = lab.resident;
         const sel = lab.key === selectedKey || lab.key === ghost?.over;
@@ -90,6 +120,7 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
             type="button"
             className="seatlab"
             data-seat={lab.key}
+            data-sel={sel || undefined}
             aria-label={r ? `${r.first} ${r.last}, table ${lab.tableNumber}` : placing ? `Seat here, table ${lab.tableNumber}` : `Empty seat at table ${lab.tableNumber}`}
             onPointerDown={down(lab)}
             onPointerMove={move}
@@ -122,7 +153,14 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
             {r ? (
               <>
                 {pinned?.has(lab.key) && (
-                  <svg viewBox="0 0 10 10" width={Math.max(8, lab.fontSize - 3)} height={Math.max(8, lab.fontSize - 3)} aria-label="pinned" style={{ flex: 'none', marginRight: 2 }}>
+                  <svg
+                    className="pinmark"
+                    viewBox="0 0 10 10"
+                    width={Math.max(8, lab.fontSize - 3)}
+                    height={Math.max(8, lab.fontSize - 3)}
+                    aria-label="pinned"
+                    style={{ flex: 'none', marginRight: 2 }}
+                  >
                     <circle cx="5" cy="5" r="4" fill="#2563EB" />
                     <circle cx="5" cy="5" r="1.5" fill="#FFFFFF" />
                   </svg>

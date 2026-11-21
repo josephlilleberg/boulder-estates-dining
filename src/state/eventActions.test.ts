@@ -2,7 +2,28 @@ import initSqlJs from 'sql.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { sqljsDb } from '../db/sqljsDb';
 import { seedTestDb } from '../test/seed';
-import { addToEvent, arrangeSeats, createEvent, eventTables, moveSeat, planMove, setPinned, unpinAll, unseat, deleteEvent, editEvent, eventTotals, guestList, removeFromEvent, seatingState, setAttendeeStatus, setGuests } from './eventActions';
+import {
+  addToEvent,
+  arrangeSeats,
+  createEvent,
+  eventChanges,
+  eventTables,
+  moveSeat,
+  moveToTable,
+  planMove,
+  planMoveToTable,
+  setPinned,
+  unpinAll,
+  unseat,
+  deleteEvent,
+  editEvent,
+  eventTotals,
+  guestList,
+  removeFromEvent,
+  seatingState,
+  setAttendeeStatus,
+  setGuests,
+} from './eventActions';
 import { addResident, deleteResident, setAttendance, setMealPlan } from './residentActions';
 import { Store } from './store';
 
@@ -200,5 +221,52 @@ describe('moving by hand', () => {
     expect(seatOf(id, a!.residentId)).toBeUndefined();
     await store.change('unpin', unpinAll(id));
     expect(ev(id).seats.some((s) => s.pinned)).toBe(false);
+  });
+  it('parties of the same size swap tables, guests included; different sizes can’t', async () => {
+    const id = await thanksgiving();
+    const e0 = ev(id);
+    const din = data().seating.filter((s) => s.meal === 'Dinner' && e0.attendees.some((a) => a.residentId === s.residentId));
+    const a = din[0]!;
+    const b = din.find((s) => s.tableId !== a.tableId)!;
+    await store.change('ga', setGuests(id, a.residentId, 1));
+    await store.change('gb', setGuests(id, b.residentId, 1));
+    await store.change('arrange', arrangeSeats(id));
+    const before = (rid: string) =>
+      ev(id)
+        .seats.filter((s) => s.residentId === rid)
+        .map((s) => s.tableId);
+    const [ta, tb] = [before(a.residentId), before(b.residentId)];
+    expect(new Set(ta).size).toBe(1);
+    const bHost = seatOf(id, b.residentId)!;
+    await store.change('swap', moveSeat(id, { residentId: a.residentId, guest: 0 }, bHost));
+    expect(before(a.residentId)).toEqual(tb);
+    expect(before(b.residentId)).toEqual(ta);
+    expect(seatOf(id, a.residentId)!.seat).toBe(bHost.seat);
+    await store.change('gb2', setGuests(id, b.residentId, 2));
+    await store.change('arrange', arrangeSeats(id));
+    const res = planMove(data(), ev(id), { residentId: a.residentId, guest: 0 }, seatOf(id, b.residentId)!);
+    if (seatOf(id, a.residentId)!.tableId !== seatOf(id, b.residentId)!.tableId) expect(res).toHaveProperty('error');
+  });
+
+  it('dropping on a table seats the party side by side; a full table says so', async () => {
+    const id = await thanksgiving();
+    const rid = data().seating.find((s) => s.meal === 'Dinner')!.residentId;
+    await store.change('g', setGuests(id, rid, 1));
+    await store.change('arrange', arrangeSeats(id));
+    const to = emptySeat(id, 2);
+    expect(to.tableId).not.toBe(seatOf(id, rid)!.tableId);
+    await store.change('table', moveToTable(id, { residentId: rid, guest: 0 }, to.tableId));
+    const [h, g] = [seatOf(id, rid)!, seatOf(id, rid, 1)!];
+    expect(h.tableId).toBe(to.tableId);
+    expect(g.tableId).toBe(to.tableId);
+    expect(h.pinned).toBe(true);
+    const e = ev(id);
+    const full = eventTables(data(), e).find((t) => e.seats.filter((s) => s.tableId === t.id).length >= (t.shape === 'round' ? 4 : 6));
+    if (full) expect(planMoveToTable(data(), e, { residentId: rid, guest: 0 }, full.id)).toHaveProperty('error');
+    // The live changes list shows the move from their everyday table.
+    const usual = data().seating.find((s) => s.meal === 'Dinner' && s.residentId === rid)!.tableId;
+    const change = eventChanges(data(), ev(id)).find((c) => c.residentId === rid);
+    if (to.tableId === usual) expect(change).toBeUndefined();
+    else expect(change).toMatchObject({ tableId: to.tableId, text: expect.stringContaining('→') });
   });
 });

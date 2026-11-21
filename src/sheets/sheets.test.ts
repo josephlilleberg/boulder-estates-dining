@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { chipRows, corners, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
+import { CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
 import { buildPage, occupantFor, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -418,16 +418,29 @@ describe('pill order and extras', () => {
     // The box is as tall as its lines and always gets a row of its own.
     const [, box] = setupChanges(r, 'Dinner');
     expect(itemH(box!)).toBe(2 + 4 + 2 * 12);
-    expect(chipRows(setupChanges(r, 'Dinner'), 500).map((row) => row.length)).toEqual([1, 1]);
+    expect(chipRows(setupChanges(r, 'Dinner')).map((row) => row.length)).toEqual([1, 1]);
     expect(texts(resident([drink('2% Milk')], { extras: [{ id: 'e3', name: 'Soup Spoon', variant: null, backup: null, count: 1 }] }))).toEqual(['Soup Spoon', 'Mug on table']);
   });
 });
 
 describe('setup chip layout', () => {
-  it('chips sit side by side while they fit, in order: drinkware, then extras', () => {
+  it('chips stack in one even column, in order: drinkware, then extras', () => {
     const c = (text: string) => ({ text, bg: '#86EFAC' });
-    expect(chipRows([c('+Glass'), c('+Juice'), c('Banana')], 116).map((r) => r.map((x) => x.text))).toEqual([['+Glass', '+Juice'], ['Banana']]);
-    expect(chipRows([c('+Glass'), c('+Juice')], 70).map((r) => r.length)).toEqual([1, 1]);
+    expect(chipRows([c('+Glass'), c('+Juice'), c('Banana')]).map((r) => r.map((x) => x.text))).toEqual([['+Glass'], ['+Juice'], ['Banana']]);
+    expect(new Set([c('+Glass'), c('+2 Pitchers'), { text: 'Napkins ×2', lines: ['Napkins ×2'], bg: EXTRA_BG }].map(chipW)).size).toBe(1);
+  });
+
+  it('each extra is one line; the sheet’s chips all widen to the longest line, up to a cap', () => {
+    const long = (name: string) => resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })], { extras: [{ id: 'e1', name, variant: null, backup: null, count: 1 }] });
+    const items = [...setupChanges(long('Mixed Fruit Jelly'), 'Dinner'), ...setupChanges(long('Banana'), 'Dinner')];
+    expect(items.find((c) => c.lines)!.lines).toEqual(['Mixed Fruit Jelly']);
+    evenChips(items);
+    const w = new Set(items.map(chipW));
+    expect(w.size).toBe(1);
+    expect([...w][0]).toBeGreaterThan(CHIP_W);
+    const huge = setupChanges(long('Peanut butter and grape jelly on the side'), 'Dinner');
+    evenChips(huge);
+    expect(chipW(huge[0])).toBe(CHIP_MAX_W);
   });
 
   it('the chair pill sits centred on the table edge, and "Mug" on the table just inside it', () => {

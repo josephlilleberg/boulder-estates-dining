@@ -314,9 +314,24 @@ export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { s
   return Math.min(l.w, Math.max(name, ...l.items.map(pillW)) * (l.scale ?? 1));
 }
 
-/** Setup chips as drawn: 16 px tall, 3 px apart, 10 px bold text. */
-/** A setup chip: wide enough for its words, but short. */
+/** Setup chips as drawn: all one width per sheet (the extras box too), 12 px tall, 3 px apart, 9 px bold text. */
 export const CHIP_H = 12;
+/** The narrowest chips get, and the widest: a sheet's chips are as wide as its longest line needs, within these. */
+export const CHIP_W = 72;
+export const CHIP_MAX_W = 110;
+/** One character of 9 px bold Inter (measured: 4.3–5.3 px, so a little to spare), and a chip's side padding plus border: for sizing chips to their words. */
+export const CHIP_CHAR_W = 5.2;
+export const CHIP_PAD = 12;
+/** Width a chip or box needs for its longest line at full size. */
+export const needW = (c: Change) => Math.ceil(Math.max(...(c.lines ?? [c.text]).map((t) => t.length)) * CHIP_CHAR_W) + CHIP_PAD;
+/**
+ * Gives every chip and extras box on a sheet one width: what its longest line needs, at least CHIP_W
+ * and at most CHIP_MAX_W (past that, only that line's text is drawn a little smaller).
+ */
+export function evenChips(all: Change[]): void {
+  const w = Math.min(CHIP_MAX_W, Math.max(CHIP_W, ...all.map(needW)));
+  for (const c of all) c.w = w;
+}
 /** Clear space between the chair pill (on the table edge) and the first chip. */
 export const CHAIR_GAP = 6;
 const CHIP_GAP = 3;
@@ -324,8 +339,8 @@ const CHIP_GAP = 3;
 export const BOX_LINE_H = 12;
 /** Height of one chip, or of the extras box. */
 export const itemH = (c: Change) => (c.lines ? 2 + 4 + c.lines.length * BOX_LINE_H : CHIP_H);
-/** Width of one chip, or of the extras box (its longest line). */
-export const chipW = (c: Change) => Math.round(Math.max(...(c.lines ?? [c.text]).map((t) => t.length)) * 6.3) + 14;
+/** Width of one chip, or of the extras box: the sheet's (see evenChips). */
+export const chipW = (c?: Change) => c?.w ?? CHIP_W;
 export const chipsH = (cs: Change[]) => (cs.length ? stackH(cs) + NAME_GAP : 0);
 /** Chips stacked on their own (a setup-only label). */
 export const stackH = (cs: Change[]) => (cs.length ? cs.reduce((h, c) => h + itemH(c), 0) + (cs.length - 1) * CHIP_GAP : 0);
@@ -421,6 +436,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
     const serverH = labelH(pills);
     roomAt.set(key, draw === 'both' ? serverH + chipsH(extraChips(r, meal)) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setup)) : serverH);
   });
+  evenChips([...chipsAt.values()].flat());
   // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
   // place whoever is seated; only a seat with more than that needs extra.
   // With chair pills drawn, labels start past the pill and a clear gap.
@@ -540,12 +556,14 @@ export interface Change {
   color?: string;
   /** The extras box: one line per extra (text is them joined, for reading aloud and tests). */
   lines?: string[];
+  /** Drawn width, the same for every chip on a sheet (set by evenChips). */
+  w?: number;
 }
 
 /** A resident's extras for a meal as one box, an extra per line, as written ("Banana", "Napkins ×2"). */
 export const extraChips = (r: Resident, meal: string): Change[] => {
-  const lines = (prefsOf(r, meal)?.extras ?? []).map(extraText);
-  return lines.length ? [{ text: lines.join(', '), lines, bg: EXTRA_BG }] : [];
+  const extras = (prefsOf(r, meal)?.extras ?? []).map(extraText);
+  return extras.length ? [{ text: extras.join(', '), lines: extras, bg: EXTRA_BG }] : [];
 };
 
 /** "Mug" on the table at a seat that has no coffee or tea: take the mug away. Solid red with white text, so it stands out (and prints dark). */
@@ -579,23 +597,8 @@ function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair,
   return { pill, mug: mug ? { l: ex - nx * inset - w / 2, t: ey - ny * inset - h / 2, w, h, ang: edgeAngle(nx, ny), dot } : null };
 }
 
-/** Chips in rows, side by side while they fit in maxW (4 px apart), in order. */
-export function chipRows(items: Change[], maxW: number): Change[][] {
-  const rows: Change[][] = [];
-  let w = Infinity;
-  for (const c of items) {
-    const cw = chipW(c);
-    const last = rows[rows.length - 1];
-    if (last && !c.lines && !last.some((x) => x.lines) && w + 4 + cw <= maxW) {
-      last.push(c);
-      w += 4 + cw;
-    } else {
-      rows.push([c]);
-      w = cw;
-    }
-  }
-  return rows;
-}
+/** Chips one above the other, in order (drinkware, then the extras box), so a seat's stack is one even column. */
+export const chipRows = (items: Change[]): Change[][] => items.map((c) => [c]);
 const rowW = (row: Change[]) => row.reduce((a, c) => a + chipW(c), 0) + (row.length - 1) * 4;
 const rowH = (row: Change[]) => Math.max(...row.map(itemH));
 
@@ -776,6 +779,14 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
 function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number): SetupRoom {
   const pad = 30;
   const secTables = sections.map((s) => allTables.filter((t) => t.section === s.section));
+  // Every seat's chips first, so they all get the sheet's one width before anything is placed.
+  const itemsAt = new Map<string, Change[]>();
+  for (const t of secTables.flat())
+    seatGeom(t.shape).forEach((_, i) => {
+      const r = occupant(t.id, i);
+      if (r) itemsAt.set(`${t.id}:${i}`, setupChanges(r, meal));
+    });
+  evenChips([...itemsAt.values()].flat());
   const ay = new Map(allTables.map((t) => [t.id, t.y]));
   if (sections.length > 1) {
     const rowsBySec = secTables.map((ts) => rowsOf(ts)).filter((r) => r.length);
@@ -851,12 +862,9 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
           out.mugs.push(m.mug);
           mugTix.push(out.tables.length);
         }
-        const items = setupChanges(r, meal);
+        const items = itemsAt.get(`${t.id}:${i}`) ?? [];
         if (!items.length) return;
-        // Side by side where the seat has room without reaching the next seat's chips: one seat's width
-        // along a rectangle's long side; at an end or a round table, up to the neighbouring seats' edge.
-        const longSide = t.shape !== 'round' && g[3] !== 0;
-        const rows = chipRows(items, longSide ? 92 * sc * TG - 6 : 2 * (46 * sc * TG + 7) - 6);
+        const rows = chipRows(items);
         const w = Math.max(...rows.map(rowW));
         const h = rows.reduce((a, row) => a + rowH(row), 0) + (rows.length - 1) * 3;
         // The block runs along the table edge (never upside down), just outside it.

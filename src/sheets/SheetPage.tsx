@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { BOX_LINE_H, CHAIR_PILL, CHIP_H, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { BOX_LINE_H, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL } from '../domain/model';
 
@@ -101,20 +101,33 @@ function ServerBody({ room }: { room: ServerRoom }) {
   );
 }
 
+/** Chips and the extras box share one type: same face, size and weight. */
+const chipText: CSSProperties = { fontFamily: 'inherit', fontSize: 9, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' };
+
+/** 9 px, or a little less for a line longer than the sheet's chip width allows (one line per extra, never wrapped). */
+const fitSize = (t: string, c: Change) => Math.min(9, Math.floor((9 * (chipW(c) - CHIP_PAD)) / (t.length * CHIP_CHAR_W) * 10) / 10);
+
 /** One setup chip (+Glass…), or the seat's extras box, as on the setup sheet. */
 function Chip({ c }: { c: Change }) {
-  // The extras box: one pale-yellow box, an extra per line.
+  // The extras box: one pale-yellow box, an extra per line. The lines share a left edge, and that
+  // block sits centred in the box.
   if (c.lines)
     return (
-      <div style={{ boxSizing: 'border-box', height: itemH(c), padding: '2px 6px', border: '1px solid #111827', borderRadius: 5, background: c.bg, fontSize: 10, fontWeight: 700, lineHeight: `${BOX_LINE_H}px`, color: '#111827', whiteSpace: 'nowrap', textAlign: 'center', flex: 'none' }}>
-        {c.lines.map((t, i) => (
-          <div key={i}>{t}</div>
-        ))}
+      <div
+        style={{ ...chipText, display: 'flex', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: itemH(c), padding: '2px 5px', border: '1px solid #111827', borderRadius: 5, background: c.bg, lineHeight: `${BOX_LINE_H}px`, overflow: 'hidden', flex: 'none' }}
+      >
+        <div style={{ textAlign: 'left', minWidth: 0 }}>
+          {c.lines.map((t, i) => (
+            <div key={i} style={{ fontSize: fitSize(t, c) }}>
+              {t}
+            </div>
+          ))}
+        </div>
       </div>
     );
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: CHIP_H, padding: '0 4px', border: '1px solid #111827', borderRadius: CHIP_H / 2, background: c.bg, fontSize: 9, lineHeight: 1, fontWeight: 700, color: c.color ?? '#111827', whiteSpace: 'nowrap', flex: 'none' }}>
-      {c.text}
+    <span style={{ ...chipText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: CHIP_H, padding: '0 4px', border: '1px solid #111827', borderRadius: CHIP_H / 2, background: c.bg, lineHeight: 1, color: c.color ?? '#111827', overflow: 'hidden', flex: 'none' }}>
+      <span style={{ fontSize: fitSize(c.text, c) }}>{c.text}</span>
     </span>
   );
 }

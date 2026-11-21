@@ -1,6 +1,6 @@
-import type { Beverage, Chair, DiningTable, MealPrefs, Resident } from '../domain/model';
+import type { Beverage, Chair, DiningTable, Extra, MealPrefs, Resident } from '../domain/model';
 import { extraText } from '../domain/labels';
-import { hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
+import { ANY_KIND, hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
 import { seatGeom } from '../domain/tables';
@@ -155,7 +155,7 @@ export interface ServerRoom {
 const SG = 0.825;
 /** The drawing area inside a page: a Letter server sheet, or an 11 × 17 page (Supper's combined sheet). */
 export type Area = { w: number; h: number };
-const LETTER_AREA: Area = { w: 972, h: 676 };
+export const LETTER_AREA: Area = { w: 972, h: 676 };
 export const areaFor = (pageW: number, pageH: number, below = 0): Area => ({ w: pageW - 84, h: pageH - 140 - below });
 const EDGE = 8;
 /**
@@ -314,23 +314,73 @@ export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { s
   return Math.min(l.w, Math.max(name, ...l.items.map(pillW)) * (l.scale ?? 1));
 }
 
-/** Setup chips as drawn: all one width per sheet (the extras box too), 14 px tall (room above and below the text), 3 px apart, 9 px bold text. */
-export const CHIP_H = 14;
+/** Setup chips as drawn: all one width per sheet (the extras box too), 16 px tall (room above and below the text), 3 px apart, 9 px bold text. */
+export const CHIP_H = 16;
 /** The narrowest chips get, and the widest: a sheet's chips are as wide as its longest line needs, within these. */
 export const CHIP_W = 72;
 export const CHIP_MAX_W = 110;
 /** One character of 9 px bold Inter (measured: 4.3–5.3 px, so a little to spare), and a chip's side padding plus border: for sizing chips to their words. */
 export const CHIP_CHAR_W = 5.2;
 export const CHIP_PAD = 12;
+/** Widths of 9 px bold Inter's characters, measured in the app; anything else counts as CHIP_CHAR_W. */
+const GLYPH_W: Record<string, number> = { "0": 6.07, "1": 3.88, "2": 5.66, "3": 5.81, "4": 6.09, "5": 5.6, "6": 5.84, "7": 5.23, "8": 5.86, "9": 5.84, " ": 2.13, "a": 5.23, "b": 5.67, "c": 5.3, "d": 5.67, "e": 5.36, "f": 3.58, "g": 5.69, "h": 5.6, "i": 2.44, "j": 2.44, "k": 5.22, "l": 2.44, "m": 8.21, "n": 5.6, "o": 5.52, "p": 5.67, "q": 5.67, "r": 3.67, "s": 5.04, "t": 3.3, "u": 5.6, "v": 5.4, "w": 7.65, "x": 5.22, "y": 5.42, "z": 5.15, "A": 6.72, "B": 5.95, "C": 6.66, "D": 6.5, "E": 5.47, "F": 5.28, "G": 6.75, "H": 6.72, "I": 2.53, "J": 5.26, "K": 6.47, "L": 5.09, "M": 8.38, "N": 6.86, "O": 6.93, "P": 5.83, "Q": 6.99, "R": 5.91, "S": 5.89, "T": 6.01, "U": 6.59, "V": 6.72, "W": 9.34, "X": 6.64, "Y": 6.58, "Z": 5.98, "\u00d7": 6.11, "+": 6.11, "-": 4.21, ".": 3.01, ",": 3.01, "'": 3.05, "&": 6.05, "(": 3.39, ")": 3.39, "/": 3.49 };
+/** A line's width in 9 px bold Inter, with a little to spare for kerning and rounding. */
+export const textW = (t: string) => [...t].reduce((w, ch) => w + (GLYPH_W[ch] ?? CHIP_CHAR_W), 0) * 1.02;
 /** Width a chip or box needs for its longest line at full size. */
-export const needW = (c: Change) => Math.ceil(Math.max(...(c.lines ?? [c.text]).map((t) => t.length)) * CHIP_CHAR_W) + CHIP_PAD;
+export const needW = (c: Change) =>
+  c.entries
+    ? Math.ceil(Math.max(...c.entries.map((e) => Math.max(textW(e.head), e.sub ? textW(e.sub) + SUB_INDENT + BULLET_W : 0, e.alt ? textW(e.alt) + SUB_INDENT : 0)))) + BOX_PAD
+    : Math.ceil(Math.max(...(c.lines ?? [c.text]).map(textW))) + CHIP_PAD;
 /**
  * Gives every chip and extras box on a sheet one width: what its longest line needs, at least CHIP_W
  * and at most `max` (past that, only that line's text is drawn a little smaller).
  */
 export function evenChips(all: Change[], max = CHIP_MAX_W): void {
   const w = Math.min(max, Math.max(CHIP_W, ...all.map(needW)));
-  for (const c of all) c.w = w;
+  for (const c of all) {
+    c.w = w;
+    if (c.entries)
+      c.rows = c.entries.flatMap((e) => [
+        ...wrapLine(e.head, w, 0, CONT_INDENT, false),
+        ...(e.sub ? wrapLine(e.sub, w, SUB_INDENT, SUB_INDENT + BULLET_W, true) : []),
+        // A backup on its own line under the kind, lined up with its bullet.
+        ...(e.alt ? wrapLine(e.alt, w, SUB_INDENT, SUB_INDENT + BULLET_W, false) : []),
+      ]);
+  }
+}
+
+/** A kind under its extra ("• Grape" under "Jelly ×2"): indented this far, then a bullet in a gutter this wide. */
+export const SUB_INDENT = 6;
+export const BULLET_W = 7;
+/** Where a line too long for the box carries on. */
+export const CONT_INDENT = 8;
+/** The extras box's side padding plus border (3 px and 1 px a side). */
+export const BOX_PAD = 8;
+
+/** One line of the extras box as drawn: indented `indent` px, a bullet first when `bullet`. */
+export interface BoxRow {
+  text: string;
+  indent: number;
+  bullet: boolean;
+}
+/**
+ * One line of text in a box `w` wide: as is when it fits at full size, else broken at spaces with the
+ * rest carried on at `rest` px in, so the text is never shrunk. `first`: the first line's indent (and a
+ * bullet before it when `bullet`).
+ */
+function wrapLine(t: string, w: number, first: number, rest: number, bullet: boolean): BoxRow[] {
+  const room = (indent: number, b: boolean) => w - BOX_PAD - indent - (b ? BULLET_W : 0);
+  const fits = (s: string, row: number) => Math.ceil(textW(s)) <= (row === 0 ? room(first, bullet) : room(rest, false));
+  if (fits(t, 0)) return [{ text: t, indent: first, bullet }];
+  const out: BoxRow[] = [];
+  // A count ("×2") stays with the word before it, never alone on a line.
+  const words = t.split(' ').reduce<string[]>((ws, x) => (x.startsWith('×') && ws.length ? [...ws.slice(0, -1), `${ws[ws.length - 1]} ${x}`] : [...ws, x]), []);
+  for (const word of words) {
+    const last = out[out.length - 1];
+    if (last && fits(`${last.text} ${word}`, out.length - 1)) last.text = `${last.text} ${word}`;
+    else out.push(out.length ? { text: word, indent: rest, bullet: false } : { text: word, indent: first, bullet });
+  }
+  return out;
 }
 /** Clear space between the chair pill (on the table edge) and the first chip. */
 export const CHAIR_GAP = 6;
@@ -338,7 +388,7 @@ const CHIP_GAP = 3;
 /** The extras box: one line per extra, 13 px each, inside 2 px padding and a 1 px border. */
 export const BOX_LINE_H = 13;
 /** Height of one chip, or of the extras box. */
-export const itemH = (c: Change) => (c.lines ? 2 + 4 + c.lines.length * BOX_LINE_H : CHIP_H);
+export const itemH = (c: Change) => (c.lines ? 2 + 4 + (c.rows ?? c.entries ?? c.lines).length * BOX_LINE_H : CHIP_H);
 /** Width of one chip, or of the extras box: the sheet's (see evenChips). */
 export const chipW = (c?: Change) => c?.w ?? CHIP_W;
 export const chipsH = (cs: Change[]) => (cs.length ? stackH(cs) + NAME_GAP : 0);
@@ -423,6 +473,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   const draw = opts.draw ?? 'server';
   const pillsAt = new Map<string, Pill[]>();
   const chipsAt = new Map<string, Change[]>();
+  const setupAt = new Map<string, Change[]>();
   const roomAt = new Map<string, number>();
   for (const t of T) seatGeom(t.shape).forEach((_, i) => {
     const r = occupant(t.id, i);
@@ -433,12 +484,21 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
     const setup = setupChanges(r, meal);
     pillsAt.set(key, draw === 'setup' ? [] : pills);
     chipsAt.set(key, draw === 'both' ? extraChips(r, meal) : draw === 'setup' ? setup : []);
-    const serverH = labelH(pills);
-    const extra = draw === 'server' ? 0 : tagLead(r.chair);
-    roomAt.set(key, extra + (draw === 'both' ? serverH + chipsH(extraChips(r, meal)) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setup)) : serverH));
+    setupAt.set(key, setup);
   });
   // No wider than a seat here: a wider label is drawn smaller, and the chips would end up shorter than the chair marks.
-  evenChips([...chipsAt.values()].flat(), SEAT_W);
+  // Done before each seat's room is reserved: a long extra that wraps makes its box taller. The setup
+  // chips are evened too, so a server sheet sharing the setup sheet's layout reserves the same room.
+  evenChips([...[...chipsAt.values()].flat(), ...[...setupAt.values()].flat()], SEAT_W);
+  for (const t of T) seatGeom(t.shape).forEach((_, i) => {
+    const r = occupant(t.id, i);
+    if (!r) return;
+    const key = `${t.id}:${i}`;
+    const serverH = labelH(pillsAt.get(key) ?? []);
+    const chips = chipsAt.get(key) ?? [];
+    const extra = draw === 'server' && !opts.shared ? 0 : tagLead(r.chair);
+    roomAt.set(key, extra + (draw === 'both' ? serverH + chipsH(chips) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setupAt.get(key) ?? [])) : serverH));
+  });
   // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
   // place whoever is seated; only a seat with more than that needs extra.
   // With chair pills drawn, labels start past the pill and a clear gap.
@@ -560,14 +620,38 @@ export interface Change {
   lines?: string[];
   /** Drawn width, the same for every chip on a sheet (set by evenChips). */
   w?: number;
+  /** The extras box's extras: the name and count, and a kind to list under it ("Jelly ×2" / "Grape"). */
+  entries?: BoxEntry[];
+  /** The extras box as drawn, line by line (set by evenChips). */
+  rows?: BoxRow[];
 }
 
 /** A resident's extras for a meal as one box, an extra per line, as written ("Banana", "Napkins ×2"). */
 export const extraChips = (r: Resident, meal: string): Change[] => {
   // In the order given (occupantFor puts them in the Settings list's order).
-  const extras = (prefsOf(r, meal)?.extras ?? []).map(extraText);
-  return extras.length ? [{ text: extras.join(', '), lines: extras, bg: EXTRA_BG }] : [];
+  const xs = prefsOf(r, meal)?.extras ?? [];
+  const extras = xs.map(extraText);
+  return extras.length ? [{ text: extras.join(', '), lines: extras, entries: xs.map(boxEntry), bg: EXTRA_BG }] : [];
 };
+
+/**
+ * An extra in the setup box: an extra with kinds shows its name and count, the kind indented under it
+ * with a bullet ("Jelly ×2" / "• Grape"), and a named backup below ("else Strawberry"). Fruit is just
+ * its kind ("Banana", "else Apple").
+ */
+function boxEntry(x: Extra): BoxEntry {
+  // "Any kind" as a backup goes without saying, so only a named backup is shown ("else Apple").
+  const alt = x.variant && x.backup && x.backup !== ANY_KIND ? { alt: `else ${x.backup}` } : {};
+  if (!x.variant) return { head: extraText(x) };
+  if (x.name === 'Fruit') return { head: extraText({ ...x, backup: null }), ...alt };
+  return { head: `${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`, sub: x.variant, ...alt };
+}
+/** An extra in the setup box: its name and count; with kinds, the kind (bulleted) and any backup under it. */
+export interface BoxEntry {
+  head: string;
+  sub?: string;
+  alt?: string;
+}
 
 /** "Mug" on the table at a seat that has no coffee or tea: take the mug away. Solid red with white text, so it stands out (and prints dark). */
 export const NO_MUG = { bg: '#DC2626', color: '#FFFFFF' };
@@ -585,11 +669,14 @@ export interface MugMark {
   /** Supper's sheet: a small red dot instead of the word. */
   dot?: boolean;
 }
-/** Every seat's chair mark is one size on the table edge: plain for an arm chair, the words for "Armless" and "No chair". */
+/** Every seat's chair mark is one length on the table edge (all a seat's share of a small table allows): a thin plain
+ * bar for an arm chair, and the words, as tall as the chips so they have room above and below, for "Armless" and "No chair". */
 export const CHAIR_TAG_W = 46;
-export const CHAIR_TAG_H = 14;
-/** How much further out a seat's labels start than they would for a 7 px pill (the mark is 14 px tall). */
-const tagLead = (_chair: Chair) => CHAIR_TAG_H / 2 - 3.5;
+export const CHAIR_TAG_H = 16;
+export const ARM_TAG_H = 8;
+export const chairTagH = (chair: Chair) => (CHAIR_PILL[chair].text ? CHAIR_TAG_H : ARM_TAG_H);
+/** How much further out a seat's labels start than they would for a 7 px pill. */
+const tagLead = (chair: Chair) => chairTagH(chair) / 2 - 3.5;
 export const MUG_DOT = 7;
 export const MUG_W = 26;
 export const MUG_H = 12;
@@ -599,9 +686,9 @@ export const MUG_H = 12;
  * and the marker on the table just inside it. (ex, ey) is the edge point, (nx, ny) the outward normal.
  */
 function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair, mug: boolean, dot = false, k = 1, round?: { cx: number; cy: number }): { pill: SeatPill; mug: MugMark | null } {
-  // One size for every chair, lying along the edge (never upside down, so the words read). `k`: the
-  // scale the sheet's labels are drawn at, so the mark stays as tall as the chips beside it.
-  const [cw, ch] = [CHAIR_TAG_W * k, CHAIR_TAG_H * k];
+  // One length for every chair, lying along the edge (never upside down, so the words read); thin
+  // without words. `k`: the scale the sheet's labels are drawn at, so the mark keeps its size next to the chips.
+  const [cw, ch] = [CHAIR_TAG_W * k, chairTagH(chair) * k];
   const pill: SeatPill = { l: ex - cw / 2, t: ey - ch / 2, w: cw, h: ch, ang: edgeAngle(nx, ny), chair, k };
   // On a round table the mark bends with the edge: its centre line is the table's circle. A little
   // shorter than a quarter of it, so the four seats' marks keep a gap between them.
@@ -658,7 +745,7 @@ export function setupChanges(r: Resident, meal: string): Change[] {
 
 export const takesCreamer = (r: Resident, meal: string) => !!prefsOf(r, meal)?.drinks.some((d) => d.creamer);
 
-/** Seat mark, one size for all: dark grey for an arm chair, light grey "Armless", red "No chair" (take it away). */
+/** Seat mark, one length for all: a thin dark grey bar for an arm chair, light grey "Armless", red "No chair" (take it away). */
 export const CHAIR_PILL: Record<Chair, { bg: string; border: string; color?: string; text?: string }> = {
   arm: { bg: '#4B5563', border: '1px solid #4B5563' },
   // Light grey with a dark outline and the word: a lighter shade of the arm chair's grey (less of a chair),
@@ -879,8 +966,8 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         const edge = 13 * sc * TG; // seat point → table edge
         const ex = sx - nx * edge;
         const ey = sy - ny * edge;
-        // Chair pill centred on the table edge; "Mug" on the table inside it when there's no coffee or tea.
-        const m = edgeMarks(ex, ey, nx, ny, r.chair, noMug(r, meal), false, 1, round ? { cx, cy } : undefined);
+        // Chair pill centred on the table edge; a red dot on the table inside it when there's no coffee or tea.
+        const m = edgeMarks(ex, ey, nx, ny, r.chair, noMug(r, meal), true, 1, round ? { cx, cy } : undefined);
         out.pills.push(m.pill);
         pillTix.push(out.tables.length);
         if (m.mug) {

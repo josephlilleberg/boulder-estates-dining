@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { BOX_LINE_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
+import { ARM_TAG_H, BOX_LINE_H, CHAIR_TAG_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
 import { buildPage, occupantFor, orderExtras, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -48,7 +48,7 @@ const resident = (drinks: Drink[], p: Partial<MealPrefs> = {}, chair: Chair = 'a
   onPlan: ['Dinner'],
   prefs: { Dinner: { roWater: false, hotWater: false, portion: 'Full', drinks, extras: [], ...p } },
 });
-// The setup chips, then "Mug" when the mug comes off the table (drawn on the table, not as a chip).
+// The setup chips, then "Mug" when the mug comes off the table (drawn on the table as a red dot, not as a chip).
 const texts = (r: Resident) => [...setupChanges(r, 'Dinner').map((c) => c.text), ...(noMug(r, 'Dinner') ? ['Mug on table'] : [])];
 
 describe('Setup sheet rules', () => {
@@ -114,8 +114,9 @@ describe('Setup sheet rules', () => {
     const chairs: Chair[] = ['arm', 'no_arm', 'none'];
     const room = plan((s) => (s < 3 ? resident([coffee()], {}, chairs[s]) : null));
     expect(room.pills.map((p) => p.chair)).toEqual(chairs);
-    // One size for every chair, reading along the edge, never upside down.
-    expect(new Set(room.pills.map((p) => `${p.w}x${p.h}`)).size).toBe(1);
+    // One length for every chair, reading along the edge, never upside down; the plain arm chair mark is thinner.
+    expect(new Set(room.pills.map((p) => p.w)).size).toBe(1);
+    expect(room.pills.map((p) => p.h)).toEqual([ARM_TAG_H, CHAIR_TAG_H, CHAIR_TAG_H]);
     for (const p of room.pills) expect(Math.abs(p.ang)).toBeLessThanOrEqual(90);
     // A round table: each mark bends along its circle, a bit under a quarter of it, so they don't touch.
     for (const p of room.pills) {
@@ -444,6 +445,29 @@ describe('setup chip layout', () => {
     expect(orderExtras([x('Soup Spoon'), x('Fruit')], ['Fruit', 'Soup Spoon']).map((e) => e.name)).toEqual(['Fruit', 'Soup Spoon']);
   });
 
+  it('an extra with kinds shows its name and count, the kind bulleted under it and any backup below; Fruit stays just the kind', () => {
+    const x = (id: string, name: string, variant: string | null, count = 1, backup: string | null = null) => ({ id, name, variant, backup, count });
+    const r = resident([coffee()], { extras: [x('a', 'Jelly', 'Grape', 2), x('b', 'Fruit', 'Banana'), x('c', 'Soup Spoon', null), x('d', 'Jelly', 'Mixed Fruit', 1, '*any*')] });
+    const box = setupChanges(r, 'Dinner').find((c) => c.lines)!;
+    evenChips([box], SEAT_W);
+    expect(box.rows!.map((row) => [row.text, row.bullet, row.indent > 0])).toEqual([
+      ['Jelly ×2', false, false],
+      ['Grape', true, true],
+      ['Banana', false, false],
+      ['Soup Spoon', false, false],
+      ['Jelly', false, false],
+      ['Mixed Fruit', true, true], // "else any kind" goes without saying
+    ]);
+    expect(itemH(box)).toBe(2 + 4 + 6 * BOX_LINE_H);
+    const named = setupChanges(resident([coffee()], { extras: [x('f', 'Fruit', 'Banana', 1, 'Apple'), x('g', 'Fruit', 'Orange', 1, '*any*')] }), 'Dinner').find((c) => c.lines)!;
+    evenChips([named], SEAT_W);
+    expect(named.rows!.map((row) => row.text)).toEqual(['Banana', 'else Apple', 'Orange']);
+    // Without kinds, nothing changes: one line each, no bullets.
+    const plain = setupChanges(resident([coffee()], { extras: [x('e', 'Napkins', null, 2)] }), 'Dinner').find((c) => c.lines)!;
+    evenChips([plain]);
+    expect(plain.rows).toEqual([{ text: 'Napkins ×2', indent: 0, bullet: false }]);
+  });
+
   it('each extra is one line; the sheet’s chips all widen to the longest line, up to a cap', () => {
     const long = (name: string) => resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })], { extras: [{ id: 'e1', name, variant: null, backup: null, count: 1 }] });
     const items = [...setupChanges(long('Mixed Fruit Jelly'), 'Dinner'), ...setupChanges(long('Banana'), 'Dinner')];
@@ -457,7 +481,7 @@ describe('setup chip layout', () => {
     expect(chipW(huge[0])).toBe(CHIP_MAX_W);
   });
 
-  it('the chair pill sits centred on the table edge, and "Mug" on the table just inside it', () => {
+  it('the chair pill sits centred on the table edge, and the red no-mug dot on the table just inside it', () => {
     const opening = getOpening(site(), 'Dinner');
     const T = layoutTables().filter((t) => t.section === 1 && t.shape === 'round').slice(0, 1);
     const room = setupRoom(opening.sections, T, (_t, s) => (s === 2 ? resident([drink('2% Milk')]) : null), 'Dinner', 1552, 802);
@@ -469,6 +493,7 @@ describe('setup chip layout', () => {
     expect(Math.abs(p!.t + p!.h / 2 - (t.t + t.h))).toBeLessThan(1);
     expect(m!.t + m!.h).toBeLessThanOrEqual(p!.t + 0.5);
     expect(m!.t).toBeGreaterThan(cy);
+    expect(m!.dot).toBe(true);
   });
 });
 
@@ -481,11 +506,15 @@ describe('Breakfast: setup and server sheets share one layout', () => {
     return x;
   };
 
-  it('every table is in the same place on both, relative to the drawing', () => {
+  it('the tables keep the same arrangement on both; the setup sheet spreads them across the full 11 × 17 width', () => {
     const [setup, server] = pagesOf(() => r());
     if (setup!.body.kind !== 'server' || server!.body.kind !== 'server') throw new Error('shared layout pages');
-    const rel = (room: ServerRoom) => room.tables.map((t) => [t.id, Math.round(((t.l + t.w / 2) / room.w) * 1000), Math.round(((t.t + t.h / 2) / room.h) * 1000), Math.round((t.w / room.w) * 1000)]);
-    expect(rel(setup!.body.room)).toEqual(rel(server!.body.room));
+    const order = (room: ServerRoom, axis: 'x' | 'y') =>
+      [...room.tables].sort((a, b) => (axis === 'x' ? a.l + a.w / 2 - (b.l + b.w / 2) : a.t + a.h / 2 - (b.t + b.h / 2)) || a.id.localeCompare(b.id)).map((t) => t.id);
+    expect(order(setup!.body.room, 'x')).toEqual(order(server!.body.room, 'x'));
+    expect(order(setup!.body.room, 'y')).toEqual(order(server!.body.room, 'y'));
+    // Drawn across the page's width (all of it but the 42 px margins), not just as wide as the Letter drawing scales to.
+    expect((setup!.body.room.w + 2) * setup!.body.roomScale).toBeGreaterThan(setup!.w - 84 - 6);
     expect(setup!.paper).toBe('tabloid');
     expect(server!.paper).toBe('letter');
   });

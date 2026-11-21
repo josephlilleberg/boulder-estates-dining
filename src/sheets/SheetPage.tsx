@@ -1,5 +1,5 @@
-import { useId, type CSSProperties, type ReactNode } from 'react';
-import { BOX_LINE_H, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { Fragment, useId, type CSSProperties, type ReactNode } from 'react';
+import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL, type Chair } from '../domain/model';
 
@@ -48,7 +48,7 @@ function ServerBody({ room }: { room: ServerRoom }) {
         // the sheet's scale (smaller only when a full section needs the room).
         <div key={i} style={{ position: 'absolute', left: l.l, top: l.t, width: l.w, height: l.h, transform: `rotate(${l.ang}deg)` }}>
           <div
-            style={{ width: l.w / l.scale, height: l.h / l.scale, transform: l.scale < 1 ? `scale(${l.scale})` : undefined, transformOrigin: '0 0', display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: NAME_GAP, textAlign: 'center' }}
+            style={{ width: l.w / l.scale, height: l.h / l.scale, zoom: l.scale < 1 ? l.scale : undefined, display: 'flex', flexDirection: l.dir, alignItems: 'center', justifyContent: 'flex-start', gap: NAME_GAP, textAlign: 'center' }}
           >
             {/* A setup-only label (Breakfast's setup sheet) has no name: just the chips. */}
             {l.name && (
@@ -105,7 +105,7 @@ function ServerBody({ room }: { room: ServerRoom }) {
 const chipText: CSSProperties = { fontFamily: 'inherit', fontSize: 9, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' };
 
 /** 9 px, or a little less for a line longer than the sheet's chip width allows (one line per extra, never wrapped). */
-const fitSize = (t: string, c: Change) => Math.min(9, Math.floor(((9 * (chipW(c) - CHIP_PAD)) / textW(t)) * 10) / 10);
+const fitSize = (t: string, c: Change, gutter = 0) => Math.min(9, Math.floor(((9 * (chipW(c) - CHIP_PAD - gutter)) / textW(t)) * 10) / 10);
 
 /** Width of a line in 9 px bold Inter, measured (the estimate in the model is cautious, for layout). */
 let measurer: CanvasRenderingContext2D | null | undefined;
@@ -123,12 +123,14 @@ function Chip({ c }: { c: Change }) {
   if (c.lines)
     return (
       <div
-        style={{ ...chipText, display: 'flex', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: itemH(c), padding: '2px 5px', border: '1px solid #111827', borderRadius: 5, background: c.bg, lineHeight: `${BOX_LINE_H}px`, overflow: 'hidden', flex: 'none' }}
+        style={{ ...chipText, display: 'flex', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: itemH(c), padding: '2px 3px', border: '1px solid #111827', borderRadius: 5, background: c.bg, lineHeight: `${BOX_LINE_H}px`, overflow: 'hidden', flex: 'none' }}
       >
         <div style={{ textAlign: 'left', minWidth: 0 }}>
-          {c.lines.map((t, i) => (
-            <div key={i} style={{ fontSize: fitSize(t, c) }}>
-              {t}
+          {(c.rows ?? c.lines.map((text) => ({ text, indent: 0, bullet: false }))).map((row, i) => (
+            <div key={i} style={{ display: 'flex', paddingLeft: row.indent }}>
+              {/* A kind under its extra: a bullet, then the kind. */}
+              {row.bullet && <span style={{ width: BULLET_W, flex: 'none' }}>•</span>}
+              <span style={{ fontSize: fitSize(row.text, c, row.indent + (row.bullet ? BULLET_W : 0) - (CHIP_PAD - BOX_PAD)) }}>{row.text}</span>
             </div>
           ))}
         </div>
@@ -245,70 +247,58 @@ function SetupBody({ room }: { room: SetupRoom }) {
   );
 }
 
-const swatch = (s: CSSProperties) => <span style={{ display: 'inline-block', boxSizing: 'border-box', borderRadius: 4, ...s }} />;
-const tag = (bg: string, text: string, color = '#111827') => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', height: 18, padding: '0 7px', border: '1px solid #111827', borderRadius: 9, background: bg, color, fontSize: 11, fontWeight: 700 }}>{text}</span>
+/** Every pill in the key is one size, like the sheet's: 52 × 16 px, 9.5 px bold. */
+const KEY_W = 52;
+const KEY_H = 16;
+const keyPill = (look: { bg: string; border: string; color?: string }, text?: string, h = KEY_H) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: KEY_W, height: h, borderRadius: h / 2, background: look.bg, border: look.border, color: look.color ?? '#111827', fontSize: 9.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+    {text}
+  </span>
 );
-const key = (mark: ReactNode, text: string) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-    {mark}
-    <span>{text}</span>
+const chairKey = (c: Chair) => keyPill(CHAIR_PILL[c], CHAIR_PILL[c].text, CHAIR_PILL[c].text ? KEY_H : 8);
+const dotKey = <span style={{ width: 10, height: 10, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />;
+const creamerKey = <span style={{ width: 26, height: 14, borderRadius: 4, boxSizing: 'border-box', background: '#EDE9FE', border: '1.5px solid #6D28D9' }} />;
+const cupKey = (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, height: 14, padding: '0 6px 0 2px', background: '#111827', color: '#FFFFFF', borderRadius: 2, fontSize: 8, fontWeight: 700, letterSpacing: '.04em' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 10, height: 10, background: '#86EFAC', color: '#111827', borderRadius: 1.5, fontSize: 9, fontWeight: 900 }}>+</span>
+    JUICE
   </span>
 );
 
-/** A chair mark for the key: one size for all three, as on the tables. */
-const chairKey = (c: Chair) => {
-  const look = CHAIR_PILL[c];
+/**
+ * The setup sheet's key, grouped by what each mark is about: chairs (the table edge), the table, the place setting.
+ * `vertical` stacks the groups (View puts it beside the drawing), with every description lined up after
+ * a column of marks; otherwise the groups sit side by side under the drawing, each on one line, and wrap
+ * whole when the page is narrow. `supper`: Supper's sheet adds cups on a band instead of +Glass chips.
+ */
+export function SetupLegend({ vertical = false, supper = false }: { vertical?: boolean; supper?: boolean }) {
+  const groups: { head: string; items: [ReactNode, string][] }[] = [
+    { head: 'Chairs', items: [[chairKey('arm'), CHAIR_LABEL.arm], [chairKey('no_arm'), CHAIR_LABEL.no_arm], [chairKey('none'), 'Remove chair']] },
+    { head: 'Table', items: [[dotKey, 'Remove mug'], [creamerKey, 'Add creamer tray']] },
+    { head: 'Place setting', items: [supper ? [cupKey, 'Add cup'] : [keyPill({ bg: '#86EFAC', border: '1px solid #111827' }, '+Glass'), 'Add drinkware'], [keyPill({ bg: EXTRA_BG, border: '1px solid #111827' }, 'Banana'), 'Add extras']] },
+  ];
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 58, height: 16, borderRadius: 8, background: look.bg, border: look.border, color: look.color, fontSize: 10, fontWeight: 800 }}>
-      {look.text}
-    </span>
-  );
-};
-
-/** The setup sheet's key. `vertical` stacks it (View puts it beside the drawing). */
-export function SetupLegend({ vertical = false, supper = false, dot = false }: { vertical?: boolean; supper?: boolean; dot?: boolean }) {
-  const grid = (cols: number): CSSProperties => ({ display: 'grid', gridTemplateColumns: Array(vertical ? 1 : cols).fill('max-content').join(' '), gap: '6px 18px' });
-  const div: CSSProperties | undefined = vertical ? { borderLeft: 0, borderTop: '1px solid #D1D5DB' } : undefined;
-  return (
-    <div data-sheet-legend style={{ marginTop: vertical ? 0 : 12, width: 'max-content', maxWidth: '100%', display: 'flex', flexDirection: vertical ? 'column' : 'row', flexWrap: vertical ? undefined : 'wrap', alignItems: 'stretch', border: '1px solid #D1D5DB', borderRadius: 8, overflow: 'hidden', fontSize: 13, color: '#111827', background: '#FFFFFF' }}>
-      <div className="lgcell">
-        <div className="lghead">Resident seats</div>
-        <div style={grid(3)}>
-          {key(chairKey('arm'), CHAIR_LABEL.arm)}
-          {key(chairKey('no_arm'), CHAIR_LABEL.no_arm)}
-          {key(chairKey('none'), 'Take the chair away')}
-        </div>
-      </div>
-      <div className="lgcell lgdiv" style={div}>
-        <div className="lghead">Labels</div>
-        {supper ? (
-          // Supper's sheet: a + on the cup band instead of +Glass chips, and a dot for no mug.
-          <div style={grid(3)}>
-            {key(
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, height: 13, padding: '0 6px 0 2px', background: '#111827', color: '#FFFFFF', borderRadius: 2, fontSize: 8, fontWeight: 700, letterSpacing: '.04em' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 9, height: 9, background: '#86EFAC', color: '#111827', borderRadius: 1.5, fontSize: 9, fontWeight: 900 }}>+</span>
-                JUICE GLASS
-              </span>,
-              'Add this cup',
+    <div data-sheet-legend style={{ marginTop: vertical ? 0 : 12, display: 'flex', flexDirection: vertical ? 'column' : 'row', flexWrap: vertical ? undefined : 'wrap', gap: vertical ? 0 : 8, width: vertical ? 'max-content' : undefined, fontSize: 12, color: '#111827', ...(vertical ? { border: '1px solid #D1D5DB', borderRadius: 8, background: '#FFFFFF', overflow: 'hidden' } : {}) }}>
+      {groups.map((g, i) => (
+        <div key={g.head} style={vertical ? { padding: '8px 14px 10px', borderTop: i ? '1px solid #E5E7EB' : undefined } : { padding: '6px 12px 7px', border: '1px solid #D1D5DB', borderRadius: 8, background: '#FFFFFF' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: '#6B7280', marginBottom: 5 }}>{g.head}</div>
+          <div style={vertical ? { display: 'grid', gridTemplateColumns: `${KEY_W}px max-content`, alignItems: 'center', gap: '6px 8px' } : { display: 'flex', alignItems: 'center', gap: 14 }}>
+            {g.items.map(([mark, text]) =>
+              vertical ? (
+                <Fragment key={text}>
+                  <span style={{ display: 'flex', justifyContent: 'center' }}>{mark}</span>
+                  <span>{text}</span>
+                </Fragment>
+              ) : (
+                <span key={text} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                  {mark}
+                  {text}
+                </span>
+              ),
             )}
-            {key(<span style={{ width: 9, height: 9, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />, 'On a table: take the mug away')}
-            {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
           </div>
-        ) : (
-          <div style={grid(3)}>
-            {key(tag('#86EFAC', '+ Item'), 'Add drinkware')}
-            {dot
-              ? key(<span style={{ width: 9, height: 9, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />, 'On a table: take the mug away')
-              : key(tag(NO_MUG.bg, 'Mug', NO_MUG.color), 'On a table: take the mug away')}
-            {key(tag(EXTRA_BG, 'Banana'), 'Extra (fruit, napkins…)')}
-          </div>
-        )}
-      </div>
-      <div className="lgcell lgdiv" style={div}>
-        <div className="lghead">Tables</div>
-        <div style={grid(1)}>{key(swatch({ width: 24, height: 14, background: '#EDE9FE', border: '1.5px solid #6D28D9' }), 'Creamer tray')}</div>
-      </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -358,21 +348,21 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
             {b.kind === 'server' ? (
               // Smaller when a long notes list needs the room; larger on Breakfast's 11 × 17 setup sheet.
               <div style={{ width: (b.room.w + 2) * b.roomScale, height: (b.room.h + 2) * b.roomScale }}>
-                <div style={{ transform: b.roomScale !== 1 ? `scale(${b.roomScale})` : undefined, transformOrigin: '0 0' }}>
+                <div style={{ zoom: b.roomScale !== 1 ? b.roomScale : undefined }}>
                   <ServerBody room={b.room} />
                 </div>
               </div>
             ) : (
               // Drawn smaller only when the sections' chips need more width than the page has.
               <div style={{ width: (b.room.w + 2) * b.room.scale, height: (b.room.h + 2) * b.room.scale }}>
-                <div style={{ transform: b.room.scale < 1 ? `scale(${b.room.scale})` : undefined, transformOrigin: '0 0' }}>
+                <div style={{ zoom: b.room.scale < 1 ? b.room.scale : undefined }}>
                   <SetupBody room={b.room} />
                 </div>
               </div>
             )}
           </div>
           {b.kind === 'setup' && <SetupLegend />}
-          {b.kind === 'server' && b.legend && <SetupLegend supper={b.legend === 'supper'} dot />}
+          {b.kind === 'server' && b.legend && <SetupLegend supper={b.legend === 'supper'} />}
         </div>
 
       {b.kind === 'server' && b.notesShown ? (
@@ -391,11 +381,15 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
   );
 }
 
-/** A page scaled by `k` inside a box of the scaled size (so layout around it is right). */
+/**
+ * A page scaled by `k` inside a box of the scaled size (so layout around it is right). CSS zoom, not a
+ * transform: the app's webview draws transform-scaled text at one size and stretches it (blurry),
+ * while zoom lays the text out at the size it's shown, so it stays sharp.
+ */
 export function ScaledPage({ page, k }: { page: PageData; k: number }) {
   return (
     <div style={{ width: Math.round(page.w * k), height: Math.round(page.h * k), margin: '0 auto', position: 'relative' }}>
-      <div style={{ position: 'absolute', left: 0, top: 0, transform: `scale(${k})`, transformOrigin: '0 0' }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, zoom: k }}>
         <SheetPage page={page} />
       </div>
     </div>

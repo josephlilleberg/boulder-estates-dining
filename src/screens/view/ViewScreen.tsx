@@ -118,7 +118,7 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
           <div ref={keyRef} style={{ paddingTop: 8, maxWidth: 1000, margin: '0 auto' }}>
             {pg.body.legend && (
               <div style={{ marginBottom: 8 }}>
-                <SetupLegend supper={pg.body.legend === 'supper'} dot />
+                <SetupLegend supper={pg.body.legend === 'supper'} />
               </div>
             )}
             {pg.body.notesShown && <ServerNotes notes={pg.body.notes} />}

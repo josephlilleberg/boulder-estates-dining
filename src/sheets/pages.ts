@@ -2,7 +2,7 @@ import type { AppData } from '../db/repo';
 import type { Resident } from '../domain/model';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
-import { areaFor, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
+import { areaFor, LETTER_AREA, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
 
 // The printable sheets for a meal and the data each page draws. Shared by View,
 // Print preview and the printed output, so all three are the same page.
@@ -150,15 +150,18 @@ export function buildPage(
       body: { kind: 'server', room, notes, legend: null, notesShown: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
     };
   }
-  // A one-section meal (Breakfast): the same layout as its server sheet, drawn at Letter size and
-  // enlarged to fill the 11 × 17 page, so tables, gaps and labels keep identical proportions.
+  // A one-section meal (Breakfast): its server sheet's layout (same tables in the same order, same
+  // room per seat), laid out for the 11 × 17 page's shape and enlarged to fill it, so it uses the whole
+  // width: as tall as the Letter sheet's area, and as much wider as the page is.
   if (sharedLayout(opening)) {
-    const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'setup', shared: true });
+    const [PW, PH] = [w - 84, h - 150 - 20 - 84];
+    const area = { w: (PW * LETTER_AREA.h) / PH, h: LETTER_AREA.h };
+    const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'setup', shared: true, area });
     return {
       ...base,
       title: `${meal} · Setup`,
       right: `Setup sheet · ${site.name}`,
-      body: { kind: 'server', room, notes: [], legend: 'setup', notesShown: false, roomScale: Math.min((w - 84) / (room.w + 2), (h - 150 - 20 - 84) / (room.h + 2)) },
+      body: { kind: 'server', room, notes: [], legend: 'setup', notesShown: false, roomScale: Math.min(PW / (room.w + 2), PH / (room.h + 2)) },
     };
   }
   // Setup: 150 px of header/footer, 20 px gap and 84 px kept free for the chair key.

@@ -326,10 +326,10 @@ export const CHIP_PAD = 12;
 export const needW = (c: Change) => Math.ceil(Math.max(...(c.lines ?? [c.text]).map((t) => t.length)) * CHIP_CHAR_W) + CHIP_PAD;
 /**
  * Gives every chip and extras box on a sheet one width: what its longest line needs, at least CHIP_W
- * and at most CHIP_MAX_W (past that, only that line's text is drawn a little smaller).
+ * and at most `max` (past that, only that line's text is drawn a little smaller).
  */
-export function evenChips(all: Change[]): void {
-  const w = Math.min(CHIP_MAX_W, Math.max(CHIP_W, ...all.map(needW)));
+export function evenChips(all: Change[], max = CHIP_MAX_W): void {
+  const w = Math.min(max, Math.max(CHIP_W, ...all.map(needW)));
   for (const c of all) c.w = w;
 }
 /** Clear space between the chair pill (on the table edge) and the first chip. */
@@ -434,9 +434,11 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
     pillsAt.set(key, draw === 'setup' ? [] : pills);
     chipsAt.set(key, draw === 'both' ? extraChips(r, meal) : draw === 'setup' ? setup : []);
     const serverH = labelH(pills);
-    roomAt.set(key, draw === 'both' ? serverH + chipsH(extraChips(r, meal)) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setup)) : serverH);
+    const extra = draw === 'server' ? 0 : tagLead(r.chair);
+    roomAt.set(key, extra + (draw === 'both' ? serverH + chipsH(extraChips(r, meal)) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setup)) : serverH));
   });
-  evenChips([...chipsAt.values()].flat());
+  // No wider than a seat here: a wider label is drawn smaller, and the chips would end up shorter than the chair marks.
+  evenChips([...chipsAt.values()].flat(), SEAT_W);
   // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
   // place whoever is seated; only a seat with more than that needs extra.
   // With chair pills drawn, labels start past the pill and a clear gap.
@@ -482,7 +484,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       if (draw !== 'server') {
         if (takesCreamer(r, meal)) creamer = true;
         // Chair pill on the table edge; a red dot on the table when the mug comes off.
-        const m = edgeMarks(sx - nx * 13 * SG, sy - ny * 13 * SG, nx, ny, r.chair, noMug(r, meal), true);
+        const m = edgeMarks(sx - nx * 13 * SG, sy - ny * 13 * SG, nx, ny, r.chair, noMug(r, meal), true, sheetK);
         pills.push(m.pill);
         if (m.mug) mugs.push(m.mug);
       }
@@ -490,7 +492,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       const pw = Math.max(PILL_W, ...items.map(pillW));
       const k = Math.floor(sheetK * Math.min(1, SEAT_W / Math.max(pw, ...chips.map(chipW))) * 100) / 100;
       const H = (draw === 'setup' ? stackH(chips) : labelH(items) + chipsH(chips)) * k;
-      const off = -13 * SG + 3 + lead + H / 2;
+      const off = -13 * SG + 3 + lead + (draw === 'server' ? 0 : tagLead(r.chair)) + H / 2;
       const ar = (ang * Math.PI) / 180;
       const outUp = nx * Math.sin(ar) - ny * Math.cos(ar) > 0;
       labels.push({ tableId: t.id, l: sx + nx * off - (SEAT_W * sheetK) / 2, t: sy + ny * off - H / 2, w: SEAT_W * sheetK, h: H, ang, dir: outUp ? 'column-reverse' : 'column', name: draw === 'setup' ? '' : shortName(r), items, chips, pillW: pw, scale: k });
@@ -562,6 +564,7 @@ export interface Change {
 
 /** A resident's extras for a meal as one box, an extra per line, as written ("Banana", "Napkins ×2"). */
 export const extraChips = (r: Resident, meal: string): Change[] => {
+  // In the order given (occupantFor puts them in the Settings list's order).
   const extras = (prefsOf(r, meal)?.extras ?? []).map(extraText);
   return extras.length ? [{ text: extras.join(', '), lines: extras, bg: EXTRA_BG }] : [];
 };
@@ -582,6 +585,11 @@ export interface MugMark {
   /** Supper's sheet: a small red dot instead of the word. */
   dot?: boolean;
 }
+/** Every seat's chair mark is one size on the table edge: plain for an arm chair, the words for "Armless" and "No chair". */
+export const CHAIR_TAG_W = 46;
+export const CHAIR_TAG_H = 12;
+/** How much further out a seat's labels start than they would for a 7 px pill (the mark is 12 px tall). */
+const tagLead = (_chair: Chair) => CHAIR_TAG_H / 2 - 3.5;
 export const MUG_DOT = 7;
 export const MUG_W = 26;
 export const MUG_H = 12;
@@ -590,10 +598,13 @@ export const MUG_H = 12;
  * Where a seat's chair pill and "Mug" marker go: the pill centred on the table edge, lying along it,
  * and the marker on the table just inside it. (ex, ey) is the edge point, (nx, ny) the outward normal.
  */
-function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair, mug: boolean, dot = false): { pill: SeatPill; mug: MugMark | null } {
-  const pill = { l: ex - 9, t: ey - 3.5, w: 18, h: 7, ang: Math.round((Math.atan2(ny, nx) * 180) / Math.PI + 90), chair };
+function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair, mug: boolean, dot = false, k = 1): { pill: SeatPill; mug: MugMark | null } {
+  // One size for every chair, lying along the edge (never upside down, so the words read). `k`: the
+  // scale the sheet's labels are drawn at, so the mark stays as tall as the chips beside it.
+  const [cw, ch] = [CHAIR_TAG_W * k, CHAIR_TAG_H * k];
+  const pill = { l: ex - cw / 2, t: ey - ch / 2, w: cw, h: ch, ang: edgeAngle(nx, ny), chair, k };
   const [w, h] = dot ? [MUG_DOT, MUG_DOT] : [MUG_W, MUG_H];
-  const inset = 3.5 + 2 + h / 2;
+  const inset = Math.min(pill.w, pill.h) / 2 + 2 + h / 2;
   return { pill, mug: mug ? { l: ex - nx * inset - w / 2, t: ey - ny * inset - h / 2, w, h, ang: edgeAngle(nx, ny), dot } : null };
 }
 
@@ -639,11 +650,13 @@ export function setupChanges(r: Resident, meal: string): Change[] {
 
 export const takesCreamer = (r: Resident, meal: string) => !!prefsOf(r, meal)?.drinks.some((d) => d.creamer);
 
-/** Seat pill look: solid grey = arm chair, black stripes = armless chair, hollow = no chair. */
-export const CHAIR_PILL: Record<Chair, { bg: string; border: string }> = {
+/** Seat mark, one size for all: dark grey for an arm chair, light grey "Armless", red "No chair" (take it away). */
+export const CHAIR_PILL: Record<Chair, { bg: string; border: string; color?: string; text?: string }> = {
   arm: { bg: '#4B5563', border: '1px solid #4B5563' },
-  no_arm: { bg: 'repeating-linear-gradient(45deg, #111827 0 1.2px, #FFFFFF 1.2px 3.5px)', border: '1px solid #111827' },
-  none: { bg: '#FFFFFF', border: '1.5px solid #111827' },
+  // Light grey with a dark outline and the word: a lighter shade of the arm chair's grey (less of a chair),
+  // set apart from it by the outline and text. Red stays the only colour on the edge.
+  no_arm: { bg: '#E5E7EB', border: '1.5px solid #111827', color: '#111827', text: 'Armless' },
+  none: { bg: '#DC2626', border: '1px solid #111827', color: '#FFFFFF', text: 'No chair' },
 };
 
 export interface SeatPill {
@@ -653,6 +666,8 @@ export interface SeatPill {
   h: number;
   ang: number;
   chair: Chair;
+  /** Drawn at this scale (its words too): the sheet's label scale, 1 on most sheets. */
+  k?: number;
 }
 
 export interface ChangeLabel {
@@ -870,8 +885,8 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         // The block runs along the table edge (never upside down), just outside it.
         const la = edgeAngle(nx, ny);
         // Past the chair pill (half of it sticks out of the edge), then a clear gap.
-        const gx = ex + nx * (3.5 + CHAIR_GAP + h / 2);
-        const gy = ey + ny * (3.5 + CHAIR_GAP + h / 2);
+        const gx = ex + nx * (3.5 + tagLead(r.chair) + CHAIR_GAP + h / 2);
+        const gy = ey + ny * (3.5 + tagLead(r.chair) + CHAIR_GAP + h / 2);
         const lr = (la * Math.PI) / 180;
         const bw = Math.abs(Math.cos(lr)) * w + Math.abs(Math.sin(lr)) * h;
         const bh = Math.abs(Math.sin(lr)) * w + Math.abs(Math.cos(lr)) * h;

@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { BOX_LINE_H, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
-import { CHAIR_LABEL } from '../domain/model';
+import { CHAIR_LABEL, type Chair } from '../domain/model';
 
 // One printed page at true size (96 px per inch). View and Print preview scale it
 // with a transform; the printed copy uses it as is. Styles copied from the mockup.
@@ -105,7 +105,16 @@ function ServerBody({ room }: { room: ServerRoom }) {
 const chipText: CSSProperties = { fontFamily: 'inherit', fontSize: 9, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' };
 
 /** 9 px, or a little less for a line longer than the sheet's chip width allows (one line per extra, never wrapped). */
-const fitSize = (t: string, c: Change) => Math.min(9, Math.floor((9 * (chipW(c) - CHIP_PAD)) / (t.length * CHIP_CHAR_W) * 10) / 10);
+const fitSize = (t: string, c: Change) => Math.min(9, Math.floor(((9 * (chipW(c) - CHIP_PAD)) / textW(t)) * 10) / 10);
+
+/** Width of a line in 9 px bold Inter, measured (the estimate in the model is cautious, for layout). */
+let measurer: CanvasRenderingContext2D | null | undefined;
+function textW(t: string): number {
+  if (measurer === undefined) measurer = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+  if (!measurer) return t.length * CHIP_CHAR_W;
+  measurer.font = '700 9px Inter, system-ui, sans-serif';
+  return measurer.measureText(t).width;
+}
 
 /** One setup chip (+Glass…), or the seat's extras box, as on the setup sheet. */
 function Chip({ c }: { c: Change }) {
@@ -144,7 +153,14 @@ function MugMarker({ m }: { m: MugMark }) {
 
 /** A chair pill on a table edge: the chair type, as in the key. */
 function ChairPill({ p }: { p: SeatPill }) {
-  return <div aria-hidden="true" style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, boxSizing: 'border-box', borderRadius: 4, background: CHAIR_PILL[p.chair].bg, border: CHAIR_PILL[p.chair].border, transform: `rotate(${p.ang}deg)` }} />;
+  const look = CHAIR_PILL[p.chair];
+  if (look.text)
+    return (
+      <div style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, transform: `rotate(${p.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: look.border, borderRadius: 6 * (p.k ?? 1), background: look.bg, color: look.color, fontSize: 9 * (p.k ?? 1), fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+        {look.text}
+      </div>
+    );
+  return <div aria-hidden="true" style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, boxSizing: 'border-box', borderRadius: 6 * (p.k ?? 1), background: look.bg, border: look.border, transform: `rotate(${p.ang}deg)` }} />;
 }
 
 function SetupBody({ room }: { room: SetupRoom }) {
@@ -196,6 +212,16 @@ const key = (mark: ReactNode, text: string) => (
   </span>
 );
 
+/** A chair mark for the key: one size for all three, as on the tables. */
+const chairKey = (c: Chair) => {
+  const look = CHAIR_PILL[c];
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: 58, height: 16, borderRadius: 8, background: look.bg, border: look.border, color: look.color, fontSize: 10, fontWeight: 800 }}>
+      {look.text}
+    </span>
+  );
+};
+
 /** The setup sheet's key. `vertical` stacks it (View puts it beside the drawing). */
 export function SetupLegend({ vertical = false, supper = false, dot = false }: { vertical?: boolean; supper?: boolean; dot?: boolean }) {
   const grid = (cols: number): CSSProperties => ({ display: 'grid', gridTemplateColumns: Array(vertical ? 1 : cols).fill('max-content').join(' '), gap: '6px 18px' });
@@ -205,9 +231,9 @@ export function SetupLegend({ vertical = false, supper = false, dot = false }: {
       <div className="lgcell">
         <div className="lghead">Resident seats</div>
         <div style={grid(3)}>
-          {key(swatch({ width: 20, height: 8, background: CHAIR_PILL.arm.bg }), CHAIR_LABEL.arm)}
-          {key(swatch({ width: 20, height: 8, background: CHAIR_PILL.no_arm.bg, border: CHAIR_PILL.no_arm.border }), CHAIR_LABEL.no_arm)}
-          {key(swatch({ width: 20, height: 8, background: '#FFFFFF', border: CHAIR_PILL.none.border }), CHAIR_LABEL.none)}
+          {key(chairKey('arm'), CHAIR_LABEL.arm)}
+          {key(chairKey('no_arm'), CHAIR_LABEL.no_arm)}
+          {key(chairKey('none'), 'Take the chair away')}
         </div>
       </div>
       <div className="lgcell lgdiv" style={div}>

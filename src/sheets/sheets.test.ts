@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
+import { BOX_LINE_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
 import { buildPage, occupantFor, orderExtras, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -117,6 +117,11 @@ describe('Setup sheet rules', () => {
     // One size for every chair, reading along the edge, never upside down.
     expect(new Set(room.pills.map((p) => `${p.w}x${p.h}`)).size).toBe(1);
     for (const p of room.pills) expect(Math.abs(p.ang)).toBeLessThanOrEqual(90);
+    // A round table: each mark bends along its circle, a bit under a quarter of it, so they don't touch.
+    for (const p of room.pills) {
+      expect(p.arc).toBeDefined();
+      expect(p.w).toBeLessThan((Math.PI * p.arc!.r) / 2);
+    }
   });
 
   it('a table where anyone takes creamer is light purple with a purple outline', () => {
@@ -419,7 +424,7 @@ describe('pill order and extras', () => {
     ]);
     // The box is as tall as its lines and always gets a row of its own.
     const [, box] = setupChanges(r, 'Dinner');
-    expect(itemH(box!)).toBe(2 + 4 + 2 * 12);
+    expect(itemH(box!)).toBe(2 + 4 + 2 * BOX_LINE_H);
     expect(chipRows(setupChanges(r, 'Dinner')).map((row) => row.length)).toEqual([1, 1]);
     expect(texts(resident([drink('2% Milk')], { extras: [{ id: 'e3', name: 'Soup Spoon', variant: null, backup: null, count: 1 }] }))).toEqual(['Soup Spoon', 'Mug on table']);
   });

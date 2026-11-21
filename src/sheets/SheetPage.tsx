@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useId, type CSSProperties, type ReactNode } from 'react';
 import { BOX_LINE_H, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import type { PageData } from './pages';
 import { CHAIR_LABEL, type Chair } from '../domain/model';
@@ -154,13 +154,57 @@ function MugMarker({ m }: { m: MugMark }) {
 /** A chair pill on a table edge: the chair type, as in the key. */
 function ChairPill({ p }: { p: SeatPill }) {
   const look = CHAIR_PILL[p.chair];
+  if (p.arc) return <ArcChairPill p={p} arc={p.arc} />;
   if (look.text)
     return (
-      <div style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, transform: `rotate(${p.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: look.border, borderRadius: 6 * (p.k ?? 1), background: look.bg, color: look.color, fontSize: 9 * (p.k ?? 1), fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+      <div style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, transform: `rotate(${p.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: look.border, borderRadius: p.h / 2, background: look.bg, color: look.color, fontSize: 9 * (p.k ?? 1), fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
         {look.text}
       </div>
     );
-  return <div aria-hidden="true" style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, boxSizing: 'border-box', borderRadius: 6 * (p.k ?? 1), background: look.bg, border: look.border, transform: `rotate(${p.ang}deg)` }} />;
+  return <div aria-hidden="true" style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, boxSizing: 'border-box', borderRadius: p.h / 2, background: look.bg, border: look.border, transform: `rotate(${p.ang}deg)` }} />;
+}
+
+/**
+ * A chair mark on a round table, bent along the table's edge: a thick arc with round ends (its outline
+ * drawn underneath), and the words following the curve, upright at every seat.
+ */
+function ArcChairPill({ p, arc }: { p: SeatPill; arc: NonNullable<SeatPill['arc']> }) {
+  const look = CHAIR_PILL[p.chair];
+  const [bw, bc] = (() => {
+    const m = look.border.match(/^([\d.]+)px solid (#\w+)$/);
+    return m ? [Number(m[1]), m[2]!] : [1, '#111827'];
+  })();
+  const { r, a } = arc;
+  const h = p.h;
+  const C = r + h;
+  const d = (p.w - h) / 2 / r; // half the arc's angle: its length plus the round ends is the mark's width
+  const below = Math.sin(a) > 0.01; // seats in the lower half read left to right the other way round
+  // `span`: half the angle drawn. The words get a longer path than the mark (a quarter turn each way),
+  // centred on the seat, so they're never cut off at its ends.
+  const path = (rad: number, span = d) => {
+    const [a0, a1] = below ? [a + span, a - span] : [a - span, a + span];
+    const pt = (t: number) => `${(C + rad * Math.cos(t)).toFixed(2)} ${(C + rad * Math.sin(t)).toFixed(2)}`;
+    return `M ${pt(a0)} A ${rad} ${rad} 0 0 ${below ? 0 : 1} ${pt(a1)}`;
+  };
+  // A touch smaller than elsewhere: a round table's marks are shorter, and the words need room at the ends.
+  const fs = 8 * (p.k ?? 1);
+  const id = `chair-arc${useId().replace(/:/g, '')}`;
+  return (
+    <svg aria-hidden={look.text ? undefined : true} style={{ position: 'absolute', left: p.l + arc.ox - C, top: p.t + arc.oy - C, width: 2 * C, height: 2 * C, overflow: 'visible', pointerEvents: 'none' }}>
+      <path d={path(r)} fill="none" stroke={bc} strokeWidth={h} strokeLinecap="round" />
+      <path d={path(r)} fill="none" stroke={look.bg} strokeWidth={h - 2 * bw} strokeLinecap="round" />
+      {look.text && (
+        <>
+          <path id={id} d={path(below ? r + 0.35 * fs : r - 0.35 * fs, Math.PI / 2)} fill="none" />
+          <text fill={look.color} style={{ fontSize: fs, fontWeight: 700, fontFamily: 'inherit' }}>
+            <textPath href={`#${id}`} startOffset="50%" textAnchor="middle">
+              {look.text}
+            </textPath>
+          </text>
+        </>
+      )}
+    </svg>
+  );
 }
 
 function SetupBody({ room }: { room: SetupRoom }) {

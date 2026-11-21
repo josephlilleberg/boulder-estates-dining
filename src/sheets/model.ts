@@ -314,8 +314,8 @@ export function labelInkWidth(l: Pick<ServerLabel, 'name' | 'items' | 'w'> & { s
   return Math.min(l.w, Math.max(name, ...l.items.map(pillW)) * (l.scale ?? 1));
 }
 
-/** Setup chips as drawn: all one width per sheet (the extras box too), 12 px tall, 3 px apart, 9 px bold text. */
-export const CHIP_H = 12;
+/** Setup chips as drawn: all one width per sheet (the extras box too), 14 px tall (room above and below the text), 3 px apart, 9 px bold text. */
+export const CHIP_H = 14;
 /** The narrowest chips get, and the widest: a sheet's chips are as wide as its longest line needs, within these. */
 export const CHIP_W = 72;
 export const CHIP_MAX_W = 110;
@@ -335,8 +335,8 @@ export function evenChips(all: Change[], max = CHIP_MAX_W): void {
 /** Clear space between the chair pill (on the table edge) and the first chip. */
 export const CHAIR_GAP = 6;
 const CHIP_GAP = 3;
-/** The extras box: one line per extra, 12 px each, inside 2 px padding and a 1 px border. */
-export const BOX_LINE_H = 12;
+/** The extras box: one line per extra, 13 px each, inside 2 px padding and a 1 px border. */
+export const BOX_LINE_H = 13;
 /** Height of one chip, or of the extras box. */
 export const itemH = (c: Change) => (c.lines ? 2 + 4 + c.lines.length * BOX_LINE_H : CHIP_H);
 /** Width of one chip, or of the extras box: the sheet's (see evenChips). */
@@ -484,7 +484,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
       if (draw !== 'server') {
         if (takesCreamer(r, meal)) creamer = true;
         // Chair pill on the table edge; a red dot on the table when the mug comes off.
-        const m = edgeMarks(sx - nx * 13 * SG, sy - ny * 13 * SG, nx, ny, r.chair, noMug(r, meal), true, sheetK);
+        const m = edgeMarks(sx - nx * 13 * SG, sy - ny * 13 * SG, nx, ny, r.chair, noMug(r, meal), true, sheetK, t.shape === 'round' ? { cx, cy } : undefined);
         pills.push(m.pill);
         if (m.mug) mugs.push(m.mug);
       }
@@ -587,8 +587,8 @@ export interface MugMark {
 }
 /** Every seat's chair mark is one size on the table edge: plain for an arm chair, the words for "Armless" and "No chair". */
 export const CHAIR_TAG_W = 46;
-export const CHAIR_TAG_H = 12;
-/** How much further out a seat's labels start than they would for a 7 px pill (the mark is 12 px tall). */
+export const CHAIR_TAG_H = 14;
+/** How much further out a seat's labels start than they would for a 7 px pill (the mark is 14 px tall). */
 const tagLead = (_chair: Chair) => CHAIR_TAG_H / 2 - 3.5;
 export const MUG_DOT = 7;
 export const MUG_W = 26;
@@ -598,13 +598,21 @@ export const MUG_H = 12;
  * Where a seat's chair pill and "Mug" marker go: the pill centred on the table edge, lying along it,
  * and the marker on the table just inside it. (ex, ey) is the edge point, (nx, ny) the outward normal.
  */
-function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair, mug: boolean, dot = false, k = 1): { pill: SeatPill; mug: MugMark | null } {
+function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair, mug: boolean, dot = false, k = 1, round?: { cx: number; cy: number }): { pill: SeatPill; mug: MugMark | null } {
   // One size for every chair, lying along the edge (never upside down, so the words read). `k`: the
   // scale the sheet's labels are drawn at, so the mark stays as tall as the chips beside it.
   const [cw, ch] = [CHAIR_TAG_W * k, CHAIR_TAG_H * k];
-  const pill = { l: ex - cw / 2, t: ey - ch / 2, w: cw, h: ch, ang: edgeAngle(nx, ny), chair, k };
+  const pill: SeatPill = { l: ex - cw / 2, t: ey - ch / 2, w: cw, h: ch, ang: edgeAngle(nx, ny), chair, k };
+  // On a round table the mark bends with the edge: its centre line is the table's circle. A little
+  // shorter than a quarter of it, so the four seats' marks keep a gap between them.
+  if (round) {
+    const r = Math.hypot(ex - round.cx, ey - round.cy);
+    pill.w = Math.min(pill.w, (Math.PI * r) / 2 - 8 * k);
+    pill.arc = { ox: round.cx - pill.l, oy: round.cy - pill.t, r, a: Math.atan2(ny, nx) };
+  }
   const [w, h] = dot ? [MUG_DOT, MUG_DOT] : [MUG_W, MUG_H];
-  const inset = Math.min(pill.w, pill.h) / 2 + 2 + h / 2;
+  // The red dot sits a little further in, clear of the chair mark.
+  const inset = Math.min(pill.w, pill.h) / 2 + (dot ? 5 : 2) + h / 2;
   return { pill, mug: mug ? { l: ex - nx * inset - w / 2, t: ey - ny * inset - h / 2, w, h, ang: edgeAngle(nx, ny), dot } : null };
 }
 
@@ -668,6 +676,8 @@ export interface SeatPill {
   chair: Chair;
   /** Drawn at this scale (its words too): the sheet's label scale, 1 on most sheets. */
   k?: number;
+  /** Round tables: the mark curves along the table's circle (centre relative to l/t, radius, seat direction in radians). */
+  arc?: { ox: number; oy: number; r: number; a: number };
 }
 
 export interface ChangeLabel {
@@ -870,7 +880,7 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         const ex = sx - nx * edge;
         const ey = sy - ny * edge;
         // Chair pill centred on the table edge; "Mug" on the table inside it when there's no coffee or tea.
-        const m = edgeMarks(ex, ey, nx, ny, r.chair, noMug(r, meal));
+        const m = edgeMarks(ex, ey, nx, ny, r.chair, noMug(r, meal), false, 1, round ? { cx, cy } : undefined);
         out.pills.push(m.pill);
         pillTix.push(out.tables.length);
         if (m.mug) {

@@ -5,11 +5,14 @@
 //   2. No table goes over its seats, unless the caller allows it (the manager said yes).
 //   3. Daily tablemates (same everyday table at this meal) stay together. A group that no longer
 //      fits its table moves to another table as a whole; it's split only if no table fits it.
-//   4. No half-empty tables: a table at most half full is merged into tables that already have
-//      people, its groups moving whole. The smaller table moves, so most people keep their table.
+//   4. No half-empty tables: a table at most half full is merged into tables in the same section
+//      that already have people, its groups moving whole. The smaller table moves, so most people
+//      keep their table. Merging never crosses sections.
 //   5. Everyone keeps their usual table, and their usual seat, when they can.
 //   6. Guests sit beside their host.
 // Everyone else (added residents, regulars without a seat) fills what's left, biggest party first.
+// Whoever has a seat at this meal and has to move stays in that seat's section when there's room
+// there; someone with no seat at this meal goes wherever there's room.
 
 export interface ArrangeTable {
   id: string;
@@ -81,7 +84,7 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
   const tableOf = (p: Party) => tables.find((t) => at.get(t.id)!.includes(p))!;
   const people = (t: ArrangeTable) => total(at.get(t.id)!);
 
-  /** The table with the least room that still fits `need`; same section as `near` first, then nearest number. */
+  /** The table with the least room that still fits `need`; in `near`'s section first, then nearest number. */
   const bestFit = (need: number, near: ArrangeTable | null, skip?: string) =>
     tables
       .filter((t) => t.id !== skip && free(t) >= need)
@@ -93,6 +96,8 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
         }
         return free(a) - free(b) || (near ? Math.abs(a.number - near.number) - Math.abs(b.number - near.number) : 0) || a.section - b.section || a.number - b.number;
       })[0];
+  /** Their seat's table at this meal, if it's open for the event. */
+  const homeOf = (p: Party) => (p.usualTable ? (byId.get(p.usualTable) ?? null) : null);
 
   // ---- Daily tablemate groups ----
   const groups = new Map<string, Party[]>();
@@ -158,9 +163,10 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
         const room = (t: ArrangeTable) => t.seats - people(t) - (coming.get(t.id) ?? 0);
         const plan: { ps: Party[]; to: ArrangeTable }[] = [];
         for (const ps of [...units.values()].sort((a, b) => total(b) - total(a))) {
+          // Only within the section: saving a table isn't worth moving anyone to another section.
           const to = tables
-            .filter((t) => t.id !== from.id && people(t) > 0 && room(t) >= total(ps))
-            .sort((a, b) => (a.section === from.section ? 0 : 1) - (b.section === from.section ? 0 : 1) || room(a) - room(b) || Math.abs(a.number - from.number) - Math.abs(b.number - from.number))[0];
+            .filter((t) => t.id !== from.id && t.section === from.section && people(t) > 0 && room(t) >= total(ps))
+            .sort((a, b) => room(a) - room(b) || Math.abs(a.number - from.number) - Math.abs(b.number - from.number))[0];
           if (!to) break;
           coming.set(to.id, (coming.get(to.id) ?? 0) + total(ps));
           plan.push({ ps, to });
@@ -196,7 +202,10 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
   // ---- Over, only when allowed: the table with the most room left ----
   if (opts.allowOver) {
     for (const p of unplaced.splice(0)) {
-      const to = [...tables].sort((a, b) => free(b) - free(a) || a.section - b.section || a.number - b.number)[0];
+      // The table with the most room left, in their own section first.
+      const sec = homeOf(p)?.section;
+      const mine = (t: ArrangeTable) => (t.section === sec ? 0 : 1);
+      const to = [...tables].sort((a, b) => mine(a) - mine(b) || free(b) - free(a) || a.section - b.section || a.number - b.number)[0];
       if (!to) {
         unplaced.push(p);
         continue;

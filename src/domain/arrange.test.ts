@@ -98,6 +98,31 @@ describe('arrange', () => {
     expect(['x', 'y', 'z'].map((id) => tableOf(r, id))).toEqual(['T3', 'T3', 'T3']);
   });
 
+  it('merging never crosses sections: a half-empty table stays rather than send people to another section', () => {
+    const t1 = { ...round(1, 1), id: 'S1T1' };
+    const t2 = { ...round(1, 2), id: 'S2T1' };
+    const r = arrange([t1, t2], [p('a', 'S1T1', 0), p('b', 'S2T1', 0), p('c', 'S2T1', 1)]);
+    expect(tableOf(r, 'a')).toBe('S1T1');
+    expect(r.notes).toEqual([]);
+  });
+
+  it('a group that outgrows its table moves within its section, even if another section fits tighter', () => {
+    // Section 1: Table 1 (4 seats, 5 coming) and Table 2 (6 seats, empty). Section 2's empty 5-seat table would fit them more tightly.
+    const r = arrange(
+      [round(1, 1), rect(2, 1), { ...rect(3, 2), seats: 5 }],
+      [p('a', 'T1', 0, 2), p('b', 'T1', 1), p('c', 'T1', 2)],
+    );
+    expect(['a', 'b', 'c'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2']);
+  });
+
+  it('seated over, it’s the emptiest table in their own section', () => {
+    // Every table is full, so someone has to go over: in their own section, not the other one.
+    const tables = [{ ...round(1, 1), id: 'S1T1' }, { ...round(1, 2), id: 'S2T1' }];
+    const r = arrange(tables, [p('a', 'S1T1', 0, 3), p('b', 'S1T1', 1), ...['w', 'x', 'y', 'z'].map((id, i) => p(id, 'S2T1', i))], { allowOver: true });
+    expect(tableOf(r, 'b')).toBe('S1T1');
+    expect(r.notes.join(' ')).toMatch(/over/);
+  });
+
   it('an added resident fills a table that has people before opening an empty one', () => {
     const r = arrange([round(1), rect(2)], [p('a', 'T2', 0), p('b', 'T2', 1), p('c', 'T2', 2), p('new', null, null, 0, true)]);
     // Empty Table 1 isn't opened while Table 2 has room.

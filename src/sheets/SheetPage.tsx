@@ -259,15 +259,15 @@ function SetupBody({ room }: { room: SetupRoom }) {
 const KEY_W = 52;
 const KEY_H = 16;
 const keyPill = (look: { bg: string; border: string; color?: string }, text?: string, h = KEY_H, radius = h / 2) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: KEY_W, height: h, borderRadius: radius, background: look.bg, border: look.border, color: look.color ?? '#111827', fontSize: 9.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+  <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: KEY_W, height: h, borderRadius: radius, background: look.bg, border: look.border, color: look.color ?? '#111827', fontSize: 9.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
     {text}
   </span>
 );
 const chairKey = (c: Chair) => keyPill(CHAIR_PILL[c], CHAIR_PILL[c].text, CHAIR_PILL[c].text ? KEY_H : 8, CHAIR_PILL[c].text ? WORD_R : undefined);
-const dotKey = <span style={{ width: 10, height: 10, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />;
-const creamerKey = <span style={{ width: 26, height: 14, borderRadius: 4, boxSizing: 'border-box', background: '#EDE9FE', border: '1.5px solid #6D28D9' }} />;
+const dotKey = <span style={{ flex: 'none', display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />;
+const creamerKey = <span style={{ flex: 'none', display: 'inline-block', width: 26, height: 14, borderRadius: 4, boxSizing: 'border-box', background: '#EDE9FE', border: '1.5px solid #6D28D9' }} />;
 const cupKey = (
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, height: 14, padding: '0 6px 0 2px', background: '#111827', color: '#FFFFFF', borderRadius: 2, fontSize: 8, fontWeight: 700, letterSpacing: '.04em' }}>
+  <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, height: 14, padding: '0 6px 0 2px', background: '#111827', color: '#FFFFFF', borderRadius: 2, fontSize: 8, fontWeight: 700, letterSpacing: '.04em' }}>
     <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 10, height: 10, background: '#86EFAC', color: '#111827', borderRadius: 1.5, fontSize: 9, fontWeight: 900 }}>+</span>
     JUICE
   </span>
@@ -361,9 +361,9 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
                 </div>
               </div>
             ) : (
-              // Drawn smaller only when the sections' chips need more width than the page has.
+              // Larger when the page has room to spare; smaller when the sections' chips need more width than it has.
               <div style={{ width: (b.room.w + 2) * b.room.scale, height: (b.room.h + 2) * b.room.scale }}>
-                <div style={{ zoom: b.room.scale < 1 ? b.room.scale : undefined }}>
+                <div style={{ zoom: b.room.scale !== 1 ? b.room.scale : undefined }}>
                   <SetupBody room={b.room} />
                 </div>
               </div>

@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { ARM_TAG_H, BOX_LINE_H, CHAIR_TAG_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
+import { textW, ARM_TAG_H, BOX_LINE_H, CHAIR_TAG_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
 import { buildPage, occupantFor, orderExtras, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -211,8 +211,19 @@ describe('Setup sheet spacing: a clear gap between tables, rows kept', () => {
     }
   });
 
-  it('a light meal fills the page at full size', () => {
-    expect(check('Dinner', () => resident([coffee(), drink('2% Milk')])).room.scale).toBe(1);
+  it('drawn larger, a round table’s chair marks still fit their words', () => {
+    const { room } = check('Dinner', () => resident([coffee()], {}, 'none'));
+    const arcs = room.pills.filter((p) => p.arc);
+    expect(arcs.length).toBeGreaterThan(0);
+    // Curved words are 8 px: they need their width plus a little room at each end.
+    for (const p of arcs) expect(p.w).toBeGreaterThanOrEqual((textW('No chair') * 8) / 9 + 6);
+  });
+
+  it('a light meal is drawn larger to use the page, still fitting it', () => {
+    const { room } = check('Dinner', () => resident([coffee(), drink('2% Milk')]));
+    expect(room.scale).toBeGreaterThan(1);
+    expect((room.w + 2) * room.scale).toBeLessThanOrEqual(PW + 4);
+    expect((room.h + 2) * room.scale).toBeLessThanOrEqual(PH + 4);
   });
 });
 

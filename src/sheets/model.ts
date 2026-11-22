@@ -792,7 +792,7 @@ export interface SetupRoom {
   /** "Mug" markers on the tables, at seats with no coffee or tea. */
   mugs: MugMark[];
   changes: ChangeLabel[];
-  /** Drawn at this scale: 1, or less when the sections' chips need more width than the page has. */
+  /** Drawn at this scale: larger than 1 when the page has room to spare (see setupRoom), less when the sections' chips need more width than it has. */
   scale: number;
 }
 
@@ -883,14 +883,25 @@ function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: nu
  * Every open section side by side on one 11 × 17 floor plan. Rows line up across
  * sections; a section with fewer rows uses the first and last shared heights.
  */
+/** How much larger than its layout a setup sheet may be drawn, tried largest first. */
+const SETUP_GROW = [1.6, 1.45, 1.3, 1.15];
+
 export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number): SetupRoom {
+  // Room to spare: lay it out for a smaller page and draw it that much larger (tables, chips and chair
+  // marks alike), as large as still fits without anything being squeezed, so nothing is lost in white space.
+  for (const z of SETUP_GROW) {
+    // Tables grow with everything else (laid out z times larger against the smaller page), so a round
+    // table's quarter of edge still fits its chair mark's words.
+    const r = buildSetupRoom(sections, allTables, occupant, meal, PW / z, PH / z, TG * z);
+    if (r.scale >= 1) return { ...r, scale: z };
+  }
   // A sheet drawn smaller to fit its width would leave the page's height unused, so lay it out
   // again with the height it will have once scaled (rows spread further apart).
   const first = buildSetupRoom(sections, allTables, occupant, meal, PW, PH);
   return first.scale < 1 ? buildSetupRoom(sections, allTables, occupant, meal, PW, PH / first.scale) : first;
 }
 
-function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number): SetupRoom {
+function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number, tg = TG): SetupRoom {
   const pad = 30;
   const secTables = sections.map((s) => allTables.filter((t) => t.section === s.section));
   // Every seat's chips first, so they all get the sheet's one width before anything is placed.
@@ -949,8 +960,8 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
     if (bi > 0) out.dividers.push({ l: ox, h: totalH * fy });
     for (const t of b.ts) {
       const round = t.shape === 'round';
-      const tw = (round ? 92 : 182) * sc * TG;
-      const th = 92 * sc * TG;
+      const tw = (round ? 92 : 182) * sc * tg;
+      const th = 92 * sc * tg;
       const cx = offX + t.x * sc;
       const cy = offY + ay.get(t.id)! * fy;
       const a = (t.rotation * Math.PI) / 180;
@@ -961,11 +972,11 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         const r = occupant(t.id, i);
         if (!r) return;
         if (takesCreamer(r, meal)) creamer = true;
-        const sx = cx + (g[0] * c - g[1] * s) * sc * TG;
-        const sy = cy + (g[0] * s + g[1] * c) * sc * TG;
+        const sx = cx + (g[0] * c - g[1] * s) * sc * tg;
+        const sy = cy + (g[0] * s + g[1] * c) * sc * tg;
         const nx = g[2] * c - g[3] * s;
         const ny = g[2] * s + g[3] * c;
-        const edge = 13 * sc * TG; // seat point → table edge
+        const edge = 13 * sc * tg; // seat point → table edge
         const ex = sx - nx * edge;
         const ey = sy - ny * edge;
         // Chair pill centred on the table edge; a red dot on the table inside it when there's no coffee or tea.

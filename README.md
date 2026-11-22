@@ -155,7 +155,7 @@ The room layout used by every screen and sheet. Open it from **Settings → Room
   "Section 2's tables, named 'Section 1'"). Open or close each section's tables per meal, and rename them.
   Closing a section sends its seated residents back to waiting, as one undoable step.
 - **Room layout:** opens the Room Designer.
-- **Backups:** change the folder, or restore a backup.
+- **Backups:** change the folder, or restore a backup. If the folder can't be written (on a Mac, the app may need permission for Documents again after an update), the app still opens, saves the day's backup in its own folder instead, and says so here with how to allow access.
 
 ### Undo
 

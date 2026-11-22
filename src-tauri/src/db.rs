@@ -111,6 +111,12 @@ pub fn backup(conn: &Connection, dir: &Path, today: &str, keep: usize) -> Result
     }
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let path = dir.join(&name);
+    // An empty file is a backup that was cut short (the app closed mid-write): write it again.
+    let empty = std::fs::metadata(&path).map(|m| m.len() == 0).unwrap_or(false);
+    if empty {
+        std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        let _ = std::fs::remove_file(dir.join(format!("{name}-journal")));
+    }
     let created = !path.exists();
     if created {
         // VACUUM INTO writes a consistent, compacted snapshot even with WAL on.
@@ -272,6 +278,18 @@ mod tests {
         ];
         assert!(batch(&mut c, &stmts).is_err());
         assert!(select(&c, "SELECT * FROM t", &[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_empty_backup_from_an_interrupted_write_is_written_again() {
+        let dir = std::env::temp_dir().join(format!("be-empty-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("dining-2026-11-20.sqlite3"), b"").unwrap();
+        let conn = mem();
+        let r = backup(&conn, &dir, "2026-11-20", 30).unwrap();
+        assert!(r.created);
+        assert!(std::fs::metadata(dir.join("dining-2026-11-20.sqlite3")).unwrap().len() > 0);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

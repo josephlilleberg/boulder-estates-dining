@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { importResidents, parseResidentsFile } from '../../db/importResidents';
 import { isTauri } from '../../db/tauriDb';
 import type { Beverage, ExtraOption } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { act } from '../../state/act';
-import { BACKUP_KEEP, localDate, runDailyBackup } from '../../state/backup';
+import { BACKUP_KEEP, backupProblem, localDate, onBackupProblem, runDailyBackup } from '../../state/backup';
 import { SCHEMA_VERSION } from '../../db/schema';
 import { moveExtraOption, setBackupDir } from '../../state/settingsActions';
 import { getStore, useStore } from '../../state/store';
@@ -40,6 +40,8 @@ export function SettingsScreen({ site, navigate }: ScreenProps) {
   const desktop = isTauri();
   const fileInput = useRef<HTMLInputElement>(null);
   const [importNote, setImportNote] = useState<string | null>(null);
+  const problem = useSyncExternalStore(onBackupProblem, backupProblem);
+  const isMac = navigator.userAgent.includes('Mac');
   const noResidents = !data.residents.some((r) => r.siteId === site.id);
 
   useEffect(() => {
@@ -61,7 +63,8 @@ export function SettingsScreen({ site, navigate }: ScreenProps) {
     // Back up there now, so a folder that can't be written to shows up straight away.
     try {
       await runDailyBackup(getStore().database, { ...data.settings, backup_dir: picked });
-      setNote('Saved a backup in the new folder.');
+      // A refused folder falls back to the app's own; the warning below says so.
+      setNote(backupProblem()?.dir === picked ? null : 'Saved a backup in the new folder.');
     } catch (e) {
       setNote(`Couldn’t save a backup there: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -217,6 +220,24 @@ export function SettingsScreen({ site, navigate }: ScreenProps) {
             </button>
           </div>
           {!desktop && <p style={{ margin: '12px 0 0', fontSize: 12, color: '#6B7280' }}>Backups work in the installed app.</p>}
+          {problem && (
+            <div role="alert" style={{ margin: '12px 0 0', padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', fontSize: 13, color: '#7F1D1D', lineHeight: 1.45 }}>
+              <strong>Today’s backup couldn’t be saved in this folder</strong> ({problem.error}).{' '}
+              {problem.savedTo ? (
+                <>
+                  It was saved in the app’s own folder instead:
+                  <span style={{ display: 'block', wordBreak: 'break-all', color: '#991B1B', marginTop: 2 }}>{problem.savedTo}</span>
+                </>
+              ) : (
+                'No backup was saved today.'
+              )}
+              {isMac && (
+                <span style={{ display: 'block', marginTop: 6 }}>
+                  To use this folder again: System Settings → Privacy &amp; Security → Files and Folders → Boulder Estates Dining → turn on Documents Folder, then restart the app. Or choose another folder.
+                </span>
+              )}
+            </div>
+          )}
           {note && <p style={{ margin: '12px 0 0', fontSize: 13, color: '#374151' }}>{note}</p>}
         </section>
       </div>

@@ -64,8 +64,10 @@ export type PageBody =
       room: ServerRoom;
       /** Allergies, notes and ½ portions, listed under the drawing (no key: the labels explain themselves). */
       notes: ServerNote[];
-      /** The drawing's scale: 1, or smaller when the notes need more room than the page keeps for them. */
+      /** The drawing's scale: `fit`, or smaller when the notes need more room than the page keeps for them. */
       roomScale: number;
+      /** A server sheet with room to spare is laid out smaller and drawn this much larger (see serverGrow). */
+      fit?: number;
       /** The key under the drawing: Supper's (+ squares) or a one-section setup sheet's (Breakfast); none on server sheets. */
       legend: 'supper' | 'setup' | null;
       /** Allergies and notes under the drawing (not on a setup sheet). */
@@ -115,6 +117,19 @@ export function orderExtras<T extends { name: string }>(extras: T[], order: stri
   return [...extras].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
+/** How much larger a server sheet may be drawn, tried largest first. */
+const SERVER_GROW = [1.6, 1.45, 1.3, 1.15];
+
+/**
+ * A server sheet with room to spare (a section with few tables, or tables far apart) is laid out for a
+ * smaller page and drawn that much larger: tables, names and drinks alike, so nothing is lost in white
+ * space. The most at which every label still fits at full size; 1 when it doesn't even at that.
+ */
+export function serverGrow(T: Parameters<typeof serverRoom>[0], occupant: Occupant, meal: string, beverages: Parameters<typeof serverRoom>[3], shared: boolean): number {
+  for (const z of SERVER_GROW) if (serverRoom(T, occupant, meal, beverages, { shared, probe: true, area: { w: LETTER_AREA.w / z, h: LETTER_AREA.h / z } }).scale >= 1) return z;
+  return 1;
+}
+
 export function buildPage(
   data: Pick<AppData, 'tables' | 'layouts' | 'beverages'>,
   site: Site,
@@ -141,13 +156,17 @@ export function buildPage(
   }
   if (sheet.kind === 'server') {
     const T = tables.filter((t) => t.section === sheet.section);
-    const room = serverRoom(T, occupant, meal, data.beverages, { shared: sharedLayout(opening) });
+    const shared = sharedLayout(opening);
+    const z = serverGrow(T, occupant, meal, data.beverages, shared);
+    const room = serverRoom(T, occupant, meal, data.beverages, { shared, area: { w: LETTER_AREA.w / z, h: LETTER_AREA.h / z } });
     const notes = serverNotes(T, occupant, meal);
     const label = opening.sections.find((s) => s.section === sheet.section)?.label ?? '';
+    // Drawn z times its layout, giving height back to a long notes list (never below half the page's drawing).
+    const H = room.h * z;
     return {
       ...base,
       title: `${meal} · ${label}`,
-      body: { kind: 'server', room, notes, legend: null, notesShown: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
+      body: { kind: 'server', room, notes, legend: null, notesShown: true, fit: z, roomScale: z * Math.max(0.5, Math.min(1, (H - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / H)) },
     };
   }
   // A one-section meal (Breakfast): its server sheet's layout (same tables in the same order, same

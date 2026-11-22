@@ -151,8 +151,8 @@ export interface ServerRoom {
   labels: ServerLabel[];
 }
 
-/** Tables drawn at 70% of the room scale: smaller tables leave room for full-size (or larger) names and drinks between them. */
-const SG = 0.7;
+/** Tables drawn 25% smaller than the room scale; the drawing area inside a Letter page. Seats on a rectangle's long side end up 76 px apart, which the label width (SEAT_W) relies on. */
+const SG = 0.825;
 /** The drawing area inside a page: a Letter server sheet, or an 11 × 17 page (Supper's combined sheet). */
 export type Area = { w: number; h: number };
 export const LETTER_AREA: Area = { w: 972, h: 676 };
@@ -396,7 +396,6 @@ export const chipsH = (cs: Change[]) => (cs.length ? stackH(cs) + NAME_GAP : 0);
 export const stackH = (cs: Change[]) => (cs.length ? cs.reduce((h, c) => h + itemH(c), 0) + (cs.length - 1) * CHIP_GAP : 0);
 
 /** A label with two drinks, both with cup bands: the least room any seat keeps. */
-const TWO_DRINKS_H = 14 + NAME_GAP + PILL_GAP + 2 * (2 + PILL_ROW_H + CUP_BAND_H);
 
 /** Pill order on every label, first next to the name: milk, juice, tea, anything else, then water. */
 const PILL_RANK: Record<string, number> = { milk: 0, juice: 1, tea: 2, other: 3, water: 4, ro: 5, hot: 6 };
@@ -468,7 +467,7 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[], op
  */
 export type SeatDraw = 'server' | 'setup' | 'both';
 
-export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[], opts: { draw?: SeatDraw; shared?: boolean; area?: Area } = {}): ServerRoom {
+export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, beverages: Beverage[], opts: { draw?: SeatDraw; shared?: boolean; area?: Area; probe?: boolean } = {}): ServerRoom {
   const area = opts.area ?? LETTER_AREA;
   const draw = opts.draw ?? 'server';
   const pillsAt = new Map<string, Pill[]>();
@@ -499,14 +498,16 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
     const extra = draw === 'server' && !opts.shared ? 0 : tagLead(r.chair);
     roomAt.set(key, extra + (draw === 'both' ? serverH + chipsH(chips) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setupAt.get(key) ?? [])) : serverH));
   });
-  // Every seat, empty or not, keeps room for at least two drinks, so the tables sit in the same
-  // place whoever is seated; only a seat with more than that needs extra.
+  // Each seat keeps room for its own label only (an empty seat none), so a sheet uses its page instead of
+  // holding space for drinks nobody has; the tables keep their arrangement, the spacing follows who's seated.
   // With chair pills drawn, labels start past the pill and a clear gap.
   const lead = draw === 'server' ? 0 : 0.5 + CHAIR_GAP;
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => lead + Math.max(TWO_DRINKS_H, roomAt.get(`${t.id}:${i}`) ?? 0)]));
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => lead + (roomAt.get(`${t.id}:${i}`) ?? 0)]));
   let sheetK = 1;
   let at = serverFit(T, lhOf, 1, area);
   if (crowded(T, at, lhOf, 1)) {
+    // Only asking whether it fits at full size (see serverGrow): no need to find how much smaller.
+    if (opts.probe) return { w: 0, h: 0, scale: 0, tables: [], labels: [], pills: [], mugs: [] };
     let lo = MIN_SHEET_SCALE;
     let hi = 1;
     let best = { k: MIN_SHEET_SCALE, at: serverFit(T, lhOf, MIN_SHEET_SCALE, area) };

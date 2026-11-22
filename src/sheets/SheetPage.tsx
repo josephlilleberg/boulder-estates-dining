@@ -312,7 +312,7 @@ export function SetupLegend({ vertical = false, supper = false }: { vertical?: b
 }
 
 /** Page height a server drawing gives up for its notes. */
-const roomTrim = (b: PageData['body']) => (b.kind === 'server' && b.notesShown ? Math.round((b.room.h + 2) * (1 - b.roomScale)) : 0);
+const roomTrim = (b: PageData['body']) => (b.kind === 'server' && b.notesShown ? Math.round((b.room.h + 2) * (b.fit ?? 1) - (b.room.h + 2) * b.roomScale) : 0);
 
 /**
  * A server sheet's notes: allergies, notes and ½ portions by table, in columns under the drawing.

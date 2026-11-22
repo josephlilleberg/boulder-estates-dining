@@ -294,16 +294,24 @@ describe('Server sheet spacing: any combination fits, with a clear gap between t
     }
   });
 
-  it('tables sit in the same place whether people have one drink, two, or nobody is seated', () => {
+  it('tables keep their arrangement whether people have one drink, two, or nobody is seated', () => {
     for (const sec of getOpening(site(), 'Dinner').sections) {
       const T = layoutTables().filter((t) => t.section === sec.section);
       const one = serverRoom(T, () => resident([coffee(), drink('2% Milk')]), 'Dinner', data().beverages);
       const two = serverRoom(T, () => resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk', { drinkware: 'To-go cup', amount: 'Half' })]), 'Dinner', data().beverages);
       const empty = serverRoom(T, () => null, 'Dinner', data().beverages);
-      const where = (r: typeof one) => r.tables.map((t) => [t.id, Math.round(t.l), Math.round(t.t)]);
-      expect(where(one), sec.label).toEqual(where(two));
-      expect(where(empty), sec.label).toEqual(where(two));
-      expect(one.scale).toBe(two.scale);
+      // A table left of (or above) another in the room stays left of (above) it on the sheet; only the spacing follows the labels.
+      const swapped = (r: typeof one) => {
+        const at = new Map(r.tables.map((t) => [t.id, t]));
+        const out: string[] = [];
+        for (const a of T)
+          for (const b of T) {
+            if (a.x < b.x - 20 && at.get(a.id)!.l + at.get(a.id)!.w / 2 >= at.get(b.id)!.l + at.get(b.id)!.w / 2) out.push(`${a.number} right of ${b.number}`);
+            if (a.y < b.y - 20 && at.get(a.id)!.t + at.get(a.id)!.h / 2 >= at.get(b.id)!.t + at.get(b.id)!.h / 2) out.push(`${a.number} below ${b.number}`);
+          }
+        return out;
+      };
+      for (const r of [one, two, empty]) expect(swapped(r), sec.label).toEqual([]);
       expect(clashes(two)).toEqual([]);
     }
   });
@@ -380,10 +388,11 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     expect(at(pagesFor('Dinner')).l).toBeGreaterThan(x0);
   });
 
-  it('every Dinner server sheet prints its names and drinks at (near) full size', () => {
-    const scales = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body.room.scale] : []));
-    expect(scales).toHaveLength(3);
-    for (const k of scales) expect(k).toBeGreaterThanOrEqual(0.95);
+  it('a server sheet with room to spare is drawn larger, everything still at full size within it', () => {
+    const bodies = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body] : []));
+    expect(bodies).toHaveLength(3);
+    for (const b of bodies) if ((b.fit ?? 1) > 1) expect(b.room.scale).toBe(1);
+    expect(bodies.some((b) => (b.fit ?? 1) > 1)).toBe(true);
   });
 
   it('pages carry a title and, top right, when the sheets last changed; no footer', () => {
@@ -651,8 +660,9 @@ describe('server sheet notes', () => {
     const plain = { ...resident([coffee()]), first: 'Bea' };
     const pg = page((t, s) => (t === first.id ? (s === 0 ? withNote : s === 1 ? plain : null) : null));
     expect(pg.body.kind === 'server' && pg.body.notes).toEqual([{ table: first.number, name: 'Agatha H.', text: 'Nut allergy, ½ portion' }]);
-    expect(pg.body.kind === 'server' && pg.body.roomScale).toBe(1);
-    expect(pg.body.kind === 'server' && pg.body.room.scale).toBe(1); // names and drinks at full size
+    // A near-empty section is drawn larger to use the page; the short notes list needs none of its room.
+    expect(pg.body.kind === 'server' && pg.body.fit).toBeGreaterThan(1);
+    expect(pg.body.kind === 'server' && pg.body.roomScale).toBe(pg.body.kind === 'server' && pg.body.fit);
   });
 
   it('a long list makes the drawing give up height, never below half size', () => {
@@ -660,8 +670,8 @@ describe('server sheet notes', () => {
     const pg = page(() => r);
     if (pg.body.kind !== 'server') throw new Error('server page');
     expect(pg.body.notes.length).toBeGreaterThan(20);
-    expect(pg.body.roomScale).toBeLessThan(1);
-    expect(pg.body.roomScale).toBeGreaterThanOrEqual(0.5);
+    expect(pg.body.roomScale).toBeLessThan(pg.body.fit ?? 1);
+    expect(pg.body.roomScale).toBeGreaterThanOrEqual(0.5 * (pg.body.fit ?? 1));
   });
 });
 

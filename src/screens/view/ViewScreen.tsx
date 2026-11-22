@@ -1,10 +1,15 @@
-import { Fragment, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DrawingView } from '../../sheets/DrawingView';
 import { fitPage } from '../../sheets/model';
+import { printPages } from '../../sheets/print';
+import { PrintIcon } from '../../shell/icons';
 import { ScaledPage, ServerNotes, SetupLegend } from '../../sheets/SheetPage';
 import { useSheets } from '../../sheets/useSheets';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
+
+/** Ctrl/⌘+P sends this so the Sheets screen opens its print panel. */
+export const OPEN_PRINT = 'be-open-print';
 
 type Zoom = 'drawing' | 'page';
 const ZOOM_KEY = 'be-view-zoom-2';
@@ -19,6 +24,12 @@ const savedZoom = (): Zoom => {
 
 export function ViewScreen({ site, meal, opening }: ScreenProps) {
   const { sheets, page } = useSheets(site, meal, opening);
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    const open = () => setPrinting(true);
+    window.addEventListener(OPEN_PRINT, open);
+    return () => window.removeEventListener(OPEN_PRINT, open);
+  }, []);
   const [picked, setPicked] = useState('setup');
   const [zoom, setZoomState] = useState<Zoom>(savedZoom);
   const current = sheets.find((s) => s.key === picked) ?? sheets[0]!;
@@ -50,7 +61,7 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
     <section className="card" style={{ padding: '10px 12px' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px', marginBottom: 8 }}>
         <h1 className="h1" style={{ marginRight: 4 }}>
-          View · {meal}
+          Sheets · {meal}
         </h1>
         {/* One row: Setup · Server 1 2 3, then how to show it. The server
             sheets share one "Server" label so the section numbers read like Seating's. */}
@@ -96,6 +107,13 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
             </button>
           ))}
         </div>
+        <div style={{ position: 'relative' }}>
+          <button type="button" className="btn primary" aria-haspopup="dialog" aria-expanded={printing} onClick={() => setPrinting(!printing)}>
+            <PrintIcon size={17} />
+            Print…
+          </button>
+          {printing && <PrintPanel sheets={sheets} page={page} onClose={() => setPrinting(false)} />}
+        </div>
       </div>
       <div ref={boxRef} style={{ height: box.h || undefined, overflow: 'auto', background: '#E5E7EB', borderRadius: 8, padding: PAD, boxSizing: 'border-box' }}>
         {box.w > 0 &&
@@ -126,5 +144,63 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
         )}
       </div>
     </section>
+  );
+}
+
+const Tick = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 12l5 5L20 7" />
+  </svg>
+);
+
+type Sheets = ReturnType<typeof useSheets>;
+
+/** Pick the pages (all ticked to start) and print them; the print dialog also offers Save as PDF. */
+function PrintPanel({ sheets, page, onClose }: { sheets: Sheets['sheets']; page: Sheets['page']; onClose: () => void }) {
+  const [off, setOff] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const chosen = sheets.filter((s) => !off.has(s.key));
+  const toggle = (key: string) => {
+    const next = new Set(off);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setOff(next);
+  };
+  const print = async () => {
+    if (!chosen.length || busy) return;
+    setBusy(true);
+    try {
+      await printPages(chosen.map(page));
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 20 }} />
+      <div role="dialog" aria-label="Print" style={{ position: 'absolute', top: 46, right: 0, zIndex: 21, width: 320, padding: 12, background: '#FFFFFF', border: '1px solid var(--card-border)', borderRadius: 12, boxShadow: '0 10px 30px rgba(17,24,39,.16)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          {sheets.map((s) => {
+            const on = !off.has(s.key);
+            return (
+              <button key={s.key} type="button" className="check" aria-pressed={on} onClick={() => toggle(s.key)}>
+                <span className={on ? 'box on' : 'box'}>
+                  <Tick />
+                </span>
+                <span style={{ display: 'block' }}>
+                  <span style={{ display: 'block', fontSize: 14, fontWeight: 600 }}>{s.printLabel}</span>
+                  <span style={{ display: 'block', fontSize: 12, color: '#4B5563', marginTop: 2 }}>{s.sub}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <button type="button" className="btn primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => void print()} disabled={!chosen.length || busy} title="Opens the print dialog; choose Save as PDF there for a file">
+          <PrintIcon size={17} />
+          Print {chosen.length === 1 ? '1 page' : `${chosen.length} pages`}
+        </button>
+      </div>
+    </>
   );
 }

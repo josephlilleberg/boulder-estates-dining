@@ -151,8 +151,8 @@ export interface ServerRoom {
   labels: ServerLabel[];
 }
 
-/** Tables drawn 25% smaller than the room scale; the drawing area inside a Letter page. */
-const SG = 0.825;
+/** Tables drawn at 70% of the room scale: smaller tables leave room for full-size (or larger) names and drinks between them. */
+const SG = 0.7;
 /** The drawing area inside a page: a Letter server sheet, or an 11 × 17 page (Supper's combined sheet). */
 export type Area = { w: number; h: number };
 export const LETTER_AREA: Area = { w: 972, h: 676 };
@@ -644,6 +644,8 @@ function boxEntry(x: Extra): BoxEntry {
   const alt = x.variant && x.backup && x.backup !== ANY_KIND ? { alt: `else ${x.backup}` } : {};
   if (!x.variant) return { head: extraText(x) };
   if (x.name === 'Fruit') return { head: extraText({ ...x, backup: null }), ...alt };
+  // A bowl's kind names it, on one line: "Cereal Bowl", not a bulleted "Cereal" under "Bowl".
+  if (x.name === 'Bowl') return { head: `${x.variant} Bowl${x.count > 1 ? ` ×${x.count}` : ''}`, ...alt };
   return { head: `${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`, sub: x.variant, ...alt };
 }
 /** An extra in the setup box: its name and count; with kinds, the kind (bulleted) and any backup under it. */
@@ -934,7 +936,7 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
   const sc = Math.min(PW / totalW, PH / totalH);
   // Rows spread apart vertically to fill the page; table sizes and left-to-right spacing stay true.
   const fy = Math.max(sc, Math.min(PH / totalH, sc * 1.8));
-  const labels: (Omit<ChangeLabel, 'tableId'> & { bw: number; bh: number; tix: number })[] = [];
+  const labels: (Omit<ChangeLabel, 'tableId'> & { bw: number; bh: number; tix: number; nx: number; ny: number; out0: number })[] = [];
   const pillTix: number[] = []; // which table each seat pill belongs to
   const mugTix: number[] = []; // and each "Mug" marker
   const secOf: number[] = []; // each table's section (index into boxes)
@@ -987,7 +989,8 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         const lr = (la * Math.PI) / 180;
         const bw = Math.abs(Math.cos(lr)) * w + Math.abs(Math.sin(lr)) * h;
         const bh = Math.abs(Math.sin(lr)) * w + Math.abs(Math.cos(lr)) * h;
-        labels.push({ l: gx - w / 2, t: gy - h / 2, w, h, ang: la, bw, bh, items, rows, tix: out.tables.length });
+        // nx, ny, out0: the way out from the table, and how far out the block starts (it's never pushed back in).
+        labels.push({ l: gx - w / 2, t: gy - h / 2, w, h, ang: la, bw, bh, items, rows, tix: out.tables.length, nx, ny, out0: gx * nx + gy * ny });
       });
       secOf.push(bi);
       out.tables.push({
@@ -1009,54 +1012,57 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
 
 
   // First each table's chips settle: when two label blocks (or a label and another table) touch,
-  // slide them apart along the shorter overlap a few px at a time.
-  const tbox = out.tables.map((t) => {
-    const a = (t.rotation * Math.PI) / 180;
-    const hw = (Math.abs(Math.cos(a)) * t.w + Math.abs(Math.sin(a)) * t.h) / 2;
-    const hh = (Math.abs(Math.sin(a)) * t.w + Math.abs(Math.cos(a)) * t.h) / 2;
-    const cx = t.l + t.w / 2;
-    const cy = t.t + t.h / 2;
-    return { x0: cx - hw, x1: cx + hw, y0: cy - hh, y1: cy + hh };
-  });
+  // slide them apart a few px at a time. Overlaps are found on the blocks as drawn, turned with their
+  // table (a 45° table's straight-up box is far bigger than its chips, and pushing those apart threw
+  // chips off their seat), and a block is never pushed back toward its own table, onto the chair marks.
+  type OBB = { cx: number; cy: number; hw: number; hh: number; ax: [number, number]; ay: [number, number] };
+  const obb = (cx: number, cy: number, w: number, h: number, deg: number): OBB => {
+    const a = (deg * Math.PI) / 180;
+    return { cx, cy, hw: w / 2, hh: h / 2, ax: [Math.cos(a), Math.sin(a)], ay: [-Math.sin(a), Math.cos(a)] };
+  };
+  const tobb = out.tables.map((t) => obb(t.l + t.w / 2, t.t + t.h / 2, t.w, t.h, t.rotation));
+  const lobb = (L: (typeof labels)[number]) => obb(L.l + L.w / 2, L.t + L.h / 2, L.w, L.h, L.ang);
   const G = 4;
-  type AABB = { x0: number; x1: number; y0: number; y1: number };
-  const boxOf = (L: (typeof labels)[number]): AABB => {
-    const cx = L.l + L.w / 2;
-    const cy = L.t + L.h / 2;
-    return { x0: cx - L.bw / 2, x1: cx + L.bw / 2, y0: cy - L.bh / 2, y1: cy + L.bh / 2 };
+  // The smallest move (along one of the two boxes' sides) that leaves a clear gap of G, or null if they don't touch.
+  const sep = (A: OBB, B: OBB): { x: number; y: number; d: number } | null => {
+    const r = (o: OBB, u: [number, number]) => Math.abs(o.hw * (o.ax[0] * u[0] + o.ax[1] * u[1])) + Math.abs(o.hh * (o.ay[0] * u[0] + o.ay[1] * u[1]));
+    let best: { x: number; y: number; d: number } | null = null;
+    for (const u of [A.ax, A.ay, B.ax, B.ay]) {
+      const dist = (A.cx - B.cx) * u[0] + (A.cy - B.cy) * u[1];
+      const over = r(A, u) + r(B, u) + G - Math.abs(dist);
+      if (over <= 0) return null;
+      if (!best || over < best.d) best = { x: u[0] * (dist < 0 ? -1 : 1), y: u[1] * (dist < 0 ? -1 : 1), d: over };
+    }
+    return best;
+  };
+  const nudge = (L: (typeof labels)[number], dx: number, dy: number) => {
+    L.l += dx;
+    L.t += dy;
+    const back = L.out0 - ((L.l + L.w / 2) * L.nx + (L.t + L.h / 2) * L.ny);
+    if (back > 0) {
+      L.l += L.nx * back;
+      L.t += L.ny * back;
+    }
   };
   for (let it = 0; it < 80; it++) {
     let moved = false;
     for (let i = 0; i < labels.length; i++) {
       const A = labels[i]!;
-      const push = (B: AABB, both: boolean) => {
-        const a = boxOf(A);
-        const ox2 = Math.min(a.x1, B.x1) - Math.max(a.x0, B.x0) + G;
-        const oy2 = Math.min(a.y1, B.y1) - Math.max(a.y0, B.y0) + G;
-        if (ox2 <= G || oy2 <= G) return null;
-        const ac = [(a.x0 + a.x1) / 2, (a.y0 + a.y1) / 2];
-        const bc = [(B.x0 + B.x1) / 2, (B.y0 + B.y1) / 2];
-        return oy2 <= ox2
-          ? { dx: 0, dy: ((ac[1]! <= bc[1]! ? -1 : 1) * Math.min(oy2, 6)) / (both ? 2 : 1) }
-          : { dx: ((ac[0]! <= bc[0]! ? -1 : 1) * Math.min(ox2, 6)) / (both ? 2 : 1), dy: 0 };
-      };
       for (let j = i + 1; j < labels.length; j++) {
         const B = labels[j]!;
-        const m = push(boxOf(B), true);
+        const m = sep(lobb(A), lobb(B));
         if (m) {
-          A.l += m.dx;
-          A.t += m.dy;
-          B.l -= m.dx;
-          B.t -= m.dy;
+          const k = Math.min(m.d, 6) / 2;
+          nudge(A, m.x * k, m.y * k);
+          nudge(B, -m.x * k, -m.y * k);
           moved = true;
         }
       }
-      tbox.forEach((B, k) => {
+      tobb.forEach((B, k) => {
         if (k === A.tix) return; // labels are built outside their own table already
-        const m = push(B, false);
+        const m = sep(lobb(A), B);
         if (m) {
-          A.l += m.dx;
-          A.t += m.dy;
+          nudge(A, m.x * Math.min(m.d, 6), m.y * Math.min(m.d, 6));
           moved = true;
         }
       });

@@ -17,7 +17,7 @@ const chevron = (
 );
 
 // Room Designer edits physical sections of the active layout, independent of meal.
-export function DesignerScreen({ site }: ScreenProps) {
+export function DesignerScreen({ site, navigate }: ScreenProps) {
   const data = useStore((s) => s.data);
   const layout = data.layouts.find((l) => l.siteId === site.id && l.active);
   const siteTables = useMemo(() => data.tables.filter((t) => t.layoutId === layout?.id), [data.tables, layout?.id]);
@@ -62,6 +62,9 @@ export function DesignerScreen({ site }: ScreenProps) {
     <div className="row-wrap">
       <section className="card" style={{ flex: '999 1 600px', minWidth: 0, padding: '16px 14px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <button type="button" className="btn sm" onClick={() => navigate('settings')} title="Back to Settings">
+            ← Settings
+          </button>
           <h1 className="h1">Room Designer</h1>
           <div style={{ flex: '1 1 10px' }} />
           <div style={{ position: 'relative' }}>

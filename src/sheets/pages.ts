@@ -31,6 +31,10 @@ export const sharedLayout = (opening: MealOpening) => opening.sections.length ==
 export const COMBINED_MEALS: string[] = ['Supper'];
 /** Height kept under the combined sheet's drawing for its key. */
 const LEGEND_ROOM = 96;
+/** A page's header (title, and the date the sheets last changed) and bottom margin; there's no footer, so the drawing gets the rest. */
+export const PAGE_CHROME = 92;
+/** Room kept under a setup drawing for its key (one row of groups, 49 px) and the gap above it. */
+const KEY_ROOM = 64;
 
 export function sheetsFor(opening: MealOpening): SheetRef[] {
   if (COMBINED_MEALS.includes(opening.meal)) {
@@ -74,8 +78,8 @@ export interface PageData {
   w: number;
   h: number;
   title: string;
+  /** Top right: "Updated Nov 21, 2026". */
   right: string;
-  footer: string;
   body: PageBody;
 }
 
@@ -118,15 +122,13 @@ export function buildPage(
   opening: MealOpening,
   sheet: SheetRef,
   occupant: Occupant,
-  pageNo: number,
-  pageCount: number,
-  today: string,
+  /** When anything on the sheets last changed ("Nov 21, 2026"), shown top right. */
+  updated: string,
 ): PageData {
   const layoutId = data.layouts.find((l) => l.siteId === site.id && l.active)?.id;
   const tables = data.tables.filter((t) => t.layoutId === layoutId && opening.sections.some((s) => s.section === t.section));
-  const { w, h, name } = PAGE[sheet.paper];
-  const footer = `${name} · Printed ${today} · Page ${pageNo} of ${Math.max(pageCount, 1)}`;
-  const base = { key: sheet.key, paper: sheet.paper, w, h, footer };
+  const { w, h } = PAGE[sheet.paper];
+  const base = { key: sheet.key, paper: sheet.paper, w, h, right: updated ? `Updated ${updated}` : '' };
 
   if (sheet.kind === 'combined') {
     const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'both', area: areaFor(w, h, LEGEND_ROOM) });
@@ -134,7 +136,6 @@ export function buildPage(
     return {
       ...base,
       title: `${meal} · Setup & drinks`,
-      right: `Setup & drinks · ${site.name}`,
       body: { kind: 'server', room, notes, legend: 'supper', notesShown: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
     };
   }
@@ -146,7 +147,6 @@ export function buildPage(
     return {
       ...base,
       title: `${meal} · ${label}`,
-      right: `Server sheet · ${site.name}`,
       body: { kind: 'server', room, notes, legend: null, notesShown: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
     };
   }
@@ -154,21 +154,19 @@ export function buildPage(
   // room per seat), laid out for the 11 × 17 page's shape and enlarged to fill it, so it uses the whole
   // width: as tall as the Letter sheet's area, and as much wider as the page is.
   if (sharedLayout(opening)) {
-    const [PW, PH] = [w - 84, h - 150 - 20 - 84];
+    const [PW, PH] = [w - 84, h - PAGE_CHROME - KEY_ROOM];
     const area = { w: (PW * LETTER_AREA.h) / PH, h: LETTER_AREA.h };
     const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'setup', shared: true, area });
     return {
       ...base,
       title: `${meal} · Setup`,
-      right: `Setup sheet · ${site.name}`,
       body: { kind: 'server', room, notes: [], legend: 'setup', notesShown: false, roomScale: Math.min(PW / (room.w + 2), PH / (room.h + 2)) },
     };
   }
-  // Setup: 150 px of header/footer, 20 px gap and 84 px kept free for the chair key.
+  // Setup: the page less its header and margin, and the room kept for the key.
   return {
     ...base,
     title: `${meal} · Setup`,
-    right: `Setup sheet · ${site.name}`,
-    body: { kind: 'setup', room: setupRoom(opening.sections, tables, occupant, meal, w - 80, h - 150 - 20 - 84) },
+    body: { kind: 'setup', room: setupRoom(opening.sections, tables, occupant, meal, w - 80, h - PAGE_CHROME - KEY_ROOM) },
   };
 }

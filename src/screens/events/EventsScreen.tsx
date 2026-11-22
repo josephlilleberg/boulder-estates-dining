@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { fullName, type DiningEvent } from '../../domain/model';
+import { fullName, type DiningEvent, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { localDate } from '../../state/backup';
 import { act, actUndoable } from '../../state/act';
@@ -201,7 +201,6 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
 function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
   const data = useStore((s) => s.data);
   const [box, size] = useSize<HTMLDivElement>();
-  const [qComing, setQComing] = useState('');
   const [qAdd, setQAdd] = useState('');
   const [qCancel, setQCancel] = useState('');
 
@@ -226,7 +225,19 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
   const mCancel = matcher(qCancel);
   const cancellable = qCancel.trim() ? regulars.filter((a) => mCancel(a.resident)).slice(0, 8) : [];
 
-  const wide = size.w >= 860;
+  // Cancellations on the left, additions on the right; stacked when the window is narrow.
+  const wide = size.w >= 560;
+  const cancel = (a: E.ListedAttendee) => act(label(`${fullName(a.resident)} cancelled`), E.setAttendeeStatus(e.id, a.residentId, 'cancelled')).then(() => setQCancel(''));
+  const addResident = (r: Resident) => act(label(`Add ${fullName(r)}`), E.addToEvent(e.id, r.id)).then(() => setQAdd(''));
+  // Enter adds or cancels the only match, so a name can be typed and entered without the mouse.
+  const enterAdd = () => {
+    if (guestable.length + addable.length !== 1) return;
+    if (guestable[0]) void setGuests(guestable[0], 1).then(() => setQAdd(''));
+    else void addResident(addable[0]!);
+  };
+  const enterCancel = () => {
+    if (cancellable.length === 1) void cancel(cancellable[0]!);
+  };
   const tag = (a: E.ListedAttendee) => (a.onPlan ? [] : ['Not on plan']);
 
   return (
@@ -238,55 +249,12 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
         padding: 16,
         display: 'grid',
         gap: 12,
-        gridTemplateColumns: wide ? 'minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)',
+        gridTemplateColumns: wide ? 'minmax(0, 1fr) minmax(0, 1fr)' : 'minmax(0, 1fr)',
         gridTemplateRows: wide ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)',
         background: '#F7F8FA',
       }}
     >
-      <Column title="Coming" count={regulars.length} q={qComing} setQ={setQComing} placeholder="Find" style={wide ? undefined : { gridColumn: '1 / -1' }}>
-        {regulars
-          .filter((a) => matcher(qComing)(a.resident))
-          .map((a) => (
-            <Line key={a.residentId} name={fullName(a.resident)} tags={tag(a)}>
-              <XButton label={`Cancel ${fullName(a.resident)}`} onClick={() => act(label(`${fullName(a.resident)} cancelled`), E.setAttendeeStatus(e.id, a.residentId, 'cancelled'))} />
-            </Line>
-          ))}
-        {regulars.length === 0 && <Hint text="No one yet." />}
-      </Column>
-
-      <Column title="Additions" count={additions.reduce((n, a) => n + (a.added ? 1 : 0) + a.guests, 0)} q={qAdd} setQ={setQAdd} placeholder="Add a guest or resident" plus>
-        {(guestable.length > 0 || addable.length > 0) && (
-          <Results>
-            {guestable.map((a) => (
-              <Line key={a.residentId} name={fullName(a.resident)} sub="coming">
-                <button type="button" className="btn sm" onClick={() => setGuests(a, 1).then(() => setQAdd(''))}>
-                  + Guest
-                </button>
-              </Line>
-            ))}
-            {addable.map((r) => (
-              <Line key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']}>
-                <button type="button" className="btn sm" onClick={() => act(label(`Add ${fullName(r)}`), E.addToEvent(e.id, r.id)).then(() => setQAdd(''))}>
-                  + Add
-                </button>
-              </Line>
-            ))}
-          </Results>
-        )}
-        {qAdd.trim() && !guestable.length && !addable.length && <Hint text="No one to add by that name." />}
-        {additions.map((a) => {
-          const name = fullName(a.resident);
-          return (
-            <Line key={a.residentId} name={name} tags={[...(a.added ? ['Added'] : []), ...tag(a)]}>
-              <Guests n={a.guests} name={name} onSet={(n) => setGuests(a, n)} />
-              <XButton label={a.added ? `Remove ${name}` : `No guests for ${name}`} onClick={() => (a.added ? act(label(`Remove ${name}`), E.removeFromEvent(e.id, a.residentId)) : setGuests(a, 0))} />
-            </Line>
-          );
-        })}
-        {additions.length === 0 && !qAdd.trim() && <Hint text="Guests and residents who don’t usually come. Search above to add them." />}
-      </Column>
-
-      <Column title="Cancelled" count={cancelled.length} q={qCancel} setQ={setQCancel} placeholder="Cancel someone" plus>
+      <Column title="Cancelled" count={cancelled.length} q={qCancel} setQ={setQCancel} placeholder="Cancel someone" plus onEnter={enterCancel}>
         {cancellable.length > 0 && (
           <Results>
             {cancellable.map((a) => (
@@ -294,7 +262,7 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
                 <button
                   type="button"
                   className="btn sm"
-                  onClick={() => act(label(`${fullName(a.resident)} cancelled`), E.setAttendeeStatus(e.id, a.residentId, 'cancelled')).then(() => setQCancel(''))}
+                  onClick={() => void cancel(a)}
                 >
                   Cancel
                 </button>
@@ -315,6 +283,38 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
         })}
         {cancelled.length === 0 && !qCancel.trim() && <Hint text="No one has cancelled." />}
       </Column>
+      <Column title="Additions" count={additions.reduce((n, a) => n + (a.added ? 1 : 0) + a.guests, 0)} q={qAdd} setQ={setQAdd} placeholder="Add a guest or resident" plus onEnter={enterAdd}>
+        {(guestable.length > 0 || addable.length > 0) && (
+          <Results>
+            {guestable.map((a) => (
+              <Line key={a.residentId} name={fullName(a.resident)} sub="coming">
+                <button type="button" className="btn sm" onClick={() => setGuests(a, 1).then(() => setQAdd(''))}>
+                  + Guest
+                </button>
+              </Line>
+            ))}
+            {addable.map((r) => (
+              <Line key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']}>
+                <button type="button" className="btn sm" onClick={() => void addResident(r)}>
+                  + Add
+                </button>
+              </Line>
+            ))}
+          </Results>
+        )}
+        {qAdd.trim() && !guestable.length && !addable.length && <Hint text="No one to add by that name." />}
+        {additions.map((a) => {
+          const name = fullName(a.resident);
+          return (
+            <Line key={a.residentId} name={name} tags={[...(a.added ? ['Added'] : []), ...tag(a)]}>
+              <Guests n={a.guests} name={name} onSet={(n) => setGuests(a, n)} />
+              <XButton label={a.added ? `Remove ${name}` : `No guests for ${name}`} onClick={() => (a.added ? act(label(`Remove ${name}`), E.removeFromEvent(e.id, a.residentId)) : setGuests(a, 0))} />
+            </Line>
+          );
+        })}
+        {additions.length === 0 && !qAdd.trim() && <Hint text="Guests and residents who don’t usually come. Search above to add them." />}
+      </Column>
+
     </div>
   );
 }
@@ -326,6 +326,7 @@ function Column({
   setQ,
   placeholder,
   plus,
+  onEnter,
   style,
   children,
 }: {
@@ -335,6 +336,8 @@ function Column({
   setQ: (q: string) => void;
   placeholder: string;
   plus?: boolean;
+  /** Enter in the search: act on the one match, if there's exactly one. */
+  onEnter?: () => void;
   style?: CSSProperties;
   children: ReactNode;
 }) {
@@ -362,7 +365,10 @@ function Column({
             placeholder={placeholder}
             value={q}
             onChange={(ev) => setQ(ev.target.value)}
-            onKeyDown={(ev) => ev.key === 'Escape' && setQ('')}
+            onKeyDown={(ev) => {
+              if (ev.key === 'Escape') setQ('');
+              else if (ev.key === 'Enter') onEnter?.();
+            }}
             style={{
               width: '100%',
               boxSizing: 'border-box',

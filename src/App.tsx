@@ -6,12 +6,11 @@ import type { Screen } from './shell/screens';
 import { SCREENS } from './shell/screens';
 import { EventsScreen } from './screens/events/EventsScreen';
 import { DesignerScreen } from './screens/designer/DesignerScreen';
-import { PrintScreen } from './screens/print/PrintScreen';
 import { ResidentsScreen } from './screens/residents/ResidentsScreen';
 import { SeatingScreen } from './screens/seating/SeatingScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import type { ScreenProps } from './screens/types';
-import { ViewScreen } from './screens/view/ViewScreen';
+import { OPEN_PRINT, ViewScreen } from './screens/view/ViewScreen';
 import { getStore, useStore } from './state/store';
 import { UndoToast } from './ui/toast';
 
@@ -20,7 +19,6 @@ const SCREEN_COMPONENTS: Record<Screen, (p: ScreenProps) => JSX.Element> = {
   residents: ResidentsScreen,
   designer: DesignerScreen,
   view: ViewScreen,
-  print: PrintScreen,
   events: EventsScreen,
   settings: SettingsScreen,
 };
@@ -62,7 +60,9 @@ export function App() {
         void getStore().undoLast().catch(() => {});
       } else if (k === 'p') {
         e.preventDefault();
-        setScreen('print');
+        setScreen('view');
+        // The Sheets screen opens its print panel when asked (it may be mounting just now).
+        window.setTimeout(() => window.dispatchEvent(new Event(OPEN_PRINT)), 50);
       } else if (k === 'f') {
         e.preventDefault();
         setScreen('residents');

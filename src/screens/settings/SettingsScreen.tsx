@@ -17,19 +17,21 @@ const chip: React.CSSProperties = { display: 'inline-flex', alignItems: 'center'
 const subhead: React.CSSProperties = { margin: '16px 0 8px', fontSize: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: '#6B7280' };
 
 /** "One section: the Section 2 tables, called “Section 1”" / "Sections 1, 2, 3", worded like the mockup. */
+/** Which tables a meal uses, in plain words: "Sections 1, 2 and 3", or "Section 2's tables, named “Section 1”". */
 export function sectionsSummary(sections: { section: number; label: string }[]): string {
   const plain = (s: { section: number; label: string }) => s.label === `Section ${s.section}`;
-  if (sections.length === 1) {
-    const s = sections[0]!;
-    return plain(s) ? `One section: Section ${s.section}` : `One section: the Section ${s.section} tables, called “${s.label}”`;
+  const one = (s: { section: number; label: string }) => (plain(s) ? `Section ${s.section}` : `Section ${s.section}’s tables, named “${s.label}”`);
+  if (sections.length === 1) return one(sections[0]!);
+  if (sections.every(plain)) {
+    const n = sections.map((s) => s.section);
+    return `Sections ${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
   }
-  if (sections.every(plain)) return `Sections ${sections.map((s) => s.section).join(', ')}`;
-  return sections.map((s) => (plain(s) ? `Section ${s.section}` : `Section ${s.section} tables as “${s.label}”`)).join(' · ');
+  return sections.map(one).join(' · ');
 }
 
 type Open = { kind: 'drink'; drink: Beverage | null } | { kind: 'cup'; cup: string | null } | { kind: 'extra'; option: ExtraOption | null } | { kind: 'meal'; meal: MealName } | { kind: 'restore'; dir: string } | null;
 
-export function SettingsScreen({ site }: ScreenProps) {
+export function SettingsScreen({ site, navigate }: ScreenProps) {
   const data = useStore((s) => s.data);
   const live: Site = data.sites.find((s) => s.id === site.id) ?? site;
   const [open, setOpen] = useState<Open>(null);
@@ -91,7 +93,7 @@ export function SettingsScreen({ site }: ScreenProps) {
   return (
     <div>
       <h1 className="h1" style={{ marginBottom: 16 }}>Settings</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', alignItems: 'start', gap: 16 }}>
         <section className="card" style={{ padding: 18 }}>
           <h2 className="h2" style={{ marginBottom: 6 }}>Drinks, cups &amp; extras</h2>
           <p style={{ margin: '0 0 12px', fontSize: 13, color: '#4B5563' }}>{site.name}. Changes show on the resident card and every sheet. Click one to change it.</p>
@@ -164,9 +166,7 @@ export function SettingsScreen({ site }: ScreenProps) {
                 const td: React.CSSProperties = { padding: '8px 0', borderBottom: last ? undefined : '1px solid #EEF0F3', verticalAlign: 'middle' };
                 return (
                   <tr key={m.meal}>
-                    <td style={{ ...td, color: '#4B5563', whiteSpace: 'nowrap', paddingRight: 12 }}>
-                      {site.id} {m.meal}
-                    </td>
+                    <td style={{ ...td, fontWeight: 600, whiteSpace: 'nowrap', paddingRight: 12 }}>{m.meal}</td>
                     <td style={td}>{sectionsSummary(m.sections)}</td>
                     <td style={{ ...td, textAlign: 'right', paddingLeft: 8 }}>
                       <button type="button" className="btn sm" onClick={() => setOpen({ kind: 'meal', meal: m.meal })} aria-label={`Change ${m.meal} sections`}>
@@ -195,6 +195,14 @@ export function SettingsScreen({ site }: ScreenProps) {
             {importNote && <p style={{ margin: '12px 0 0', fontSize: 13, color: '#374151' }}>{importNote}</p>}
           </section>
         )}
+
+        <section className="card" style={{ padding: 18 }}>
+          <h2 className="h2" style={{ marginBottom: 6 }}>Room layout</h2>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: '#4B5563' }}>Where the tables stand in each section, and how they're turned.</p>
+          <button type="button" className="btn sm" onClick={() => navigate('designer')}>
+            Open Room Designer
+          </button>
+        </section>
 
         <section className="card" style={{ padding: 18 }}>
           <h2 className="h2" style={{ marginBottom: 6 }}>Backups</h2>

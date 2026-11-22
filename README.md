@@ -66,11 +66,12 @@ The rooms and tables for Boulder Estates' three sections come built in.
 
 ## Using the app
 
-The top bar runs in shift order: **Seating · Residents · View · Print**, then the setup
-screens, **Room Designer · Settings**, with the **meal** picker (Breakfast, Dinner, Supper)
-beside them. On narrower windows the screen names shrink to icons (hover for the name).
+The top bar runs in shift order: **Seating · Residents · Sheets · Events**, then **Settings**
+(the Room Designer opens from there), with the **meal** picker (Breakfast, Dinner, Supper)
+beside them on Seating and Sheets. It fits on one line on a laptop; on narrower windows the
+screen names shrink to icons (hover for the name).
 
-**Shortcuts:** Ctrl+Z (⌘Z on Mac) undoes the last change, Ctrl+P opens Print, and Ctrl+F
+**Shortcuts:** Ctrl+Z (⌘Z on Mac) undoes the last change, Ctrl+P opens Sheets with the print panel, and Ctrl+F
 jumps to resident search. Big changes (deleting or archiving a resident, closing a section,
 deleting a table) show a pop-up with an **Undo** button.
 
@@ -89,7 +90,8 @@ sheet previews scale to fit the window, so nothing needs scrolling.
 
 ### Residents
 
-The list (sortable by last or first name, searchable) and each resident's card.
+The list (sortable by last or first name, searchable) and each resident's card. The card's own
+meal tabs (each showing On or Off) pick the meal, so the top bar's meal picker isn't shown here.
 
 - **Name:** first, last and an optional **nickname**. The nickname is what shows on the
   seating map and server sheets ("Bobby F."). Names typed in lowercase are capitalized,
@@ -116,18 +118,27 @@ The list (sortable by last or first name, searchable) and each resident's card.
 - The **⋯** menu offers rename, **Archive** (hides them everywhere but keeps their details,
   and can be restored) and **Delete** (removes them; Undo brings them back).
 
-### View and Print
+### Sheets
 
-- **View** has two zooms. **Drawing** (the default) crops to the tables and labels and fits
-  them to the window, with the chair key beside the setup sheet and a server sheet's notes underneath; **Whole page** shows the sheet exactly
-  as it prints.
-- **Print** lets you tick the sheets you want, preview them, and print or save as PDF. The
-  setup sheet prints on 11×17 and the others on Letter, so the app opens one print dialog
-  per paper size.
+- Every sheet for the meal, one tab each (Setup, Server 1 2 3). Two zooms: **Drawing** (the
+  default) crops to the tables and labels and fits them to the window, with the key beside the
+  setup sheet and a server sheet's notes underneath; **Whole page** shows the sheet exactly as
+  it prints.
+- **Print…** opens a panel to tick the sheets you want (all to start) and print them, or save
+  as PDF from the print dialog. The setup sheet prints on 11×17 and the others on Letter, so the
+  app opens one print dialog per paper size.
+
+### Events
+
+Thanksgiving, Christmas and the like, each with its own guest list and seating. The guest list
+starts with everyone who usually comes to that meal. **Cancelled** (left) and **Additions**
+(right) each have a search: type a name and click Cancel or Add, or press Enter when only one
+name matches. Additions also takes guests (+ Guest beside someone coming).
 
 ### Room Designer
 
-The room layout used by every screen and sheet.
+The room layout used by every screen and sheet. Open it from **Settings → Room layout**;
+**← Settings** goes back.
 
 - Add tables (round seats 4, rectangle seats 6), and duplicate, move, rotate or delete them.
 - **Even out spacing** tidies rows.
@@ -140,8 +151,10 @@ The room layout used by every screen and sheet.
   - Add cups.
   - Edit the "Add an extra" list, and reorder it with the up/down arrows (setup sheets list extras in this order).
   - Renaming a drink updates every resident who has it. Anything still in use can't be removed.
-- **Meals & sections:** open or close each section's tables per meal, and rename them.
+- **Meals & sections:** which tables each meal uses, in plain words ("Sections 1, 2 and 3",
+  "Section 2's tables, named 'Section 1'"). Open or close each section's tables per meal, and rename them.
   Closing a section sends its seated residents back to waiting, as one undoable step.
+- **Room layout:** opens the Room Designer.
 - **Backups:** change the folder, or restore a backup.
 
 ### Undo
@@ -153,11 +166,11 @@ label shows what it will undo. The history is cleared when the app closes or aft
 
 | Sheet | Paper | For | Shows |
 | --- | --- | --- | --- |
-| **Setup** | 11×17 | Setting the tables | Every section on one page. At each seat, what's added to the usual setting (a glass and a coffee mug): **+Glass**, **+Juice**, **+To-Go**, **+Pitcher** (milk pitcher or hot water), one above the other, then the resident's **extras** in one yellow box, one per line, always in the order of the Extras list in Settings (reorder it there with the up/down arrows; it starts Napkins, Soup Spoon, Butter, Jelly, Brown Sugar, Fruit), at full size; an extra with kinds shows its name and count with the kind bulleted underneath (Jelly ×2 / • Grape, then a named backup like “else Strawberry”; “any kind” isn't printed), fruit is just its kind (Banana), and a line too long for the box carries on, indented (a count like ×2 stays with its word); the lines share a left edge and sit centred in the box. Every chip and box on a sheet is the same width (as wide as the sheet's longest line needs, 72–110 px) and the same type size, so each seat's stack lines up. The usual glass holds the first drink in a glass, or else RO water / the water glass. A seat with no coffee or tea gets a red dot on the table: take the mug away. On the table edge at each seat (bent along the edge on a round table), one length for every chair: a thin dark grey bar for an arm chair, light grey **Armless** (dark outline) for an armless chair, red **No chair** (take the chair away). Red is the only colour on the edge, and the words mean there's nothing to learn. Tables where anyone takes creamer are tinted. The key under the drawing reads as short instructions in three groups: **Chairs** (Arm chair, Armless chair, Remove chair), **Table** (Remove mug, Add creamer tray) and **Place setting** (Add drinkware, Add extras), every sample pill one size. Tables slide apart sideways so neighbouring chips keep a clear gap; each section gets the width it needs, and a very full sheet is drawn a little smaller. At **Breakfast** (one section) the setup sheet follows its server sheet's layout: the same tables in the same arrangement, spread across the full width of the 11 × 17 page. |
-| **Server** | Letter, one per section | Pouring drinks | Each resident's name with a pill for everything the server fills, all one width and always in the same order from the name: milk, juice, tea, other drinks (short names from Settings: Orange, Apple, Cranberry…), then **RO water** and **Hot water**. A dark band under each pill names what it goes in (GLASS, JUICE GLASS, TO-GO, PITCHER); tea's band says which tea instead (CHAMOMILE, BLACK, GREEN), since a mug isn't filled by the server. A dark ½ tab means half. Two of the same juice show as one "2 …" pill. Under the drawing, **Notes** lists each resident's allergies, notes and half portion by table. Tables spread apart by what's actually at each seat, keeping a clear gap; a section too full for that is drawn smaller, every label by the same amount. |
+| **Setup** | 11×17 | Setting the tables | Every section on one page. At each seat, what's added to the usual setting (a glass and a coffee mug): **+Glass**, **+Juice**, **+To-Go**, **+Pitcher** (milk pitcher or hot water), one above the other, then the resident's **extras** in one yellow box, one per line, always in the order of the Extras list in Settings (reorder it there with the up/down arrows; it starts Napkins, Soup Spoon, Butter, Jelly, Brown Sugar, Fruit), at full size; an extra with kinds shows its name and count with the kind bulleted underneath (Jelly ×2 / • Grape, then a named backup like “else Strawberry”; “any kind” isn't printed), fruit is just its kind (Banana), a bowl reads by its kind on one line (Cereal Bowl), and a line too long for the box carries on, indented (a count like ×2 stays with its word); the lines share a left edge and sit centred in the box. Every chip and box on a sheet is the same width (as wide as the sheet's longest line needs, 72–110 px) and the same type size, so each seat's stack lines up. The usual glass holds the first drink in a glass, or else RO water / the water glass. A seat with no coffee or tea gets a red dot on the table: take the mug away. On the table edge at each seat (bent along the edge on a round table), one length for every chair: a thin dark grey bar for an arm chair, light grey **Armless** (dark outline) for an armless chair, red **No chair** (take the chair away). The two word marks have softly rounded corners rather than round ends, so the words get the mark's whole length. Red is the only colour on the edge, and the words mean there's nothing to learn. Tables where anyone takes creamer are tinted. The key under the drawing reads as short instructions in three groups: **Chairs** (Arm chair, Armless chair, Remove chair), **Table** (Remove mug, Add creamer tray) and **Place setting** (+Glass: Add drinkware, +Extra: Add extras), every sample pill one size. Chips that crowd each other slide apart, judged by their shapes as drawn (so a table set at an angle keeps each seat's chips by its seat), and never back onto the chair marks. Tables slide apart sideways so neighbouring chips keep a clear gap; each section gets the width it needs, and a very full sheet is drawn a little smaller. At **Breakfast** (one section) the setup sheet follows its server sheet's layout: the same tables in the same arrangement, spread across the full width of the 11 × 17 page. |
+| **Server** | Letter, one per section | Pouring drinks | Tables are drawn small (70% of the room scale) so the names and drinks between them print at full size. Each resident's name with a pill for everything the server fills, all one width and always in the same order from the name: milk, juice, tea, other drinks (short names from Settings: Orange, Apple, Cranberry…), then **RO water** and **Hot water**. A dark band under each pill names what it goes in (GLASS, JUICE GLASS, TO-GO, PITCHER); tea's band says which tea instead (CHAMOMILE, BLACK, GREEN), since a mug isn't filled by the server. A dark ½ tab means half. Two of the same juice show as one "2 …" pill. Under the drawing, **Notes** lists each resident's allergies, notes and half portion by table. Tables spread apart by what's actually at each seat, keeping a clear gap; a section too full for that is drawn smaller, every label by the same amount. |
 | **Setup & drinks** | 11×17, Supper only | Setting and pouring | Supper's one page, in place of its setup and server sheets. At each seat, from the table outward: the name, the drink pills (as on the server sheet), then the extras chips. A cup added to the usual setting (one glass, one mug) has a green **+** at the left of its band, in place of +Glass / +Juice chips; an extra glass for water is a **Water** pill. A red dot on the table means no mug. Chair pills on the table edge, the creamer tint, the key and the notes are all on it. |
 
-Each page footer shows the paper size, the print date and the page number.
+Each page's top right shows when anything on the sheets last changed (“Updated Nov 22, 2026”): any change to seating, residents or settings, or importing or restoring data; holiday events don't count, and Undo puts the old date back. There's no footer, so the drawing gets that room.
 
 ## Your data, backups and privacy
 

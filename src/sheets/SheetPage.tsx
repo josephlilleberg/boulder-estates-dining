@@ -1,6 +1,6 @@
 import { Fragment, useId, type CSSProperties, type ReactNode } from 'react';
 import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
-import type { PageData } from './pages';
+import { PAGE_CHROME, type PageData } from './pages';
 import { CHAIR_LABEL, type Chair } from '../domain/model';
 
 // One printed page at true size (96 px per inch). View and Print preview scale it
@@ -154,12 +154,15 @@ function MugMarker({ m }: { m: MugMark }) {
 }
 
 /** A chair pill on a table edge: the chair type, as in the key. */
+/** Corner radius of a chair mark with words: softly rounded, not a pill, so the words get its whole length. */
+const WORD_R = 4;
+
 function ChairPill({ p }: { p: SeatPill }) {
   const look = CHAIR_PILL[p.chair];
   if (p.arc) return <ArcChairPill p={p} arc={p.arc} />;
   if (look.text)
     return (
-      <div style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, transform: `rotate(${p.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: look.border, borderRadius: p.h / 2, background: look.bg, color: look.color, fontSize: 9 * (p.k ?? 1), fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+      <div style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, transform: `rotate(${p.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: look.border, borderRadius: WORD_R * (p.k ?? 1), background: look.bg, color: look.color, fontSize: 9 * (p.k ?? 1), fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
         {look.text}
       </div>
     );
@@ -167,8 +170,9 @@ function ChairPill({ p }: { p: SeatPill }) {
 }
 
 /**
- * A chair mark on a round table, bent along the table's edge: a thick arc with round ends (its outline
- * drawn underneath), and the words following the curve, upright at every seat.
+ * A chair mark on a round table, bent along the table's edge: a thick arc (its outline drawn underneath),
+ * with round ends for the plain arm chair bar and square ends when it carries words (they get its whole
+ * length), and the words following the curve, upright at every seat.
  */
 function ArcChairPill({ p, arc }: { p: SeatPill; arc: NonNullable<SeatPill['arc']> }) {
   const look = CHAIR_PILL[p.chair];
@@ -179,7 +183,11 @@ function ArcChairPill({ p, arc }: { p: SeatPill; arc: NonNullable<SeatPill['arc'
   const { r, a } = arc;
   const h = p.h;
   const C = r + h;
-  const d = (p.w - h) / 2 / r; // half the arc's angle: its length plus the round ends is the mark's width
+  // Half the arc's angle: with round ends, the arc plus its ends is the mark's width; square ends are the
+  // whole width, and the fill stops short of them by the outline's width so the outline closes the ends.
+  const cap = look.text ? 'butt' : 'round';
+  const d = look.text ? p.w / 2 / r : (p.w - h) / 2 / r;
+  const dIn = look.text ? (p.w / 2 - bw) / r : d;
   const below = Math.sin(a) > 0.01; // seats in the lower half read left to right the other way round
   // `span`: half the angle drawn. The words get a longer path than the mark (a quarter turn each way),
   // centred on the seat, so they're never cut off at its ends.
@@ -193,8 +201,8 @@ function ArcChairPill({ p, arc }: { p: SeatPill; arc: NonNullable<SeatPill['arc'
   const id = `chair-arc${useId().replace(/:/g, '')}`;
   return (
     <svg aria-hidden={look.text ? undefined : true} style={{ position: 'absolute', left: p.l + arc.ox - C, top: p.t + arc.oy - C, width: 2 * C, height: 2 * C, overflow: 'visible', pointerEvents: 'none' }}>
-      <path d={path(r)} fill="none" stroke={bc} strokeWidth={h} strokeLinecap="round" />
-      <path d={path(r)} fill="none" stroke={look.bg} strokeWidth={h - 2 * bw} strokeLinecap="round" />
+      <path d={path(r)} fill="none" stroke={bc} strokeWidth={h} strokeLinecap={cap} />
+      <path d={path(r, dIn)} fill="none" stroke={look.bg} strokeWidth={h - 2 * bw} strokeLinecap={cap} />
       {look.text && (
         <>
           <path id={id} d={path(below ? r + 0.35 * fs : r - 0.35 * fs, Math.PI / 2)} fill="none" />
@@ -250,12 +258,12 @@ function SetupBody({ room }: { room: SetupRoom }) {
 /** Every pill in the key is one size, like the sheet's: 52 × 16 px, 9.5 px bold. */
 const KEY_W = 52;
 const KEY_H = 16;
-const keyPill = (look: { bg: string; border: string; color?: string }, text?: string, h = KEY_H) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: KEY_W, height: h, borderRadius: h / 2, background: look.bg, border: look.border, color: look.color ?? '#111827', fontSize: 9.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
+const keyPill = (look: { bg: string; border: string; color?: string }, text?: string, h = KEY_H, radius = h / 2) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: KEY_W, height: h, borderRadius: radius, background: look.bg, border: look.border, color: look.color ?? '#111827', fontSize: 9.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
     {text}
   </span>
 );
-const chairKey = (c: Chair) => keyPill(CHAIR_PILL[c], CHAIR_PILL[c].text, CHAIR_PILL[c].text ? KEY_H : 8);
+const chairKey = (c: Chair) => keyPill(CHAIR_PILL[c], CHAIR_PILL[c].text, CHAIR_PILL[c].text ? KEY_H : 8, CHAIR_PILL[c].text ? WORD_R : undefined);
 const dotKey = <span style={{ width: 10, height: 10, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />;
 const creamerKey = <span style={{ width: 26, height: 14, borderRadius: 4, boxSizing: 'border-box', background: '#EDE9FE', border: '1.5px solid #6D28D9' }} />;
 const cupKey = (
@@ -275,7 +283,7 @@ export function SetupLegend({ vertical = false, supper = false }: { vertical?: b
   const groups: { head: string; items: [ReactNode, string][] }[] = [
     { head: 'Chairs', items: [[chairKey('arm'), CHAIR_LABEL.arm], [chairKey('no_arm'), CHAIR_LABEL.no_arm], [chairKey('none'), 'Remove chair']] },
     { head: 'Table', items: [[dotKey, 'Remove mug'], [creamerKey, 'Add creamer tray']] },
-    { head: 'Place setting', items: [supper ? [cupKey, 'Add cup'] : [keyPill({ bg: '#86EFAC', border: '1px solid #111827' }, '+Glass'), 'Add drinkware'], [keyPill({ bg: EXTRA_BG, border: '1px solid #111827' }, 'Banana'), 'Add extras']] },
+    { head: 'Place setting', items: [supper ? [cupKey, 'Add cup'] : [keyPill({ bg: '#86EFAC', border: '1px solid #111827' }, '+Glass'), 'Add drinkware'], [keyPill({ bg: EXTRA_BG, border: '1px solid #111827' }, '+Extra'), 'Add extras']] },
   ];
   return (
     <div data-sheet-legend style={{ marginTop: vertical ? 0 : 12, display: 'flex', flexDirection: vertical ? 'column' : 'row', flexWrap: vertical ? undefined : 'wrap', gap: vertical ? 0 : 8, width: vertical ? 'max-content' : undefined, fontSize: 12, color: '#111827', ...(vertical ? { border: '1px solid #D1D5DB', borderRadius: 8, background: '#FFFFFF', overflow: 'hidden' } : {}) }}>
@@ -342,7 +350,7 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
       </div>
 
         <div
-          style={{ height: b.kind === 'setup' || !b.notesShown ? page.h - 150 : page.h - 124 - roomTrim(b), boxSizing: 'border-box', paddingTop: 12, display: 'grid', gridTemplateColumns: 'max-content', gap: '12px 20px', alignContent: b.kind === 'setup' ? 'start' : 'center', justifyContent: 'center' }}
+          style={{ height: b.kind === 'setup' || !b.notesShown ? page.h - PAGE_CHROME : page.h - 124 - roomTrim(b), boxSizing: 'border-box', paddingTop: 12, display: 'grid', gridTemplateColumns: 'max-content', gap: '12px 20px', alignContent: b.kind === 'setup' ? 'start' : 'center', justifyContent: 'center' }}
         >
           <div data-sheet-room>
             {b.kind === 'server' ? (
@@ -365,16 +373,9 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
           {b.kind === 'server' && b.legend && <SetupLegend supper={b.legend === 'supper'} />}
         </div>
 
-      {b.kind === 'server' && b.notesShown ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', borderTop: '1px solid #E5E7EB', fontSize: 10.5, color: '#4B5563' }}>
-          <div style={{ flex: 1, paddingTop: 6 }}>
-            <ServerNotes notes={b.notes} />
-          </div>
-          <div style={{ alignSelf: 'flex-end', whiteSpace: 'nowrap', padding: '2px 0 8px' }}>{page.footer}</div>
-        </div>
-      ) : (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', borderTop: '1px solid #E5E7EB', fontSize: 10.5, color: '#4B5563' }}>
-          <div style={{ whiteSpace: 'nowrap' }}>{page.footer}</div>
+      {b.kind === 'server' && b.notesShown && (
+        <div style={{ flex: 1, borderTop: '1px solid #E5E7EB', paddingTop: 6, fontSize: 10.5, color: '#4B5563' }}>
+          <ServerNotes notes={b.notes} />
         </div>
       )}
     </div>

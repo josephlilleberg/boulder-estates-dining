@@ -2,9 +2,14 @@ import { useSyncExternalStore } from 'react';
 import { migrate } from '../db/migrate';
 import { loadAll, type AppData } from '../db/repo';
 import type { Db } from '../db/types';
-import { invert, toStmt, type Op } from './ops';
+import { invert, put, toStmt, type Op } from './ops';
 
 export const UNDO_LIMIT = 100; // brief asks for at least 50
+
+/** Settings key: when anything on the printed sheets last changed (ISO time), shown as "Updated …" on each page. */
+export const SHEETS_UPDATED = 'sheets_updated';
+/** Changes to these tables (holiday events) don't touch the everyday sheets. */
+const EVENT_TABLES = new Set(['event', 'event_attendee', 'event_seat']);
 
 export type SaveStatus = 'saved' | 'saving' | 'error';
 
@@ -51,8 +56,10 @@ export class Store {
   /** Apply a change. `ops` may be computed from current data (it runs after earlier queued changes). */
   change(label: string, ops: Op[] | ((data: AppData) => Op[])): Promise<void> {
     return this.enqueue(async () => {
-      const list = typeof ops === 'function' ? ops(this.state.data) : ops;
-      if (!list.length) return;
+      const ops0 = typeof ops === 'function' ? ops(this.state.data) : ops;
+      if (!ops0.length) return;
+      // Stamp the time in the same step, so undoing the change puts the old date back too.
+      const list = ops0.some((o) => !EVENT_TABLES.has(o.table)) ? [...ops0, put('meta', { key: SHEETS_UPDATED, value: new Date().toISOString() })] : ops0;
       const inverse = await invert(this.db, list);
       await this.db.batch(list.map(toStmt));
       this.undo.push({ label, inverse });
@@ -86,6 +93,8 @@ export class Store {
     return this.enqueue(async () => {
       await work(this.db);
       await migrate(this.db);
+      // Everything on the sheets may differ now.
+      await this.db.batch([toStmt(put('meta', { key: SHEETS_UPDATED, value: new Date().toISOString() }))]);
       this.undo = [];
     });
   }

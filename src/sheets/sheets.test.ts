@@ -348,7 +348,7 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     const opening = getOpening(site(), meal);
     const sheets = sheetsFor(opening);
     const occ = occupantFor(data(), 'BE', meal);
-    return sheets.map((s, i) => buildPage(data(), site(), meal, opening, s, occ, i + 1, sheets.length, 'Nov 7, 2026'));
+    return sheets.map((s) => buildPage(data(), site(), meal, opening, s, occ, 'Nov 7, 2026'));
   };
   const tablesOn = (p: ReturnType<typeof pagesFor>[number]) => p.body.room.tables;
 
@@ -369,14 +369,19 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     expect(at(pagesFor('Dinner')).l).toBeGreaterThan(x0);
   });
 
-  it('pages carry the mockup header and footer', () => {
+  it('every Dinner server sheet prints its names and drinks at (near) full size', () => {
+    const scales = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body.room.scale] : []));
+    expect(scales).toHaveLength(3);
+    for (const k of scales) expect(k).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it('pages carry a title and, top right, when the sheets last changed; no footer', () => {
     const pages = pagesFor('Dinner');
     const [setup, server] = pages;
     expect(pages.map((p) => p.key)).toEqual(['setup', 'server-1', 'server-2', 'server-3']); // allergies and notes are on each server sheet
-    expect([setup!.title, setup!.right]).toEqual(['Dinner · Setup', 'Setup sheet · Boulder Estates']);
-    expect(setup!.footer).toBe('11 × 17 · Printed Nov 7, 2026 · Page 1 of 4');
-    expect([server!.title, server!.right, server!.w, server!.h]).toEqual(['Dinner · Section 1', 'Server sheet · Boulder Estates', 1056, 816]);
-    expect(pages[3]!.footer).toBe('Letter · Printed Nov 7, 2026 · Page 4 of 4');
+    expect([setup!.title, setup!.right]).toEqual(['Dinner · Setup', 'Updated Nov 7, 2026']);
+    expect([server!.title, server!.right, server!.w, server!.h]).toEqual(['Dinner · Section 1', 'Updated Nov 7, 2026', 1056, 816]);
+    expect('footer' in setup!).toBe(false);
     expect(setup!.w / setup!.h).toBeCloseTo(17 / 11);
   });
 
@@ -428,6 +433,9 @@ describe('pill order and extras', () => {
     expect(itemH(box!)).toBe(2 + 4 + 2 * BOX_LINE_H);
     expect(chipRows(setupChanges(r, 'Dinner')).map((row) => row.length)).toEqual([1, 1]);
     expect(texts(resident([drink('2% Milk')], { extras: [{ id: 'e3', name: 'Soup Spoon', variant: null, backup: null, count: 1 }] }))).toEqual(['Soup Spoon', 'Mug on table']);
+    // A bowl reads by its kind, on one line, like fruit does.
+    const bowl = setupChanges(resident([coffee()], { extras: [{ id: 'e4', name: 'Bowl', variant: 'Cereal', backup: null, count: 1 }] }), 'Dinner').find((c) => c.entries);
+    expect(bowl!.entries).toEqual([{ head: 'Cereal Bowl' }]);
   });
 });
 
@@ -499,7 +507,7 @@ describe('setup chip layout', () => {
 
 describe('Breakfast: setup and server sheets share one layout', () => {
   const opening = () => getOpening(site(), 'Breakfast');
-  const pagesOf = (occ: (t: string, s: number) => Resident | null) => sheetsFor(opening()).map((sh) => buildPage(data(), site(), 'Breakfast', opening(), sh, occ, 1, 2, 'Nov 18, 2026'));
+  const pagesOf = (occ: (t: string, s: number) => Resident | null) => sheetsFor(opening()).map((sh) => buildPage(data(), site(), 'Breakfast', opening(), sh, occ, 'Nov 18, 2026'));
   const r = (): Resident => {
     const x = { ...resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { extras: [{ id: 'e', name: 'Fruit', variant: 'Banana', backup: null, count: 1 }] }), attends: ['Breakfast' as const] };
     x.prefs = { Breakfast: x.prefs.Dinner! };
@@ -568,7 +576,7 @@ describe('Supper: one combined page', () => {
     const r: Resident = { ...resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { roWater: true, extras: [{ id: 'e', name: 'Napkins', variant: null, backup: null, count: 1 }] }), attends: ['Supper'] };
     r.prefs = { Supper: r.prefs.Dinner! };
     const sheet = sheetsFor(opening())[0]!;
-    const pg = buildPage(data(), site(), 'Supper', opening(), sheet, () => r, 1, 1, 'Nov 18, 2026');
+    const pg = buildPage(data(), site(), 'Supper', opening(), sheet, () => r, 'Nov 18, 2026');
     if (pg.body.kind !== 'server') throw new Error('server-style page');
     const room = pg.body.room;
     expect(pg.body.legend).toBe('supper');
@@ -594,6 +602,28 @@ describe('Supper: one combined page', () => {
     expect(clashes).toEqual([]);
     expect(room.scale).toBeGreaterThanOrEqual(MIN_SHEET_SCALE);
   });
+  it('on a table set at an angle, every seat’s chips stay off the chair marks', () => {
+    // Everyone takes a pitcher and three extras, so the angled tables' blocks crowd each other.
+    const extras = [
+      { id: 'a', name: 'Napkins', variant: null, backup: null, count: 2 },
+      { id: 'b', name: 'Jelly', variant: 'Grape', backup: null, count: 2 },
+      { id: 'c', name: 'Fruit', variant: 'Banana', backup: null, count: 1 },
+    ];
+    const r = resident([drink('2% Milk')], { hotWater: true, extras }, 'none');
+    const opening = getOpening(site(), 'Dinner');
+    const room = setupRoom(opening.sections, layoutTables(), () => r, 'Dinner', 1552, 802);
+    const angled = new Set(room.tables.filter((t) => t.rotation % 90).map((t) => t.id));
+    expect(angled.size).toBeGreaterThan(0);
+    // A pill's centre (plus half its height) inside a block, as drawn turned, is a clash.
+    const inside = (c: (typeof room.changes)[number], x: number, y: number, pad: number) => {
+      const a = (c.ang * Math.PI) / 180;
+      const dx = x - (c.l + c.w / 2);
+      const dy = y - (c.t + c.h / 2);
+      return Math.abs(dx * Math.cos(a) + dy * Math.sin(a)) < c.w / 2 + pad && Math.abs(-dx * Math.sin(a) + dy * Math.cos(a)) < c.h / 2 + pad;
+    };
+    const clashes = room.changes.filter((c) => angled.has(c.tableId)).filter((c) => room.pills.some((p) => inside(c, p.l + p.w / 2, p.t + p.h / 2, p.h / 2)));
+    expect(clashes).toEqual([]);
+  });
 });
 
 describe('server sheet notes', () => {
@@ -601,7 +631,7 @@ describe('server sheet notes', () => {
   const page = (occ: (t: string, s: number) => Resident | null) => {
     const opening = getOpening(site(), 'Dinner');
     const sheet = sheetsFor(opening).find((x) => x.kind === 'server')!;
-    return buildPage(data(), site(), 'Dinner', opening, sheet, occ, 1, 1, 'Nov 11, 2026');
+    return buildPage(data(), site(), 'Dinner', opening, sheet, occ, 'Nov 11, 2026');
   };
 
   it('allergies, notes and half portions are listed by table under the drawing; no key, no red !', () => {
@@ -611,6 +641,7 @@ describe('server sheet notes', () => {
     const pg = page((t, s) => (t === first.id ? (s === 0 ? withNote : s === 1 ? plain : null) : null));
     expect(pg.body.kind === 'server' && pg.body.notes).toEqual([{ table: first.number, name: 'Agatha H.', text: 'Nut allergy, ½ portion' }]);
     expect(pg.body.kind === 'server' && pg.body.roomScale).toBe(1);
+    expect(pg.body.kind === 'server' && pg.body.room.scale).toBe(1); // names and drinks at full size
   });
 
   it('a long list makes the drawing give up height, never below half size', () => {

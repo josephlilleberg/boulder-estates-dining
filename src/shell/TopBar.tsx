@@ -40,7 +40,7 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
         {SCREENS.map((s, i) => (
           <Fragment key={s.id}>
             {s.setup && !SCREENS[i - 1]?.setup && <span className="navsep" aria-hidden="true" />}
-            <NavButton on={screen === s.id} onClick={() => onNavigate(s.id)} icon={s.icon}>
+            <NavButton on={screen === s.id || (screen === 'designer' && s.id === 'settings')} onClick={() => onNavigate(s.id)} icon={s.icon}>
               {s.label}
             </NavButton>
           </Fragment>

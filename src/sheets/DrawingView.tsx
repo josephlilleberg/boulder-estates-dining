@@ -25,9 +25,11 @@ export function DrawingView({ page, w, h }: { page: PageData; w: number; h: numb
     const root = probe.current;
     if (!root) return;
     const base = root.getBoundingClientRect();
-    // Tables, labels and section titles; not the full-height section dividers, and not the
-    // chair key (View shows that underneath at full size).
-    const parts = [...root.querySelectorAll<HTMLElement>('[data-sheet-room] *')].filter((el) => !el.hasAttribute('data-sheet-divider') && getComputedStyle(el).position === 'absolute');
+    // A server sheet: its whole drawing area, which is laid out for two drinks at every seat, so the view
+    // never shifts or zooms with who's seated or what they drink. Otherwise tables, labels and section
+    // titles; not the full-height section dividers, and not the chair key (View shows that underneath).
+    const area = page.body.kind === 'server' ? root.querySelector<HTMLElement>('[data-sheet-room] > div') : null;
+    const parts = area ? [area] : [...root.querySelectorAll<HTMLElement>('[data-sheet-room] *')].filter((el) => !el.hasAttribute('data-sheet-divider') && getComputedStyle(el).position === 'absolute');
     let x0 = Infinity;
     let y0 = Infinity;
     let x1 = -Infinity;

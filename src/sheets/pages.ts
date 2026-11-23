@@ -119,6 +119,9 @@ export function orderExtras<T extends { name: string }>(extras: T[], order: stri
   return [...extras].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
+/** Whether a meal's server sheets all share one size (the most crowded section's), or each is as large as it fits. */
+export const SHARE_SERVER_SIZE = false;
+
 /** The label scale a meal's server sheets share: the smallest any section needs. Remembered per seating. */
 const sharedScales = new WeakMap<Occupant, Map<string, number>>();
 function sharedServerScale(tables: Parameters<typeof serverRoom>[0], opening: MealOpening, occupant: Occupant, meal: string, beverages: Parameters<typeof serverRoom>[3], shared: boolean, area: Area): number {
@@ -134,7 +137,7 @@ function sharedServerScale(tables: Parameters<typeof serverRoom>[0], opening: Me
 }
 
 /** How much larger a server sheet may be drawn, tried largest first. */
-const SERVER_GROW = [1.6, 1.45, 1.3, 1.15];
+const SERVER_GROW = [1.6, 1.45, 1.3, 1.2, 1.15, 1.1, 1.05];
 
 /**
  * A server sheet with room to spare (a section with few tables, or tables far apart) is laid out for a
@@ -173,11 +176,11 @@ export function buildPage(
   if (sheet.kind === 'server') {
     const T = tables.filter((t) => t.section === sheet.section);
     const shared = sharedLayout(opening);
-    // No notes list: the drawing gets the whole page under the header. With several sections, every
-    // server sheet shares one size (labels as small as the most crowded section needs, never enlarged),
-    // so names and drinks read the same on each; a one-section meal may be drawn z times larger.
+    // No notes list: the drawing gets the whole page under the header. Each section is drawn as large as it
+    // fits (z times larger when it has room to spare). With SHARE_SERVER_SIZE, a meal's server sheets would
+    // instead share one size, the most crowded section's.
     const area = serverArea(w, h);
-    const many = opening.sections.length > 1;
+    const many = SHARE_SERVER_SIZE && opening.sections.length > 1;
     const maxScale = many ? sharedServerScale(tables, opening, occupant, meal, data.beverages, shared, area) : undefined;
     const z = many ? 1 : serverGrow(T, occupant, meal, data.beverages, shared, area);
     const room = serverRoom(T, occupant, meal, data.beverages, { shared, maxScale, area: { w: area.w / z, h: area.h / z } });

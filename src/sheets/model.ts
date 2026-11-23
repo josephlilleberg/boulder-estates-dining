@@ -165,14 +165,14 @@ export const drawW = (pageW: number) => pageW - 2 * PAGE_SIDE - 4;
 /** A Letter server sheet's drawing area: the page under its header (see serverArea). */
 export const LETTER_AREA: Area = { w: drawW(1056), h: 816 - 64 - 2 };
 export const areaFor = (pageW: number, pageH: number, below = 0): Area => ({ w: drawW(pageW), h: pageH - 120 - below });
-const EDGE = 8;
+const EDGE = 4;
 /**
  * Widest a server label is drawn: the two seats on a rectangle's long side are 76 px apart,
  * so anything wider would touch its neighbour at the same table.
  */
 export const SEAT_W = 74;
 /** Clear space kept between the labels (and tables) of different tables on a server sheet. */
-export const SERVER_GAP = 20;
+export const SERVER_GAP = 10;
 /** A full section's labels shrink together to fit, never below this. */
 export const MIN_SHEET_SCALE = 0.5;
 /** Space between the name and the first pill, and between pills. */
@@ -251,6 +251,7 @@ export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: nu
   const oy = EDGE + (AH - 2 * EDGE - z.h) / 2 - z.y0;
   const pos = T.map((t) => ({ x: ox + t.x * spx, y: oy + t.y * spy }));
 
+  const rowOf = new Map(rowsOf(T).flatMap((r, ri) => r.map((t) => [t.id, ri] as const)));
   for (let it = 0; it < 120; it++) {
     let moved = false;
     const S = T.map((t, i) => serverShapes(t, pos[i]!, lh(t), k, fullW));
@@ -261,11 +262,14 @@ export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: nu
             if (A.body && B.body) continue;
             const m = separation(A, B, SERVER_GAP);
             if (!m) continue;
-            const d = Math.min(m.o, 6) / 2; // small steps so tables move as little as needed
-            pos[i]!.x += m.v[0] * d;
-            pos[i]!.y += m.v[1] * d;
-            pos[j]!.x -= m.v[0] * d;
-            pos[j]!.y -= m.v[1] * d;
+            // Tables in different rows only part up and down, so each keeps its column (a table under
+            // another stays under it); tables in the same row slide apart however their labels need.
+            const v: [number, number] = rowOf.get(T[i]!.id) === rowOf.get(T[j]!.id) ? m.v : [0, Math.sign(pos[i]!.y - pos[j]!.y) || Math.sign(m.v[1]) || 1];
+            const d = Math.min(m.o / Math.max(Math.abs(m.v[0] * v[0] + m.v[1] * v[1]), 0.35), 6) / 2; // small steps so tables move as little as needed
+            pos[i]!.x += v[0] * d;
+            pos[i]!.y += v[1] * d;
+            pos[j]!.x -= v[0] * d;
+            pos[j]!.y -= v[1] * d;
             moved = true;
           }
         }
@@ -350,8 +354,8 @@ export const needW = (c: Change) =>
  * Gives every chip and extras box on a sheet one width: what its longest line needs, at least CHIP_W
  * and at most `max` (past that, only that line's text is drawn a little smaller).
  */
-export function evenChips(all: Change[], max = CHIP_MAX_W): void {
-  const w = Math.min(max, Math.max(CHIP_W, ...all.map(needW)));
+export function evenChips(all: Change[], max = CHIP_MAX_W, min = CHIP_W): void {
+  const w = Math.min(max, Math.max(min, ...all.map(needW)));
   for (const c of all) {
     c.w = w;
     if (c.entries)
@@ -504,7 +508,10 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   // No wider than a seat here: a wider label is drawn smaller, and the chips would end up shorter than the chair marks.
   // Done before each seat's room is reserved: a long extra that wraps makes its box taller. The setup
   // chips are evened too, so a server sheet sharing the setup sheet's layout reserves the same room.
-  evenChips([...[...chipsAt.values()].flat(), ...[...setupAt.values()].flat()], SEAT_W);
+  // A shared layout's chips are always a seat wide, so the extras box wraps the same whatever drinks add.
+  evenChips([...[...chipsAt.values()].flat(), ...[...setupAt.values()].flat()], SEAT_W, opts.shared ? SEAT_W : CHIP_W);
+  // Rule: every seat keeps room for a name and two drinks, seated or not (see lhOf below).
+  const minRoom = draw === 'setup' && !opts.shared ? 0 : TWO_DRINKS_H;
   for (const t of T) seatGeom(t.shape).forEach((_, i) => {
     const r = occupant(t.id, i);
     if (!r) return;
@@ -512,7 +519,8 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
     const serverH = labelH(pillsAt.get(key) ?? []);
     const chips = chipsAt.get(key) ?? [];
     const extra = draw === 'server' && !opts.shared ? 0 : tagLead(r.chair);
-    roomAt.set(key, extra + (draw === 'both' ? serverH + chipsH(chips) : opts.shared || draw === 'setup' ? Math.max(serverH, stackH(setupAt.get(key) ?? [])) : serverH));
+    // The chair mark's extra lead goes on top of the two-drink minimum, so it never decides whether drinks move things.
+    roomAt.set(key, extra + Math.max(minRoom, draw === 'both' ? serverH + chipsH(chips) : opts.shared || draw === 'setup' ? Math.max(serverH, twoDrinkStackH(setupAt.get(key) ?? [])) : serverH));
   });
   // Each seat keeps room for its own label only (an empty seat none), so a sheet uses its page instead of
   // holding space for drinks nobody has; the tables keep their arrangement, the spacing follows who's seated.
@@ -521,7 +529,7 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   // Rule: every seat keeps room for a name and two drinks, seated or not, so a sheet's proportions and size
   // come from the room alone and stay the same whoever sits where (a table by the wall sits far enough in
   // for them). A seat whose label needs more (Supper's extras) gets that.
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const r = roomAt.get(`${t.id}:${i}`) ?? 0; const min = draw === 'setup' ? 0 : TWO_DRINKS_H; return Math.max(min, r) ? lead + Math.max(min, r) : 0; }]));
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const r = roomAt.get(`${t.id}:${i}`) ?? minRoom; return r ? lead + r : 0; }]));
   // A server sheet's labels stay a seat wide on the page at any scale (see below).
   const fullW = draw === 'server';
   let sheetK = 1;
@@ -756,6 +764,16 @@ function edgeMarks(ex: number, ey: number, nx: number, ny: number, chair: Chair,
   // The red dot sits a little further in, clear of the chair mark.
   const inset = Math.min(pill.w, pill.h) / 2 + (dot ? 5 : 2) + h / 2;
   return { pill, mug: mug ? { l: ex - nx * inset - w / 2, t: ey - ny * inset - h / 2, w, h, ang: edgeAngle(nx, ny), dot } : null };
+}
+
+/**
+ * A seat's setup stack with room for two drinkware chips (+Glass, +Juice…) however many it has, so a
+ * shared layout (Breakfast, Lunch) never moves when a resident's drinks change (0 to 2).
+ */
+export function twoDrinkStackH(cs: Change[]): number {
+  const cups = cs.filter((c) => !c.lines && !c.entries).length;
+  const pad: Change[] = Array.from({ length: Math.max(0, 2 - cups) }, () => ({ text: '+Glass', bg: '#86EFAC' }));
+  return stackH([...pad, ...cs]);
 }
 
 /** Chips one above the other, in order (drinkware, then the extras box), so a seat's stack is one even column. */

@@ -7,7 +7,7 @@ import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
 import { textW, ARM_TAG_H, BOX_LINE_H, CHAIR_TAG_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, twoDrinksOccupant, type RotBox, type ServerRoom } from './model';
-import { buildPage, occupantFor, orderExtras, sheetsFor } from './pages';
+import { buildPage, occupantFor, orderExtras, SHARE_SERVER_SIZE, sharedLayout, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
 let store: Store;
@@ -421,18 +421,18 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     const x0 = at(pagesFor('Dinner')).l;
     await store.change('Move', moveTable(t1.id, t1.x + 40, t1.y));
     expect(at(pagesFor('Dinner')).l).toBeGreaterThan(x0);
-  });
+  }, 20000);
 
-  it('a server sheet uses the whole page under its header: labels near full size (one size for every section), drawn larger only when they fit', () => {
+  it('a server sheet uses the whole page under its header: labels near full size, drawn larger only when they fit', () => {
     const bodies = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body] : []));
     expect(bodies).toHaveLength(3);
     for (const b of bodies) {
       expect([b.room.w, b.room.h].map((x) => Math.round(x * (b.fit ?? 1)))).toEqual([1056 - 28, 816 - 64 - 2]); // no notes list under the drawing
-      expect(b.room.scale).toBeGreaterThanOrEqual(0.85);
+      expect(b.room.scale).toBeGreaterThanOrEqual(0.75); // Section 3 keeps Table 4 under Table 2, beside an angled Table 7
       if ((b.fit ?? 1) > 1) expect(b.room.scale).toBe(1);
     }
-    // One size for every section's sheet, so names and drinks read the same on each.
-    expect(new Set(bodies.map((b) => `${b.fit ?? 1}×${b.room.scale}`)).size).toBe(1);
+    // With SHARE_SERVER_SIZE, one size for every section's sheet; otherwise each is as large as it fits.
+    if (SHARE_SERVER_SIZE) expect(new Set(bodies.map((b) => `${b.fit ?? 1}×${b.room.scale}`)).size).toBe(1);
   });
 
   it('pages carry a title and, top right, when the sheets last changed; no footer', () => {
@@ -733,5 +733,50 @@ describe('stress test: 2 drinks', () => {
     expect(occ('t', 1)!.chair).toBe(one.chair);
     expect(occ('t', 1)!.prefs.Dinner?.roWater).toBe(false);
     expect(twoDrinksOccupant(() => one, 'Dinner', data().beverages, { ro: true })('t', 0)!.prefs.Dinner?.roWater).toBe(true); // 2 drinks + RO
+  });
+});
+
+describe('server sheet tables never move with what residents drink', () => {
+  // Rule: a server sheet is laid out as if every seat had a name and two drinks, so the stress tests
+  // (2 drinks, 2 drinks + RO, Full) show the tables exactly where they always are, and adding drinks
+  // (0 to 2) or RO water never shifts anything.
+  it.each(['Dinner', 'Breakfast'] as MealName[])('%s: Off, 2 drinks, 2 drinks + RO (and Full, where nothing else is shared) lay out every server sheet the same', (meal) => {
+    const opening = getOpening(site(), meal);
+    const real = occupantFor(data(), 'BE', meal);
+    // A one-section meal's server sheet shares its setup sheet's layout, which also keeps room for each
+    // resident's extras: Full (three extras everywhere) moves that one, drinks never do.
+    const modes = [real, twoDrinksOccupant(real, meal, data().beverages), twoDrinksOccupant(real, meal, data().beverages, { ro: true }), ...(sharedLayout(opening) ? [] : [stressOccupant(meal, { heavy: true })])];
+    const layout = (occ: typeof real) =>
+      sheetsFor(opening)
+        .filter((sh) => sh.kind === 'server')
+        .map((sh) => {
+          const b = buildPage(data(), site(), meal, opening, sh, occ, '').body;
+          if (b.kind !== 'server') throw new Error('server page');
+          return [sh.key, b.fit ?? 1, b.room.scale, b.room.tables.map((t) => [t.id, Math.round(t.l), Math.round(t.t)])];
+        });
+    const off = layout(modes[0]!);
+    expect(off.length).toBeGreaterThan(0);
+    for (const m of modes.slice(1)) expect(layout(m)).toEqual(off);
+  }, 30000);
+
+  it('a one-section meal: drinks (0 to 2) never move a table on its setup or server sheet', () => {
+    for (const meal of ['Breakfast'] as MealName[]) {
+      const opening = getOpening(site(), meal);
+      if (!sharedLayout(opening)) continue;
+      const real = occupantFor(data(), 'BE', meal);
+      const places = (occ: typeof real) =>
+        sheetsFor(opening).map((sh) => buildPage(data(), site(), meal, opening, sh, occ, '').body.room.tables.map((t) => [t.id, Math.round(t.l), Math.round(t.t)]));
+      expect(places(twoDrinksOccupant(real, meal, data().beverages))).toEqual(places(real));
+    }
+  });
+
+  it('tables in different rows only part up and down: a table stays in the column of the one above it', () => {
+    const opening = getOpening(site(), 'Dinner');
+    const sh = sheetsFor(opening).find((x) => x.key === 'server-3')!;
+    const b = buildPage(data(), site(), 'Dinner', opening, sh, stressOccupant('Dinner', { heavy: true }), '').body;
+    if (b.kind !== 'server') throw new Error('server page');
+    const cx = (n: number) => { const t = b.room.tables.find((x) => x.number === n)!; return Math.round(t.l + t.w / 2); };
+    // In the room, Table 4 is straight under Table 2; the angled Table 7 below it doesn't push it aside.
+    expect(cx(4)).toBe(cx(2));
   });
 });

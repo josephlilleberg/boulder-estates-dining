@@ -1,4 +1,5 @@
-import { Fragment, type ReactNode } from 'react';
+import { Fragment, useSyncExternalStore, type ReactNode } from 'react';
+import { onStress, setStress, stressOn } from '../state/stress';
 import type { SaveStatus } from '../state/store';
 import type { Screen } from './screens';
 import type { MealName, Site, SiteId } from '../domain/sites';
@@ -6,6 +7,7 @@ import { SCREENS } from './screens';
 import { Segmented } from './Segmented';
 import { installUpdate, useUpdateState } from '../state/updates';
 import { CheckIcon, UndoIcon } from './icons';
+import { isTauri } from '../db/tauriDb';
 
 interface Props {
   screen: Screen;
@@ -33,6 +35,8 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
         <div className="brand-text">
           <div className="brand-name">Dining</div>
           <div className="brand-sub">{site.name} kitchen</div>
+          {/* The test app (npm run test-app): plain to see, so it's never mistaken for the real one. */}
+          {import.meta.env.DEV && isTauri() && <div style={{ fontSize: 11, fontWeight: 800, color: '#B91C1C', letterSpacing: '.06em' }}>TEST APP</div>}
         </div>
       </div>
 
@@ -54,6 +58,7 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
       </div>
 
       <div className="topbar-right">
+        {import.meta.env.DEV && <StressSwitch />}
         <UpdateButton />
         <SaveIndicator status={status} error={error} />
         <button
@@ -68,6 +73,23 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
         </button>
       </div>
     </header>
+  );
+}
+
+// The test app only: fill every seat on the sheets with a worst-case resident.
+function StressSwitch() {
+  const on = useSyncExternalStore(onStress, stressOn);
+  return (
+    <button
+      type="button"
+      className={on ? 'btn sm primary' : 'btn sm'}
+      aria-pressed={on}
+      onClick={() => setStress(!on)}
+      title="Test app only: every seat on the sheets gets two drinks, RO water, three extras and a mix of chairs"
+      style={on ? { background: '#B91C1C', borderColor: '#B91C1C' } : undefined}
+    >
+      Stress test {on ? 'on' : 'off'}
+    </button>
   );
 }
 

@@ -343,9 +343,9 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
       style={{ width: page.w, height: page.h, background: '#FFFFFF', boxShadow: shadow ? '0 2px 10px rgba(0,0,0,.18)' : undefined, boxSizing: 'border-box', padding: '28px 40px 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, paddingBottom: 10, borderBottom: '1px solid #D1D5DB' }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#111827' }}>{page.title}</div>
+        <div style={{ fontSize: 15, lineHeight: '18px', fontWeight: 700, color: '#111827' }}>{page.title}</div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 13, color: '#4B5563' }}>{page.right}</div>
+          <div style={{ fontSize: 12, lineHeight: '18px', color: '#4B5563' }}>{page.right}</div>
         </div>
       </div>
 

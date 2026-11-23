@@ -2,7 +2,7 @@ import type { AppData } from '../db/repo';
 import type { Resident } from '../domain/model';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
-import { areaFor, LETTER_AREA, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
+import { areaFor, type Area, LETTER_AREA, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
 
 // The printable sheets for a meal and the data each page draws. Shared by View,
 // Print preview and the printed output, so all three are the same page.
@@ -32,7 +32,9 @@ export const COMBINED_MEALS: string[] = ['Supper'];
 /** Height kept under the combined sheet's drawing for its key. */
 const LEGEND_ROOM = 96;
 /** A page's header (title, and the date the sheets last changed) and bottom margin; there's no footer, so the drawing gets the rest. */
-export const PAGE_CHROME = 92;
+export const PAGE_CHROME = 84;
+/** A server sheet's drawing area: the page less its side margins, header and bottom margin. */
+export const serverArea = (w: number, h: number): Area => ({ w: w - 84, h: h - PAGE_CHROME - 2 });
 /** Room kept under a setup drawing for its key (one row of groups, 49 px) and the gap above it. */
 const KEY_ROOM = 64;
 
@@ -125,8 +127,8 @@ const SERVER_GROW = [1.6, 1.45, 1.3, 1.15];
  * smaller page and drawn that much larger: tables, names and drinks alike, so nothing is lost in white
  * space. The most at which every label still fits at full size; 1 when it doesn't even at that.
  */
-export function serverGrow(T: Parameters<typeof serverRoom>[0], occupant: Occupant, meal: string, beverages: Parameters<typeof serverRoom>[3], shared: boolean): number {
-  for (const z of SERVER_GROW) if (serverRoom(T, occupant, meal, beverages, { shared, probe: true, area: { w: LETTER_AREA.w / z, h: LETTER_AREA.h / z } }).scale >= 1) return z;
+export function serverGrow(T: Parameters<typeof serverRoom>[0], occupant: Occupant, meal: string, beverages: Parameters<typeof serverRoom>[3], shared: boolean, area: Area = LETTER_AREA): number {
+  for (const z of SERVER_GROW) if (serverRoom(T, occupant, meal, beverages, { shared, probe: true, area: { w: area.w / z, h: area.h / z } }).scale >= 1) return z;
   return 1;
 }
 
@@ -157,16 +159,15 @@ export function buildPage(
   if (sheet.kind === 'server') {
     const T = tables.filter((t) => t.section === sheet.section);
     const shared = sharedLayout(opening);
-    const z = serverGrow(T, occupant, meal, data.beverages, shared);
-    const room = serverRoom(T, occupant, meal, data.beverages, { shared, area: { w: LETTER_AREA.w / z, h: LETTER_AREA.h / z } });
-    const notes = serverNotes(T, occupant, meal);
+    // No notes list: the drawing gets the whole page under the header, and is drawn z times its layout.
+    const area = serverArea(w, h);
+    const z = serverGrow(T, occupant, meal, data.beverages, shared, area);
+    const room = serverRoom(T, occupant, meal, data.beverages, { shared, area: { w: area.w / z, h: area.h / z } });
     const label = opening.sections.find((s) => s.section === sheet.section)?.label ?? '';
-    // Drawn z times its layout, giving height back to a long notes list (never below half the page's drawing).
-    const H = room.h * z;
     return {
       ...base,
       title: `${meal} · ${label}`,
-      body: { kind: 'server', room, notes, legend: null, notesShown: true, fit: z, roomScale: z * Math.max(0.5, Math.min(1, (H - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / H)) },
+      body: { kind: 'server', room, notes: [], legend: null, notesShown: false, fit: z, roomScale: z },
     };
   }
   // A one-section meal (Breakfast): its server sheet's layout (same tables in the same order, same

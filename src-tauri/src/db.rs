@@ -249,13 +249,15 @@ pub async fn db_restore(state: tauri::State<'_, DbState>, file: String, dir: Str
 #[tauri::command]
 pub fn db_info(app: tauri::AppHandle, state: tauri::State<'_, DbState>) -> CmdResult<Map<String, Value>> {
     use tauri::Manager;
-    let docs = app.path().document_dir().map_err(|e| e.to_string())?;
+    // The test app (npm run test-app) keeps its backups beside its own data, never with the real ones.
+    let backups = if app.config().identifier.ends_with(".test") {
+        app.path().app_data_dir().map_err(|e| e.to_string())?.join("Backups")
+    } else {
+        app.path().document_dir().map_err(|e| e.to_string())?.join("Boulder Estates Backups")
+    };
     let mut m = Map::new();
     m.insert("dbPath".into(), Value::String(state.path.to_string_lossy().into_owned()));
-    m.insert(
-        "defaultBackupDir".into(),
-        Value::String(docs.join("Boulder Estates Backups").to_string_lossy().into_owned()),
-    );
+    m.insert("defaultBackupDir".into(), Value::String(backups.to_string_lossy().into_owned()));
     Ok(m)
 }
 

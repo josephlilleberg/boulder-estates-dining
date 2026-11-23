@@ -1,0 +1,18 @@
+{
+  "productName": "Boulder Estates Dining (Test)",
+  "identifier": "com.boulderestates.dining.test",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Boulder Estates Dining — TEST (not your real data)",
+        "width": 1366,
+        "height": 860,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true,
+        "center": true
+      }
+    ]
+  }
+}

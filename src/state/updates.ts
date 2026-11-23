@@ -38,7 +38,8 @@ export const RECHECK_MS = 4 * 60 * 60 * 1000;
 
 /** Checks at launch, then every few hours, quietly. */
 export function watchForUpdates(): void {
-  if (!isTauri()) return;
+  // The test app (npm run test-app) runs from source: it must never install a release over itself.
+  if (!isTauri() || import.meta.env.DEV) return;
   void checkForUpdate({ quiet: true });
   window.setInterval(() => {
     if (state.kind !== 'available' && state.kind !== 'installing') void checkForUpdate({ quiet: true });
@@ -56,7 +57,7 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** `quiet`: the launch check, which stays silent if it fails (offline, GitHub down). */
 export async function checkForUpdate({ quiet = false } = {}): Promise<void> {
-  if (!isTauri() || state.kind === 'checking' || state.kind === 'installing') return;
+  if (!isTauri() || import.meta.env.DEV || state.kind === 'checking' || state.kind === 'installing') return;
   set({ kind: 'checking' });
   try {
     const { check } = await import('@tauri-apps/plugin-updater');

@@ -170,6 +170,8 @@ export const MIN_SHEET_SCALE = 0.5;
 /** Space between the name and the first pill, and between pills. */
 export const NAME_GAP = 5;
 export const PILL_GAP = 2;
+/** A server label with a name and two drinks (each with its cup band): the least room a seated place keeps. */
+export const TWO_DRINKS_H = 14 + NAME_GAP + PILL_GAP + 2 * (2 + PILL_ROW_H + CUP_BAND_H);
 
 type Spot = { x: number; y: number };
 /** Each seat's label height at full size (0: nobody there). */
@@ -502,7 +504,9 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   // holding space for drinks nobody has; the tables keep their arrangement, the spacing follows who's seated.
   // With chair pills drawn, labels start past the pill and a clear gap.
   const lead = draw === 'server' ? 0 : 0.5 + CHAIR_GAP;
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => lead + (roomAt.get(`${t.id}:${i}`) ?? 0)]));
+  // A resident may have up to two drinks, so every seated place keeps room for two (a table by the wall sits
+  // far enough in for them); an empty seat keeps none.
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const r = roomAt.get(`${t.id}:${i}`); return r === undefined ? 0 : lead + Math.max(draw === 'setup' ? 0 : TWO_DRINKS_H, r); }]));
   let sheetK = 1;
   let at = serverFit(T, lhOf, 1, area);
   if (crowded(T, at, lhOf, 1)) {
@@ -824,7 +828,16 @@ const labelAABB = (L: { l: number; t: number; w: number; h: number; bw: number; 
  * Then each section takes the width its tables and chips need, side by side; spare width is shared
  * out. Returns the room's width, which is more than PW only when the sheet must be drawn smaller.
  */
-function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: number; h: number; bw: number; bh: number; tix: number }[], pillTix: number[], mugTix: number[], secOf: number[], titles: string[], PW: number, H: number): number {
+function spreadSetupTables(
+  out: SetupRoom,
+  labels: { l: number; t: number; w: number; h: number; bw: number; bh: number; tix: number }[],
+  pillTix: number[],
+  mugTix: number[],
+  secOf: number[],
+  titles: string[],
+  PW: number,
+  H: number,
+): { w: number; h: number } {
   const n = out.tables.length;
   const move = (i: number, dx: number) => {
     out.tables[i]!.l += dx;
@@ -849,6 +862,7 @@ function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: nu
             const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) + SETUP_GAP;
             const oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) + SETUP_GAP;
             if (ox <= 0 || oy <= 0) continue;
+            // Only ever sideways: tables stay in their rows, lined up as in the room.
             const d = (Math.min(ox, 6) / 2) * (cx(i) <= cx(j) ? -1 : 1);
             move(i, d);
             move(j, -d);
@@ -859,6 +873,7 @@ function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: nu
     }
     if (!moved) break;
   }
+  const roomH = H;
   // Sections side by side, each as wide as its tables and chips need.
   const PADX = 16;
   const secs = titles.map((_, k) => {
@@ -874,10 +889,10 @@ function spreadSetupTables(out: SetupRoom, labels: { l: number; t: number; w: nu
     const dx = cur + PADX + extra / 2 - e.x0;
     for (let i = 0; i < n; i++) if (secOf[i] === k) move(i, dx);
     out.titles.push({ l: cur + 12, t: 8, text: titles[k]! });
-    if (k > 0) out.dividers.push({ l: cur, h: H });
+    if (k > 0) out.dividers.push({ l: cur, h: roomH });
     cur += e.x1 - e.x0 + 2 * PADX + extra;
   });
-  return cur;
+  return { w: cur, h: roomH };
 }
 
 /**
@@ -896,13 +911,16 @@ export function setupRoom(sections: OpenSection[], allTables: DiningTable[], occ
     const r = buildSetupRoom(sections, allTables, occupant, meal, PW / z, PH / z, TG * z);
     if (r.scale >= 1) return { ...r, scale: z };
   }
-  // A sheet drawn smaller to fit its width would leave the page's height unused, so lay it out
-  // again with the height it will have once scaled (rows spread further apart).
   const first = buildSetupRoom(sections, allTables, occupant, meal, PW, PH);
-  return first.scale < 1 ? buildSetupRoom(sections, allTables, occupant, meal, PW, PH / first.scale) : first;
+  if (first.scale >= 1) return first;
+  // Crowded, so drawn smaller to fit the width: lay it out again with the height it will have once
+  // scaled, rows spread as far apart as that allows (not just 1.8×), so the sheet fills the page
+  // instead of a strip across the top.
+  const r = buildSetupRoom(sections, allTables, occupant, meal, PW, PH / first.scale, TG, Infinity);
+  return { ...r, scale: Math.min(r.scale, Math.floor((PH / (r.h + 2)) * 100) / 100) };
 }
 
-function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number, tg = TG): SetupRoom {
+function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occupant: Occupant, meal: string, PW: number, PH: number, tg = TG, stretch = 1.8): SetupRoom {
   const pad = 30;
   const secTables = sections.map((s) => allTables.filter((t) => t.section === s.section));
   // Every seat's chips first, so they all get the sheet's one width before anything is placed.
@@ -947,7 +965,7 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
   const totalH = y1 - y0;
   const sc = Math.min(PW / totalW, PH / totalH);
   // Rows spread apart vertically to fill the page; table sizes and left-to-right spacing stay true.
-  const fy = Math.max(sc, Math.min(PH / totalH, sc * 1.8));
+  const fy = Math.max(sc, Math.min(PH / totalH, sc * stretch));
   const labels: (Omit<ChangeLabel, 'tableId'> & { bw: number; bh: number; tix: number; nx: number; ny: number; out0: number })[] = [];
   const pillTix: number[] = []; // which table each seat pill belongs to
   const mugTix: number[] = []; // and each "Mug" marker
@@ -1002,7 +1020,10 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
         const bw = Math.abs(Math.cos(lr)) * w + Math.abs(Math.sin(lr)) * h;
         const bh = Math.abs(Math.sin(lr)) * w + Math.abs(Math.cos(lr)) * h;
         // nx, ny, out0: the way out from the table, and how far out the block starts (it's never pushed back in).
-        labels.push({ l: gx - w / 2, t: gy - h / 2, w, h, ang: la, bw, bh, items, rows, tix: out.tables.length, nx, ny, out0: gx * nx + gy * ny });
+        // Drinkware nearest the table, the extras box outside it: the stack reads top to bottom, so on
+        // a seat whose way out is "up" on the turned block (the top of a table), it's turned around.
+        const outUp = nx * Math.sin(lr) - ny * Math.cos(lr) > 0;
+        labels.push({ l: gx - w / 2, t: gy - h / 2, w, h, ang: la, bw, bh, items, rows: outUp ? [...rows].reverse() : rows, tix: out.tables.length, nx, ny, out0: gx * nx + gy * ny });
       });
       secOf.push(bi);
       out.tables.push({
@@ -1082,11 +1103,11 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
     if (!moved) break;
   }
   // Then tables (each with its settled chips) slide apart so neighbours keep a clear gap.
-  const roomW = spreadSetupTables(out, labels, pillTix, mugTix, secOf, boxes.map((b) => b.s.label), PW, totalH * fy);
+  const { w: roomW, h: roomH } = spreadSetupTables(out, labels, pillTix, mugTix, secOf, boxes.map((b) => b.s.label), PW, totalH * fy);
   out.changes = labels.map(({ l, t, w, h, ang, items, rows, tix }) => ({ tableId: out.tables[tix]!.id, l, t, w, h, ang, items, rows }));
   out.w = Math.round(roomW);
-  out.scale = Math.min(1, Math.floor((PW / roomW) * 100) / 100);
-  out.h = Math.round(totalH * fy);
+  out.scale = Math.min(1, Math.floor(Math.min(PW / roomW, PH / roomH) * 100) / 100);
+  out.h = Math.round(roomH);
   return out;
 }
 
@@ -1097,7 +1118,7 @@ function buildSetupRoom(sections: OpenSection[], allTables: DiningTable[], occup
  * chocolate milk with an extra glass, no coffee) at every seat. Used by the spacing
  * test and, in dev builds only, by `?stress` in the URL. Not offered to users.
  */
-export function stressOccupant(meal: string): Occupant {
+export function stressOccupant(meal: string, opts: { heavy?: boolean } = {}): Occupant {
   const r: Resident = {
     id: '__stress',
     siteId: 'BE',
@@ -1122,5 +1143,24 @@ export function stressOccupant(meal: string): Occupant {
       },
     },
   };
-  return () => r;
+  if (!opts.heavy) return () => r;
+  // The test app's Stress test: every seat also has RO water and three extras (one with a kind, one
+  // with a backup), and the chairs take turns: arm chair, armless, no chair.
+  const heavy: Resident = {
+    ...r,
+    prefs: {
+      [meal]: {
+        ...prefsOf(r, meal)!,
+        roWater: true,
+        extras: [
+          { id: 'x1', name: 'Napkins', variant: null, backup: null, count: 2 },
+          { id: 'x2', name: 'Jelly', variant: 'Grape', backup: 'Strawberry', count: 2 },
+          { id: 'x3', name: 'Fruit', variant: 'Banana', backup: null, count: 1 },
+        ],
+      },
+    },
+  };
+  const chairs: Resident['chair'][] = ['arm', 'no_arm', 'none'];
+  const bySeat = chairs.map((chair) => ({ ...heavy, chair }));
+  return (_t, seat) => bySeat[seat % 3]!;
 }

@@ -196,6 +196,41 @@ describe('Setup sheet spacing: a clear gap between tables, rows kept', () => {
     });
   }
 
+  it('the test app’s worst case (two drinks, RO water, three extras at every seat) keeps its gaps and rows, and fits the page', () => {
+    const { problems, room } = check('Dinner', stressOccupant('Dinner', { heavy: true }));
+    expect(problems).toEqual([]);
+    // Tables in a row stay level: crowding only ever moves them sideways.
+    const T = layoutTables();
+    const top = new Map(room.tables.map((t) => [t.id, t.t + t.h / 2]));
+    for (const a of T) for (const b of T) if (a.section === b.section && Math.abs(a.y - b.y) < 1 && top.has(a.id) && top.has(b.id)) expect(Math.abs(top.get(a.id)! - top.get(b.id)!)).toBeLessThan(1);
+    expect((room.w + 2) * room.scale).toBeLessThanOrEqual(PW + 4);
+    expect((room.h + 2) * room.scale).toBeLessThanOrEqual(PH + 4);
+  });
+
+  it('at every seat, on every side of every table, the drinkware sits next to the table and the extras box outside it', () => {
+    const { room } = check('Dinner', stressOccupant('Dinner', { heavy: true }));
+    const centre = new Map(room.tables.map((t) => [t.id, [t.l + t.w / 2, t.t + t.h / 2] as const]));
+    const wrong: string[] = [];
+    for (const c of room.changes) {
+      // Each row's centre on the page: rows run top to bottom (3 px apart) in the block, turned by c.ang.
+      const heights = c.rows.map((row) => Math.max(...row.map(itemH)));
+      const total = heights.reduce((a, h) => a + h, 0) + 3 * (heights.length - 1);
+      const a = (c.ang * Math.PI) / 180;
+      let y = -total / 2;
+      const at = heights.map((h) => {
+        const mid = y + h / 2;
+        y += h + 3;
+        return [c.l + c.w / 2 - Math.sin(a) * mid, c.t + c.h / 2 + Math.cos(a) * mid] as const;
+      });
+      const [tx, ty] = centre.get(c.tableId)!;
+      const d = (k: number) => Math.hypot(at[k]![0] - tx, at[k]![1] - ty);
+      const box = c.rows.findIndex((row) => row.some((x) => x.entries));
+      const drink = c.rows.findIndex((row) => row.every((x) => !x.entries));
+      if (box >= 0 && drink >= 0 && d(drink) >= d(box)) wrong.push(`${c.tableId} at ${Math.round(c.ang)}°`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
   it('random mixes keep their gap, rows and sections', () => {
     let seed = 5;
     const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -388,11 +423,14 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     expect(at(pagesFor('Dinner')).l).toBeGreaterThan(x0);
   });
 
-  it('a server sheet with room to spare is drawn larger, everything still at full size within it', () => {
+  it('a server sheet uses the whole page under its header: labels at (or near) full size, drawn larger only when they fit', () => {
     const bodies = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body] : []));
     expect(bodies).toHaveLength(3);
-    for (const b of bodies) if ((b.fit ?? 1) > 1) expect(b.room.scale).toBe(1);
-    expect(bodies.some((b) => (b.fit ?? 1) > 1)).toBe(true);
+    for (const b of bodies) {
+      expect(b.room.h).toBe(816 - 84 - 2); // no notes list under the drawing
+      expect(b.room.scale).toBeGreaterThanOrEqual(0.9);
+      if ((b.fit ?? 1) > 1) expect(b.room.scale).toBe(1);
+    }
   });
 
   it('pages carry a title and, top right, when the sheets last changed; no footer', () => {
@@ -559,7 +597,7 @@ describe('Breakfast: setup and server sheets share one layout', () => {
     const v0 = server!.body.room.labels[0]!;
     expect([v0.name, v0.items.map((i) => i.cap), v0.chips]).toEqual(['Agatha H.', ['2% Milk', 'Orange'], []]);
     expect(server!.body.room.pills).toEqual([]);
-    expect([server!.body.legend, server!.body.notesShown]).toEqual([null, true]);
+    expect([server!.body.legend, server!.body.notesShown]).toEqual([null, false]);
   });
 });
 
@@ -654,24 +692,25 @@ describe('server sheet notes', () => {
     return buildPage(data(), site(), 'Dinner', opening, sheet, occ, 'Nov 11, 2026');
   };
 
-  it('allergies, notes and half portions are listed by table under the drawing; no key, no red !', () => {
+  it('no notes list under the drawing; a near-empty section is drawn larger to use the page', () => {
     const first = T().sort((a, b) => a.number - b.number)[0]!;
     const withNote = { ...resident([coffee()], { portion: 'Half' }), notes: [{ id: 'n', text: 'Nut allergy' }] };
-    const plain = { ...resident([coffee()]), first: 'Bea' };
-    const pg = page((t, s) => (t === first.id ? (s === 0 ? withNote : s === 1 ? plain : null) : null));
-    expect(pg.body.kind === 'server' && pg.body.notes).toEqual([{ table: first.number, name: 'Agatha H.', text: 'Nut allergy, ½ portion' }]);
-    // A near-empty section is drawn larger to use the page; the short notes list needs none of its room.
-    expect(pg.body.kind === 'server' && pg.body.fit).toBeGreaterThan(1);
-    expect(pg.body.kind === 'server' && pg.body.roomScale).toBe(pg.body.kind === 'server' && pg.body.fit);
+    const pg = page((t, s) => (t === first.id && s === 0 ? withNote : null));
+    if (pg.body.kind !== 'server') throw new Error('server page');
+    expect([pg.body.notes, pg.body.notesShown]).toEqual([[], false]);
+    expect(pg.body.fit).toBeGreaterThan(1);
+    expect(pg.body.roomScale).toBe(pg.body.fit);
   });
 
-  it('a long list makes the drawing give up height, never below half size', () => {
-    const r = { ...resident([coffee()]), notes: [{ id: 'n', text: 'Allergic to shellfish and tree nuts; cut food small; sits near the window' }] };
-    const pg = page(() => r);
-    if (pg.body.kind !== 'server') throw new Error('server page');
-    expect(pg.body.notes.length).toBeGreaterThan(20);
-    expect(pg.body.roomScale).toBeLessThan(pg.body.fit ?? 1);
-    expect(pg.body.roomScale).toBeGreaterThanOrEqual(0.5 * (pg.body.fit ?? 1));
+  it('every seated place keeps room for two drinks: adding a second moves no table', () => {
+    const one = resident([coffee()]);
+    const two = resident([coffee(), drink('2% Milk')]);
+    const at = (r: Resident) => {
+      const pg = page(() => r);
+      if (pg.body.kind !== 'server') throw new Error('server page');
+      return [pg.body.fit, pg.body.room.scale, pg.body.room.tables.map((t) => [Math.round(t.l), Math.round(t.t)])];
+    };
+    expect(at(one)).toEqual(at(two));
   });
 });
 

@@ -6,7 +6,7 @@ import { drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, type Chair, type DiningTa
 import { getOpening, type MealName } from '../domain/sites';
 import { addTable, moveTable } from '../state/tableActions';
 import { Store } from '../state/store';
-import { textW, ARM_TAG_H, BOX_LINE_H, CHAIR_TAG_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, type RotBox, type ServerRoom } from './model';
+import { textW, ARM_TAG_H, BOX_LINE_H, CHAIR_TAG_H, CHIP_MAX_W, CHIP_W, chipRows, chipW, corners, evenChips, edgeAngle, EXTRA_BG, itemH, labelInkWidth, noMug, MIN_SHEET_SCALE, PILL_W, SEAT_W, SERVER_GAP, SETUP_GAP, separation, serverPills, serverRoom, setupChanges, setupRoom, stressOccupant, twoDrinksOccupant, type RotBox, type ServerRoom } from './model';
 import { buildPage, occupantFor, orderExtras, sheetsFor } from './pages';
 
 const SQL = await initSqlJs();
@@ -375,7 +375,7 @@ describe('Server sheet spacing: any combination fits, with a clear gap between t
     expect(smallest, worst).toBeGreaterThanOrEqual(0.85);
   });
 
-  it('labels are never upside down; coffee is not shown; half milk gets the ½ tab, juice never', () => {
+  it('labels are never upside down; coffee is not shown; half milk gets ½ in its band, juice never; no hot water pill', () => {
     const T = layoutTables().filter((t) => t.section === 1);
     const room = serverRoom(T, stress, 'Dinner', data().beverages);
     for (const l of room.labels) {
@@ -385,14 +385,11 @@ describe('Server sheet spacing: any combination fits, with a clear gap between t
     }
     const r = resident([coffee(), drink('2% Milk', { amount: 'Half' })], { hotWater: true, roWater: true });
     const one = serverRoom(T.slice(0, 1), (_t, s) => (s === 0 ? r : null), 'Dinner', data().beverages);
-    // RO water and hot water are pills too: a glass and a pitcher the server fills.
-    expect(one.labels[0]!.items.map((i) => [i.cap, i.half, i.cup])).toEqual(
-      expect.arrayContaining([
-        ['2% Milk', true, 'Glass'],
-        ['RO water', false, 'Glass'],
-        ['Hot water', false, 'Pitcher'],
-      ]),
-    );
+    // RO water is a pill too (a glass the server fills); hot water isn't (it comes in a pitcher).
+    expect(one.labels[0]!.items.map((i) => [i.cap, i.half, i.cup])).toEqual([
+      ['2% Milk', true, 'Glass'],
+      ['RO water', false, 'Glass'],
+    ]);
     expect(edgeAngle(0, 1)).toBe(0); // bottom seat reads upright
   });
 });
@@ -423,12 +420,12 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     expect(at(pagesFor('Dinner')).l).toBeGreaterThan(x0);
   });
 
-  it('a server sheet uses the whole page under its header: labels at (or near) full size, drawn larger only when they fit', () => {
+  it('a server sheet uses the whole page under its header: labels no smaller than 70%, drawn larger only when they fit', () => {
     const bodies = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body] : []));
     expect(bodies).toHaveLength(3);
     for (const b of bodies) {
-      expect([b.room.w, b.room.h]).toEqual([1056 - 52, 816 - 76 - 2]); // no notes list under the drawing
-      expect(b.room.scale).toBeGreaterThanOrEqual(0.9);
+      expect([b.room.w, b.room.h].map((x) => Math.round(x * (b.fit ?? 1)))).toEqual([1056 - 28, 816 - 64 - 2]); // no notes list under the drawing
+      expect(b.room.scale).toBeGreaterThanOrEqual(0.7); // Section 2's four tables across, each place with room for three
       if ((b.fit ?? 1) > 1) expect(b.room.scale).toBe(1);
     }
   });
@@ -476,7 +473,7 @@ describe('pill order and extras', () => {
   it('pills go milk, juice, tea, other, then water, whatever order the card has them in', () => {
     const caps = (r: Resident) => serverPills(r, 'Dinner', data().beverages).map((p) => p.cap);
     expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { roWater: true }))).toEqual(['2% Milk', 'Orange', 'RO water']);
-    expect(caps(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })], { hotWater: true }))).toEqual(['2% Milk', 'Orange', 'Hot water']);
+    expect(caps(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })], { hotWater: true }))).toEqual(['2% Milk', 'Orange']); // hot water: a pitcher, not poured
     expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Chamomile' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['Apple', 'Tea']);
   });
 
@@ -702,9 +699,9 @@ describe('server sheet notes', () => {
     expect(pg.body.roomScale).toBe(pg.body.fit);
   });
 
-  it('every seated place keeps room for two drinks: adding a second moves no table', () => {
+  it('every seated place keeps room for two drinks and RO water: adding them moves no table', () => {
     const one = resident([coffee()]);
-    const two = resident([coffee(), drink('2% Milk')]);
+    const two = resident([coffee(), drink('2% Milk')], { roWater: true });
     const at = (r: Resident) => {
       const pg = page(() => r);
       if (pg.body.kind !== 'server') throw new Error('server page');
@@ -714,3 +711,17 @@ describe('server sheet notes', () => {
   });
 });
 
+describe('stress test: 2 drinks', () => {
+  it('keeps the real seating; every resident has exactly two drinks, their own first', () => {
+    const none = resident([]);
+    const one = resident([drink('2% Milk')]);
+    const cran = resident([coffee(), drink('Cranberry Juice')]);
+    const occ = twoDrinksOccupant((_t, s) => (s === 0 ? none : s === 1 ? one : s === 2 ? cran : null), 'Dinner', data().beverages);
+    const bevs = (s: number) => occ('t', s)?.prefs.Dinner?.drinks.map((d) => d.beverage);
+    expect(bevs(0)).toHaveLength(2);
+    expect(bevs(1)).toEqual(['2% Milk', 'Cranberry Juice']);
+    expect(bevs(2)).toEqual(['Coffee', 'Cranberry Juice', 'Chocolate Milk']); // coffee kept, not counted; no second cranberry
+    expect(occ('t', 3)).toBeNull();
+    expect(occ('t', 1)!.chair).toBe(one.chair);
+  });
+});

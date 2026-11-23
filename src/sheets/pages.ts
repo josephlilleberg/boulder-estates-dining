@@ -31,8 +31,8 @@ export const sharedLayout = (opening: MealOpening) => opening.sections.length ==
 export const COMBINED_MEALS: string[] = ['Supper'];
 /** Height kept under the combined sheet's drawing for its key. */
 const LEGEND_ROOM = 96;
-/** A page's top margin, header (title, and the date the sheets last changed), the gap under it and the 15 px bottom margin; no footer, so the drawing gets the rest. */
-export const PAGE_CHROME = 76;
+/** A page's top margin, header (title, and the date the sheets last changed), the gap under it and the 11 px bottom margin; no footer, so the drawing gets the rest. */
+export const PAGE_CHROME = 64;
 /** A server sheet's drawing area: the page less its side margins, header and bottom margin. */
 export const serverArea = (w: number, h: number): Area => ({ w: drawW(w), h: h - PAGE_CHROME - 2 });
 /** Room kept under a setup drawing for its key (one row of groups, 49 px) and the gap above it. */

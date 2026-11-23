@@ -1,21 +1,27 @@
-// The test app's Stress test switch (npm run test-app only): every seat on every sheet gets a
-// worst-case resident, to see how crowded sheets hold up. Remembered between runs; never in the real app.
+// The test app's Stress test button (npm run test-app only), cycling Off → 2 drinks + RO → Full:
+// 'drinks' keeps the real seating but gives every resident two drinks and RO water; 'Full' puts a worst-case
+// resident at every seat. Remembered between runs; never in the real app.
+export type StressMode = 'off' | 'drinks' | 'full';
+export const STRESS_MODES: StressMode[] = ['off', 'drinks', 'full'];
 const KEY = 'be-stress-test';
 const listeners = new Set<() => void>();
 
-export function stressOn(): boolean {
-  if (!import.meta.env.DEV) return false;
+export function stressMode(): StressMode {
+  if (!import.meta.env.DEV) return 'off';
   try {
-    return localStorage.getItem(KEY) === '1' || new URLSearchParams(window.location.search).has('stress');
+    const v = localStorage.getItem(KEY);
+    if (v === 'drinks' || v === 'full') return v;
+    if (v === '1' || new URLSearchParams(window.location.search).has('stress')) return 'full';
+    return 'off';
   } catch {
-    return false;
+    return 'off';
   }
 }
 
-export function setStress(on: boolean): void {
+export function setStress(mode: StressMode): void {
   try {
-    if (on) localStorage.setItem(KEY, '1');
-    else localStorage.removeItem(KEY);
+    if (mode === 'off') localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, mode);
   } catch {
     /* this run only */
   }

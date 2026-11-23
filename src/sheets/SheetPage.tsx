@@ -66,10 +66,9 @@ function ServerBody({ room }: { room: ServerRoom }) {
                   >
                     {/* A dark rule under the drink, then the band's white line: dark | white | dark. Inside the row, so nothing grows. */}
                     <div style={{ display: 'flex', height: PILL_ROW_H, boxShadow: it.cup ? 'inset 0 -1px 0 #111827' : undefined }}>
-                      {it.half && <span style={{ flex: 'none', display: 'flex', alignItems: 'center', padding: '0 3px', background: '#111827', color: '#FFFFFF', fontSize: 12 }}>½</span>}
                       <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>{it.cap}</span>
                     </div>
-                    {/* The band: what the server fills (or which tea), in the same dark as the ½ tab. A white
+                    {/* The band: what the server fills, and how much (½ GLASS), or which tea. A white
                         hairline separates it from the drink on every pill. */}
                     {it.cup && (
                       <div style={{ position: 'relative', height: CUP_BAND_H, boxSizing: 'border-box', borderTop: '1px solid #FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: it.plus ? `0 4px 0 ${CUP_BAND_H + 1}px` : '0 4px', background: '#111827', color: '#FFFFFF', fontSize: 7.5, lineHeight: 1, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase' }}>
@@ -79,6 +78,8 @@ function ServerBody({ room }: { room: ServerRoom }) {
                             +
                           </span>
                         )}
+                        {/* Half a glass: "½ GLASS", the amount with the cup it goes in. */}
+                        {it.half && <span style={{ fontSize: 9.5, letterSpacing: 0, marginRight: 2 }}>½</span>}
                         {it.cup}
                       </div>
                     )}

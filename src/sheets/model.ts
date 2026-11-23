@@ -1,4 +1,4 @@
-import type { Beverage, Chair, DiningTable, Extra, MealPrefs, Resident } from '../domain/model';
+import type { Beverage, Chair, DiningTable, Drink, Extra, MealPrefs, Resident } from '../domain/model';
 import { extraText } from '../domain/labels';
 import { ANY_KIND, hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
@@ -88,7 +88,7 @@ export interface Pill {
   cap: string;
   bg: string;
   color: string;
-  /** Half glass of milk: a dark ½ tab in front. */
+  /** Half a glass or to-go cup: ½ before the cup in the band (½ GLASS). */
   half: boolean;
   /** The dark band under the drink: what the server fills (GLASS, TO-GO…), or for tea which tea (CHAMOMILE, GREEN…). */
   cup: string | null;
@@ -155,14 +155,14 @@ export interface ServerRoom {
 const SG = 0.825;
 /** The drawing area inside a page: a Letter server sheet, or an 11 × 17 page (Supper's combined sheet). */
 export type Area = { w: number; h: number };
-/** A page's margins: 0.25" at the sides, a little less above the title (the page prints edge to edge, @page margin 0). */
-export const PAGE_SIDE = 24;
-export const PAGE_TOP = 20;
+/** A page's margins: ⅛" at the sides and top (the page prints edge to edge, @page margin 0). */
+export const PAGE_SIDE = 12;
+export const PAGE_TOP = 12;
 /** Width a page's drawing gets: the page less its side margins and a little slack. */
 export const drawW = (pageW: number) => pageW - 2 * PAGE_SIDE - 4;
 /** A Letter server sheet's drawing area: the page under its header (see serverArea). */
-export const LETTER_AREA: Area = { w: drawW(1056), h: 816 - 76 - 2 };
-export const areaFor = (pageW: number, pageH: number, below = 0): Area => ({ w: drawW(pageW), h: pageH - 132 - below });
+export const LETTER_AREA: Area = { w: drawW(1056), h: 816 - 64 - 2 };
+export const areaFor = (pageW: number, pageH: number, below = 0): Area => ({ w: drawW(pageW), h: pageH - 120 - below });
 const EDGE = 8;
 /**
  * Widest a server label is drawn: the two seats on a rectangle's long side are 76 px apart,
@@ -176,8 +176,11 @@ export const MIN_SHEET_SCALE = 0.5;
 /** Space between the name and the first pill, and between pills. */
 export const NAME_GAP = 5;
 export const PILL_GAP = 2;
-/** A server label with a name and two drinks (each with its cup band): the least room a seated place keeps. */
-export const TWO_DRINKS_H = 14 + NAME_GAP + PILL_GAP + 2 * (2 + PILL_ROW_H + CUP_BAND_H);
+/**
+ * The most a resident can have poured: two drinks plus RO water (which doesn't count toward the two),
+ * each with its cup band. A server label this tall (with the name) is the least room a seated place keeps.
+ */
+export const FULL_POUR_H = 14 + NAME_GAP + 2 * PILL_GAP + 3 * (2 + PILL_ROW_H + CUP_BAND_H);
 
 type Spot = { x: number; y: number };
 /** Each seat's label height at full size (0: nobody there). */
@@ -307,7 +310,7 @@ const PLAIN = '#F9FAFB';
  */
 export const CHAR_W = 6.0;
 /** Full-size width of one drink pill: PILL_W, or more if its ½ tab and name or its cup band need it. */
-export const pillW = (p: Pill) => Math.max(PILL_W, 2 + 6 + p.cap.length * CHAR_W + (p.half ? 6 + 7.5 : 0), p.cup ? 2 + 8 + p.cup.length * 5.2 + (p.plus ? CUP_BAND_H + 1 - 4 : 0) : 0);
+export const pillW = (p: Pill) => Math.max(PILL_W, 2 + 6 + p.cap.length * CHAR_W, p.cup ? 2 + 8 + p.cup.length * 5.2 + (p.half ? 8 : 0) + (p.plus ? CUP_BAND_H + 1 - 4 : 0) : 0);
 /** Full-size height of a label: the name line, then its pills (a cup band adds a little). */
 export const labelH = (items: Pill[]) =>
   14 + (items.length ? NAME_GAP + (items.length - 1) * PILL_GAP : 0) + items.reduce((h, p) => h + 2 + PILL_ROW_H + (p.cup ? CUP_BAND_H : 0), 0);
@@ -403,14 +406,12 @@ export const chipsH = (cs: Change[]) => (cs.length ? stackH(cs) + NAME_GAP : 0);
 /** Chips stacked on their own (a setup-only label). */
 export const stackH = (cs: Change[]) => (cs.length ? cs.reduce((h, c) => h + itemH(c), 0) + (cs.length - 1) * CHIP_GAP : 0);
 
-/** A label with two drinks, both with cup bands: the least room any seat keeps. */
-
 /** Pill order on every label, first next to the name: milk, juice, tea, anything else, then water. */
 const PILL_RANK: Record<string, number> = { milk: 0, juice: 1, tea: 2, other: 3, water: 4, ro: 5, hot: 6 };
 
 /**
- * One pill per drink, then RO water (a glass) and hot water (a pitcher): everything the server
- * fills. Coffee isn't shown (everyone is offered it); tea has no cup band (a mug isn't filled).
+ * One pill per drink, then RO water (a glass): everything the server fills (and on Supper's sheet
+ * hot water's pitcher). Coffee isn't shown (everyone is offered it); tea has no cup band (a mug isn't filled).
  */
 export function serverPills(r: Resident, meal: string, beverages: Beverage[], opts: { adds?: boolean } = {}): Pill[] {
   const p = prefsOf(r, meal);
@@ -445,7 +446,8 @@ export function serverPills(r: Resident, meal: string, beverages: Beverage[], op
   // On Supper's sheet an extra glass (for water) is a pill too, so the server fills it and setup adds it.
   if (opts.adds) for (const d of p.drinks) if (d.extraGlass) items.push(PILL_RANK.water!, { cap: 'Water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' }, 'Glass');
   if (p.roWater) items.push(PILL_RANK.ro!, { cap: 'RO water', bg: PLAIN, color: '#111827', half: false, cup: 'Glass' }, 'Glass');
-  if (p.hotWater) items.push(PILL_RANK.hot!, { cap: 'Hot water', bg: PLAIN, color: '#111827', half: false, cup: 'Pitcher' }, 'added');
+  // Hot water comes in a pitcher, not poured by the server: only on Supper's sheet, where it's also setup.
+  if (opts.adds && p.hotWater) items.push(PILL_RANK.hot!, { cap: 'Hot water', bg: PLAIN, color: '#111827', half: false, cup: 'Pitcher' }, 'added');
   // The same order at every seat (stable within a kind: drink 1 before drink 2).
   const sorted = ranked.sort((a, b) => a[0] - b[0]);
   if (!opts.adds) return sorted.map(([, x]) => x);
@@ -510,9 +512,9 @@ export function serverRoom(T: DiningTable[], occupant: Occupant, meal: string, b
   // holding space for drinks nobody has; the tables keep their arrangement, the spacing follows who's seated.
   // With chair pills drawn, labels start past the pill and a clear gap.
   const lead = draw === 'server' ? 0 : 0.5 + CHAIR_GAP;
-  // A resident may have up to two drinks, so every seated place keeps room for two (a table by the wall sits
-  // far enough in for them); an empty seat keeps none.
-  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const r = roomAt.get(`${t.id}:${i}`); return r === undefined ? 0 : lead + Math.max(draw === 'setup' ? 0 : TWO_DRINKS_H, r); }]));
+  // A resident may have two drinks and RO water, so every seated place keeps room for all three (a table by
+  // the wall sits far enough in for them); an empty seat keeps none.
+  const lhOf = new Map(T.map((t) => [t.id, (i: number) => { const r = roomAt.get(`${t.id}:${i}`); return r === undefined ? 0 : lead + Math.max(draw === 'setup' ? 0 : FULL_POUR_H, r); }]));
   let sheetK = 1;
   let at = serverFit(T, lhOf, 1, area);
   if (crowded(T, at, lhOf, 1)) {
@@ -1133,7 +1135,7 @@ export function stressOccupant(meal: string, opts: { heavy?: boolean } = {}): Oc
     nickname: null,
     chair: 'arm',
     archived: false,
-    notes: [{ id: 'sn', text: 'No nuts' }], // listed under the drawing
+    notes: [{ id: 'sn', text: 'No nuts' }],
     attends: [meal as never],
     onPlan: [meal as never],
     prefs: {
@@ -1169,4 +1171,31 @@ export function stressOccupant(meal: string, opts: { heavy?: boolean } = {}): Oc
   const chairs: Resident['chair'][] = ['arm', 'no_arm', 'none'];
   const bySeat = chairs.map((chair) => ({ ...heavy, chair }));
   return (_t, seat) => bySeat[seat % 3]!;
+}
+
+/**
+ * The test app's "2 drinks + RO" stress test: the real seating, chairs and extras, but every resident has
+ * two drinks the server pours (their own first, then sample ones) and RO water: the most anyone can have.
+ */
+export function twoDrinksOccupant(occupant: Occupant, meal: string, beverages: Beverage[]): Occupant {
+  const apple: Drink = { id: 's3', slot: 'drink', beverage: 'Apple Juice', tea: null, drinkware: 'Juice glass', amount: 'Half', extraGlass: false, creamer: false };
+  const sample = [...prefsOf(stressOccupant(meal)('', 0)!, meal)!.drinks, apple].map((d) => ({ ...d, extraGlass: false }));
+  const done = new Map<Resident, Resident>();
+  return (t, seat) => {
+    const r = occupant(t, seat);
+    if (!r) return null;
+    let out = done.get(r);
+    if (!out) {
+      const p: MealPrefs = prefsOf(r, meal) ?? { roWater: false, hotWater: false, portion: 'Full', extras: [], drinks: [] };
+      // Coffee is never drawn on the sheets, so it's kept and doesn't count; samples are ones they
+      // don't already have (two of the same would be poured together as one pill).
+      const isCoffee = (d: Drink) => d.slot === 'coffee' || beverages.find((b) => b.siteId === r.siteId && b.name === d.beverage)?.kind === 'coffee';
+      const mine = p.drinks.filter((d) => !isCoffee(d));
+      const fill = sample.filter((d) => !mine.some((m) => m.beverage === d.beverage));
+      const drinks = [...p.drinks.filter(isCoffee), ...[...mine, ...fill].slice(0, 2)];
+      out = { ...r, prefs: { ...r.prefs, [meal]: { ...p, drinks, roWater: true } } };
+      done.set(r, out);
+    }
+    return out;
+  };
 }

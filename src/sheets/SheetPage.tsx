@@ -1,5 +1,5 @@
 import { Fragment, useId, type CSSProperties, type ReactNode } from 'react';
-import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, PAGE_SIDE, PAGE_TOP, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, RO_PILL, PAGE_SIDE, PAGE_TOP, type Change, type MugMark, type SeatPill, NAME_GAP, NAME_H, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import { PAGE_CHROME, type PageData } from './pages';
 import { CHAIR_LABEL, type Chair } from '../domain/model';
 
@@ -52,7 +52,7 @@ function ServerBody({ room }: { room: ServerRoom }) {
           >
             {/* A setup-only label (Breakfast's setup sheet) has no name: just the chips. */}
             {l.name && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: 14, lineHeight: '14px', maxWidth: '100%', fontSize: 11, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: NAME_H, lineHeight: `${NAME_H}px`, maxWidth: '100%', fontSize: 12, fontWeight: 700, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden' }}>
                 <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
               </div>
             )}
@@ -62,7 +62,7 @@ function ServerBody({ room }: { room: ServerRoom }) {
                 {l.items.map((it, k) => (
                   <div
                     key={k}
-                    style={{ boxSizing: 'border-box', width: l.pillW, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 11, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
+                    style={{ boxSizing: 'border-box', width: l.pillW, padding: 0, overflow: 'hidden', border: '1px solid #111827', borderRadius: 4, background: it.bg, fontSize: 10, lineHeight: 1, fontWeight: 700, color: it.color, whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}
                   >
                     {/* A dark rule under the drink, then the band's white line: dark | white | dark. Inside the row, so nothing grows. */}
                     <div style={{ display: 'flex', height: PILL_ROW_H, boxShadow: it.cup ? 'inset 0 -1px 0 #111827' : undefined }}>
@@ -79,7 +79,8 @@ function ServerBody({ room }: { room: ServerRoom }) {
                           </span>
                         )}
                         {/* Half a glass: "½ GLASS", the amount with the cup it goes in. */}
-                        {it.half && <span style={{ fontSize: 9.5, letterSpacing: 0, marginRight: 2 }}>½</span>}
+                        {/* The ½ glyph draws small, so it's set a touch larger (same weight) to read as tall as GLASS. */}
+                        {it.half && <span style={{ fontSize: 9, lineHeight: 1, marginRight: 2 }}>½</span>}
                         {it.cup}
                       </div>
                     )}
@@ -144,8 +145,16 @@ function Chip({ c }: { c: Change }) {
   );
 }
 
-/** "Mug" on the table at a seat: take the mug away (no coffee or tea). */
+/** On the table at a seat: the red no-mug dot, "Mug" (take it away), or "RO" (RO water, on a server sheet). */
 function MugMarker({ m }: { m: MugMark }) {
+  if (m.ro) {
+    if (m.arc) return <ArcBand l={m.l} t={m.t} w={m.w} h={m.h} arc={m.arc} look={RO_PILL} roundEnds fs={9.5} />;
+    return (
+      <div style={{ position: 'absolute', left: m.l, top: m.t, width: m.w, height: m.h, transform: `rotate(${m.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: RO_PILL.border, borderRadius: m.h / 2, background: RO_PILL.bg, color: RO_PILL.color, fontSize: 10, fontWeight: 800, lineHeight: 1 }}>
+        RO
+      </div>
+    );
+  }
   if (m.dot) return <div aria-hidden="true" style={{ position: 'absolute', left: m.l, top: m.t, width: m.w, height: m.h, borderRadius: '50%', background: NO_MUG.bg, border: '1px solid #111827', boxSizing: 'border-box' }} />;
   return (
     <div style={{ position: 'absolute', left: m.l, top: m.t, width: m.w, height: m.h, transform: `rotate(${m.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: '1px solid #111827', borderRadius: 6, background: NO_MUG.bg, color: NO_MUG.color, fontSize: 8, fontWeight: 800, lineHeight: 1 }}>
@@ -160,7 +169,7 @@ const WORD_R = 4;
 
 function ChairPill({ p }: { p: SeatPill }) {
   const look = CHAIR_PILL[p.chair];
-  if (p.arc) return <ArcChairPill p={p} arc={p.arc} />;
+  if (p.arc) return <ArcBand l={p.l} t={p.t} w={p.w} h={p.h} arc={p.arc} look={look} roundEnds={!look.text} fs={8 * (p.k ?? 1)} />;
   if (look.text)
     return (
       <div style={{ position: 'absolute', left: p.l, top: p.t, width: p.w, height: p.h, transform: `rotate(${p.ang}deg)`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', border: look.border, borderRadius: WORD_R * (p.k ?? 1), background: look.bg, color: look.color, fontSize: 9 * (p.k ?? 1), fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap' }}>
@@ -175,20 +184,19 @@ function ChairPill({ p }: { p: SeatPill }) {
  * with round ends for the plain arm chair bar and square ends when it carries words (they get its whole
  * length), and the words following the curve, upright at every seat.
  */
-function ArcChairPill({ p, arc }: { p: SeatPill; arc: NonNullable<SeatPill['arc']> }) {
-  const look = CHAIR_PILL[p.chair];
+/** A mark bent along a round table's edge: a chair mark, or the RO pill. `arc` is relative to (l, t). */
+function ArcBand({ l, t, w, h, arc, look, roundEnds, fs }: { l: number; t: number; w: number; h: number; arc: NonNullable<SeatPill['arc']>; look: { bg: string; border: string; color?: string; text?: string }; roundEnds: boolean; fs: number }) {
   const [bw, bc] = (() => {
     const m = look.border.match(/^([\d.]+)px solid (#\w+)$/);
     return m ? [Number(m[1]), m[2]!] : [1, '#111827'];
   })();
   const { r, a } = arc;
-  const h = p.h;
   const C = r + h;
   // Half the arc's angle: with round ends, the arc plus its ends is the mark's width; square ends are the
   // whole width, and the fill stops short of them by the outline's width so the outline closes the ends.
-  const cap = look.text ? 'butt' : 'round';
-  const d = look.text ? p.w / 2 / r : (p.w - h) / 2 / r;
-  const dIn = look.text ? (p.w / 2 - bw) / r : d;
+  const cap = roundEnds ? 'round' : 'butt';
+  const d = roundEnds ? (w - h) / 2 / r : w / 2 / r;
+  const dIn = roundEnds ? d : (w / 2 - bw) / r;
   const below = Math.sin(a) > 0.01; // seats in the lower half read left to right the other way round
   // `span`: half the angle drawn. The words get a longer path than the mark (a quarter turn each way),
   // centred on the seat, so they're never cut off at its ends.
@@ -197,17 +205,15 @@ function ArcChairPill({ p, arc }: { p: SeatPill; arc: NonNullable<SeatPill['arc'
     const pt = (t: number) => `${(C + rad * Math.cos(t)).toFixed(2)} ${(C + rad * Math.sin(t)).toFixed(2)}`;
     return `M ${pt(a0)} A ${rad} ${rad} 0 0 ${below ? 0 : 1} ${pt(a1)}`;
   };
-  // A touch smaller than elsewhere: a round table's marks are shorter, and the words need room at the ends.
-  const fs = 8 * (p.k ?? 1);
-  const id = `chair-arc${useId().replace(/:/g, '')}`;
+  const id = `arc${useId().replace(/:/g, '')}`;
   return (
-    <svg aria-hidden={look.text ? undefined : true} style={{ position: 'absolute', left: p.l + arc.ox - C, top: p.t + arc.oy - C, width: 2 * C, height: 2 * C, overflow: 'visible', pointerEvents: 'none' }}>
+    <svg aria-hidden={look.text ? undefined : true} style={{ position: 'absolute', left: l + arc.ox - C, top: t + arc.oy - C, width: 2 * C, height: 2 * C, overflow: 'visible', pointerEvents: 'none' }}>
       <path d={path(r)} fill="none" stroke={bc} strokeWidth={h} strokeLinecap={cap} />
       <path d={path(r, dIn)} fill="none" stroke={look.bg} strokeWidth={h - 2 * bw} strokeLinecap={cap} />
       {look.text && (
         <>
           <path id={id} d={path(below ? r + 0.35 * fs : r - 0.35 * fs, Math.PI / 2)} fill="none" />
-          <text fill={look.color} style={{ fontSize: fs, fontWeight: 700, fontFamily: 'inherit' }}>
+          <text fill={look.color} style={{ fontSize: fs, fontWeight: roundEnds ? 800 : 700, fontFamily: 'inherit' }}>
             <textPath href={`#${id}`} startOffset="50%" textAnchor="middle">
               {look.text}
             </textPath>

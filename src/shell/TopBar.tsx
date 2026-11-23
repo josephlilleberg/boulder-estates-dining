@@ -76,8 +76,8 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
   );
 }
 
-// The test app only: each click moves Off → 2 drinks + RO → Full.
-const STRESS_LABEL = { off: 'Stress test off', drinks: 'Stress: 2 drinks + RO', full: 'Stress: full' } as const;
+// The test app only: each click moves Off → 2 drinks → 2 drinks + RO → Full.
+const STRESS_LABEL = { off: 'Stress test off', drinks: 'Stress: 2 drinks', ro: 'Stress: 2 drinks + RO', full: 'Stress: full' } as const;
 function StressSwitch() {
   const mode = useSyncExternalStore(onStress, stressMode);
   const next = STRESS_MODES[(STRESS_MODES.indexOf(mode) + 1) % STRESS_MODES.length]!;
@@ -86,8 +86,8 @@ function StressSwitch() {
       type="button"
       className={mode === 'off' ? 'btn sm' : 'btn sm primary'}
       onClick={() => setStress(next)}
-      title="Test app only. Click to cycle: Off; 2 drinks + RO (everyone seated has two drinks and RO water); Full (every seat gets two drinks, RO water, three extras and a mix of chairs)"
-      style={mode === 'full' ? { background: '#B91C1C', borderColor: '#B91C1C' } : mode === 'drinks' ? { background: '#B45309', borderColor: '#B45309' } : undefined}
+      title="Test app only. Click to cycle: Off; 2 drinks (everyone seated has two drinks); 2 drinks + RO (and RO water); Full (every seat gets two drinks, RO water, three extras and a mix of chairs)"
+      style={mode === 'full' ? { background: '#B91C1C', borderColor: '#B91C1C' } : mode === 'drinks' || mode === 'ro' ? { background: '#B45309', borderColor: '#B45309' } : undefined}
     >
       {STRESS_LABEL[mode]}
     </button>

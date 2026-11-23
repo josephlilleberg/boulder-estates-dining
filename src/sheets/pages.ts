@@ -119,6 +119,20 @@ export function orderExtras<T extends { name: string }>(extras: T[], order: stri
   return [...extras].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
+/** The label scale a meal's server sheets share: the smallest any section needs. Remembered per seating. */
+const sharedScales = new WeakMap<Occupant, Map<string, number>>();
+function sharedServerScale(tables: Parameters<typeof serverRoom>[0], opening: MealOpening, occupant: Occupant, meal: string, beverages: Parameters<typeof serverRoom>[3], shared: boolean, area: Area): number {
+  const key = `${meal}|${area.w}×${area.h}|${tables.map((t) => `${t.id}@${t.shape},${t.x},${t.y},${t.rotation},${t.section}`).join(';')}`;
+  let byKey = sharedScales.get(occupant);
+  if (!byKey) sharedScales.set(occupant, (byKey = new Map()));
+  let k = byKey.get(key);
+  if (k === undefined) {
+    k = Math.min(...opening.sections.map((s) => serverRoom(tables.filter((t) => t.section === s.section), occupant, meal, beverages, { shared, area }).scale));
+    byKey.set(key, k);
+  }
+  return k;
+}
+
 /** How much larger a server sheet may be drawn, tried largest first. */
 const SERVER_GROW = [1.6, 1.45, 1.3, 1.15];
 
@@ -159,10 +173,14 @@ export function buildPage(
   if (sheet.kind === 'server') {
     const T = tables.filter((t) => t.section === sheet.section);
     const shared = sharedLayout(opening);
-    // No notes list: the drawing gets the whole page under the header, and is drawn z times its layout.
+    // No notes list: the drawing gets the whole page under the header. With several sections, every
+    // server sheet shares one size (labels as small as the most crowded section needs, never enlarged),
+    // so names and drinks read the same on each; a one-section meal may be drawn z times larger.
     const area = serverArea(w, h);
-    const z = serverGrow(T, occupant, meal, data.beverages, shared, area);
-    const room = serverRoom(T, occupant, meal, data.beverages, { shared, area: { w: area.w / z, h: area.h / z } });
+    const many = opening.sections.length > 1;
+    const maxScale = many ? sharedServerScale(tables, opening, occupant, meal, data.beverages, shared, area) : undefined;
+    const z = many ? 1 : serverGrow(T, occupant, meal, data.beverages, shared, area);
+    const room = serverRoom(T, occupant, meal, data.beverages, { shared, maxScale, area: { w: area.w / z, h: area.h / z } });
     const label = opening.sections.find((s) => s.section === sheet.section)?.label ?? '';
     return {
       ...base,

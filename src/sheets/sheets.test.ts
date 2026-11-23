@@ -70,12 +70,12 @@ describe('Setup sheet rules', () => {
     for (const c of setupChanges(resident([drink('Orange Juice', { drinkware: 'Juice glass' })]), 'Dinner')) expect(c.bg).toBe('#86EFAC');
   });
 
-  it('two of the same juice are poured together into the usual glass: no +2 Juice, one "2 Cran Juice" pill', () => {
+  it('two of the same juice are poured together into the usual glass: no +2 Juice, one Cranberry pill in a GLASS', () => {
     const jg = { drinkware: 'Juice glass' };
     // Both drinks are juice, so there's no coffee mug either; the juice uses the usual glass.
     const pair = resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]);
     expect(texts(pair)).toEqual(['Mug on table']);
-    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['2 Cranberry']);
+    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => p.cap)).toEqual(['Cranberry']);
     // With an extra glass (for water), one more glass; hot water adds its pitcher.
     expect(texts(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', { ...jg, extraGlass: true })], { hotWater: true }))).toEqual(['+Glass', '+Pitcher', 'Mug on table']);
     // Not the same juice, or not both in juice glasses: nothing is combined.
@@ -88,7 +88,7 @@ describe('Setup sheet rules', () => {
     const half = { drinkware: 'To-go cup', amount: 'Half' as const };
     const pair = resident([drink('Cranberry Juice', half), drink('Cranberry Juice', half)]);
     expect(texts(pair)).toEqual(['+To-Go', 'Mug on table']);
-    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => [p.cap, p.half])).toEqual([['2 Cranberry', false]]); // two halves make a full cup
+    expect(serverPills(pair, 'Dinner', data().beverages).map((p) => [p.cap, p.half])).toEqual([['Cranberry', false]]); // two halves make a full cup
     // Full to-go cups aren't combined.
     expect(texts(resident([drink('Cranberry Juice', { drinkware: 'To-go cup' }), drink('Cranberry Juice', { drinkware: 'To-go cup' })]))).toEqual(['+2 To-Go', 'Mug on table']);
   });
@@ -375,7 +375,7 @@ describe('Server sheet spacing: any combination fits, with a clear gap between t
     expect(smallest, worst).toBeGreaterThanOrEqual(0.85);
   });
 
-  it('labels are never upside down; coffee is not shown; half milk gets ½ in its band, juice never; no hot water pill', () => {
+  it('labels are never upside down; coffee is not shown; half milk gets ½ in its band, juice never; RO on the table, no hot water pill', () => {
     const T = layoutTables().filter((t) => t.section === 1);
     const room = serverRoom(T, stress, 'Dinner', data().beverages);
     for (const l of room.labels) {
@@ -385,11 +385,14 @@ describe('Server sheet spacing: any combination fits, with a clear gap between t
     }
     const r = resident([coffee(), drink('2% Milk', { amount: 'Half' })], { hotWater: true, roWater: true });
     const one = serverRoom(T.slice(0, 1), (_t, s) => (s === 0 ? r : null), 'Dinner', data().beverages);
-    // RO water is a pill too (a glass the server fills); hot water isn't (it comes in a pitcher).
-    expect(one.labels[0]!.items.map((i) => [i.cap, i.half, i.cup])).toEqual([
-      ['2% Milk', true, 'Glass'],
-      ['RO water', false, 'Glass'],
-    ]);
+    // Hot water isn't a pill (it comes in a pitcher); RO water is a small RO pill on the table under the
+    // name, reading the same way, so the label keeps room for just the drinks.
+    expect(one.labels[0]!.items.map((i) => [i.cap, i.half, i.cup])).toEqual([['2% Milk', true, 'Glass']]);
+    expect(one.mugs).toHaveLength(1);
+    expect(one.mugs[0]).toMatchObject({ ro: true, ang: one.labels[0]!.ang });
+    const t0 = one.tables[0]!;
+    const [mx, my] = [one.mugs[0]!.l + one.mugs[0]!.w / 2, one.mugs[0]!.t + one.mugs[0]!.h / 2];
+    expect(mx > t0.l && mx < t0.l + t0.w && my > t0.t && my < t0.t + t0.h).toBe(true); // on the table
     expect(edgeAngle(0, 1)).toBe(0); // bottom seat reads upright
   });
 });
@@ -420,14 +423,16 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     expect(at(pagesFor('Dinner')).l).toBeGreaterThan(x0);
   });
 
-  it('a server sheet uses the whole page under its header: labels no smaller than 70%, drawn larger only when they fit', () => {
+  it('a server sheet uses the whole page under its header: labels near full size (one size for every section), drawn larger only when they fit', () => {
     const bodies = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body] : []));
     expect(bodies).toHaveLength(3);
     for (const b of bodies) {
       expect([b.room.w, b.room.h].map((x) => Math.round(x * (b.fit ?? 1)))).toEqual([1056 - 28, 816 - 64 - 2]); // no notes list under the drawing
-      expect(b.room.scale).toBeGreaterThanOrEqual(0.7); // Section 2's four tables across, each place with room for three
+      expect(b.room.scale).toBeGreaterThanOrEqual(0.85);
       if ((b.fit ?? 1) > 1) expect(b.room.scale).toBe(1);
     }
+    // One size for every section's sheet, so names and drinks read the same on each.
+    expect(new Set(bodies.map((b) => `${b.fit ?? 1}×${b.room.scale}`)).size).toBe(1);
   });
 
   it('pages carry a title and, top right, when the sheets last changed; no footer', () => {
@@ -454,7 +459,7 @@ describe('cup bands', () => {
     expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Chamomile' })]))).toEqual([['Tea', 'Chamomile']]);
     // Two of the same juice poured into one glass: the glass is named.
     const jg = { drinkware: 'Juice glass' };
-    expect(caps(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]))).toEqual([['2 Cranberry', 'Glass']]);
+    expect(caps(resident([drink('Cranberry Juice', jg), drink('Cranberry Juice', jg)]))).toEqual([['Cranberry', 'Glass']]);
   });
 
   it('the pills on a label are all one width', () => {
@@ -472,7 +477,7 @@ describe('cup bands', () => {
 describe('pill order and extras', () => {
   it('pills go milk, juice, tea, other, then water, whatever order the card has them in', () => {
     const caps = (r: Resident) => serverPills(r, 'Dinner', data().beverages).map((p) => p.cap);
-    expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { roWater: true }))).toEqual(['2% Milk', 'Orange', 'RO water']);
+    expect(caps(resident([drink('Orange Juice', { drinkware: 'Juice glass' }), drink('2% Milk')], { roWater: true }))).toEqual(['2% Milk', 'Orange']); // RO: on the table, not a pill
     expect(caps(resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })], { hotWater: true }))).toEqual(['2% Milk', 'Orange']); // hot water: a pitcher, not poured
     expect(caps(resident([drink('Tea', { drinkware: 'Mug', tea: 'Chamomile' }), drink('Apple Juice', { drinkware: 'Juice glass' })]))).toEqual(['Apple', 'Tea']);
   });
@@ -606,7 +611,7 @@ describe('Supper: + on added cups', () => {
     expect(plus(resident([drink('Orange Juice', { drinkware: 'To-go cup' })], { hotWater: true }))).toEqual(['+Orange', '+Hot water']);
     expect(plus(resident([drink('Tea', { drinkware: 'Mug', tea: 'Green Tea' })]))).toEqual(['Tea']);
     // Two of the same juice poured together go into the usual glass.
-    expect(plus(resident([drink('Cranberry Juice', { drinkware: 'Juice glass' }), drink('Cranberry Juice', { drinkware: 'Juice glass' })]))).toEqual(['2 Cranberry']);
+    expect(plus(resident([drink('Cranberry Juice', { drinkware: 'Juice glass' }), drink('Cranberry Juice', { drinkware: 'Juice glass' })]))).toEqual(['Cranberry']);
     // An extra glass (for water) is a Water pill with a +.
     expect(plus(resident([drink('2% Milk', { extraGlass: true })]))).toEqual(['2% Milk', '+Water']);
     // No drink in a glass: RO water uses the usual glass, so only the juice glass is added.
@@ -689,19 +694,22 @@ describe('server sheet notes', () => {
     return buildPage(data(), site(), 'Dinner', opening, sheet, occ, 'Nov 11, 2026');
   };
 
-  it('no notes list under the drawing; a near-empty section is drawn larger to use the page', () => {
+  it('no notes list under the drawing; a near-empty section is laid out exactly like a full one', () => {
     const first = T().sort((a, b) => a.number - b.number)[0]!;
     const withNote = { ...resident([coffee()], { portion: 'Half' }), notes: [{ id: 'n', text: 'Nut allergy' }] };
     const pg = page((t, s) => (t === first.id && s === 0 ? withNote : null));
     if (pg.body.kind !== 'server') throw new Error('server page');
     expect([pg.body.notes, pg.body.notesShown]).toEqual([[], false]);
-    expect(pg.body.fit).toBeGreaterThan(1);
-    expect(pg.body.roomScale).toBe(pg.body.fit);
+    // Rule: every seat keeps room for two drinks, seated or not, so who's seated never changes the layout.
+    const full = page(() => resident([drink('2% Milk'), drink('Orange Juice', { drinkware: 'Juice glass' })]));
+    if (full.body.kind !== 'server') throw new Error('server page');
+    const shape = (b: typeof pg.body) => [b.fit, b.room.scale, b.room.tables.map((t) => [Math.round(t.l), Math.round(t.t)])];
+    expect(shape(pg.body)).toEqual(shape(full.body));
   });
 
-  it('every seated place keeps room for two drinks and RO water: adding them moves no table', () => {
+  it('every seated place keeps room for two drinks: adding a second moves no table', () => {
     const one = resident([coffee()]);
-    const two = resident([coffee(), drink('2% Milk')], { roWater: true });
+    const two = resident([coffee(), drink('2% Milk')]);
     const at = (r: Resident) => {
       const pg = page(() => r);
       if (pg.body.kind !== 'server') throw new Error('server page');
@@ -723,5 +731,7 @@ describe('stress test: 2 drinks', () => {
     expect(bevs(2)).toEqual(['Coffee', 'Cranberry Juice', 'Chocolate Milk']); // coffee kept, not counted; no second cranberry
     expect(occ('t', 3)).toBeNull();
     expect(occ('t', 1)!.chair).toBe(one.chair);
+    expect(occ('t', 1)!.prefs.Dinner?.roWater).toBe(false);
+    expect(twoDrinksOccupant(() => one, 'Dinner', data().beverages, { ro: true })('t', 0)!.prefs.Dinner?.roWater).toBe(true); // 2 drinks + RO
   });
 });

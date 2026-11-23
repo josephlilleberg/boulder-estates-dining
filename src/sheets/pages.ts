@@ -2,7 +2,7 @@ import type { AppData } from '../db/repo';
 import type { Resident } from '../domain/model';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
-import { areaFor, type Area, LETTER_AREA, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
+import { areaFor, type Area, drawW, LETTER_AREA, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
 
 // The printable sheets for a meal and the data each page draws. Shared by View,
 // Print preview and the printed output, so all three are the same page.
@@ -31,10 +31,10 @@ export const sharedLayout = (opening: MealOpening) => opening.sections.length ==
 export const COMBINED_MEALS: string[] = ['Supper'];
 /** Height kept under the combined sheet's drawing for its key. */
 const LEGEND_ROOM = 96;
-/** A page's header (title, and the date the sheets last changed) and bottom margin; there's no footer, so the drawing gets the rest. */
-export const PAGE_CHROME = 84;
+/** A page's top margin, header (title, and the date the sheets last changed), the gap under it and the 15 px bottom margin; no footer, so the drawing gets the rest. */
+export const PAGE_CHROME = 76;
 /** A server sheet's drawing area: the page less its side margins, header and bottom margin. */
-export const serverArea = (w: number, h: number): Area => ({ w: w - 84, h: h - PAGE_CHROME - 2 });
+export const serverArea = (w: number, h: number): Area => ({ w: drawW(w), h: h - PAGE_CHROME - 2 });
 /** Room kept under a setup drawing for its key (one row of groups, 49 px) and the gap above it. */
 const KEY_ROOM = 64;
 
@@ -174,7 +174,7 @@ export function buildPage(
   // room per seat), laid out for the 11 × 17 page's shape and enlarged to fill it, so it uses the whole
   // width: as tall as the Letter sheet's area, and as much wider as the page is.
   if (sharedLayout(opening)) {
-    const [PW, PH] = [w - 84, h - PAGE_CHROME - KEY_ROOM];
+    const [PW, PH] = [drawW(w), h - PAGE_CHROME - KEY_ROOM];
     const area = { w: (PW * LETTER_AREA.h) / PH, h: LETTER_AREA.h };
     const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'setup', shared: true, area });
     return {
@@ -187,6 +187,6 @@ export function buildPage(
   return {
     ...base,
     title: `${meal} · Setup`,
-    body: { kind: 'setup', room: setupRoom(opening.sections, tables, occupant, meal, w - 80, h - PAGE_CHROME - KEY_ROOM) },
+    body: { kind: 'setup', room: setupRoom(opening.sections, tables, occupant, meal, drawW(w) + 4, h - PAGE_CHROME - KEY_ROOM) },
   };
 }

@@ -1,5 +1,5 @@
 import { Fragment, useId, type CSSProperties, type ReactNode } from 'react';
-import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, PAGE_SIDE, PAGE_TOP, type Change, type MugMark, type SeatPill, NAME_GAP, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
 import { PAGE_CHROME, type PageData } from './pages';
 import { CHAIR_LABEL, type Chair } from '../domain/model';
 
@@ -340,7 +340,7 @@ export function SheetPage({ page, shadow = true }: { page: PageData; shadow?: bo
   return (
     <div
       className="sheet-page"
-      style={{ width: page.w, height: page.h, background: '#FFFFFF', boxShadow: shadow ? '0 2px 10px rgba(0,0,0,.18)' : undefined, boxSizing: 'border-box', padding: '28px 40px 0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      style={{ width: page.w, height: page.h, background: '#FFFFFF', boxShadow: shadow ? '0 2px 10px rgba(0,0,0,.18)' : undefined, boxSizing: 'border-box', padding: `${PAGE_TOP}px ${PAGE_SIDE}px 0`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, paddingBottom: 10, borderBottom: '1px solid #D1D5DB' }}>
         <div style={{ fontSize: 15, lineHeight: '18px', fontWeight: 700, color: '#111827' }}>{page.title}</div>

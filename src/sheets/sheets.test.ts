@@ -427,7 +427,7 @@ describe('Room Designer changes show on every sheet (Step 4 check)', () => {
     const bodies = pagesFor('Dinner').flatMap((p) => (p.body.kind === 'server' ? [p.body] : []));
     expect(bodies).toHaveLength(3);
     for (const b of bodies) {
-      expect(b.room.h).toBe(816 - 84 - 2); // no notes list under the drawing
+      expect([b.room.w, b.room.h]).toEqual([1056 - 52, 816 - 76 - 2]); // no notes list under the drawing
       expect(b.room.scale).toBeGreaterThanOrEqual(0.9);
       if ((b.fit ?? 1) > 1) expect(b.room.scale).toBe(1);
     }

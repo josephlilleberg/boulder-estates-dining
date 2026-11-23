@@ -155,8 +155,14 @@ export interface ServerRoom {
 const SG = 0.825;
 /** The drawing area inside a page: a Letter server sheet, or an 11 × 17 page (Supper's combined sheet). */
 export type Area = { w: number; h: number };
-export const LETTER_AREA: Area = { w: 972, h: 676 };
-export const areaFor = (pageW: number, pageH: number, below = 0): Area => ({ w: pageW - 84, h: pageH - 140 - below });
+/** A page's margins: 0.25" at the sides, a little less above the title (the page prints edge to edge, @page margin 0). */
+export const PAGE_SIDE = 24;
+export const PAGE_TOP = 20;
+/** Width a page's drawing gets: the page less its side margins and a little slack. */
+export const drawW = (pageW: number) => pageW - 2 * PAGE_SIDE - 4;
+/** A Letter server sheet's drawing area: the page under its header (see serverArea). */
+export const LETTER_AREA: Area = { w: drawW(1056), h: 816 - 76 - 2 };
+export const areaFor = (pageW: number, pageH: number, below = 0): Area => ({ w: drawW(pageW), h: pageH - 132 - below });
 const EDGE = 8;
 /**
  * Widest a server label is drawn: the two seats on a rectangle's long side are 76 px apart,

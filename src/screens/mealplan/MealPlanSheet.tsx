@@ -1,6 +1,6 @@
-import type { MealName } from "../../domain/sites";
-import { PAGE } from "../../sheets/model";
-import { dayLabel, mainMeal, type PlanRow } from "./plan";
+import type { MealName } from '../../domain/sites';
+import { PAGE } from '../../sheets/model';
+import { dayLabel, mainMeal, type PlanRow } from './plan';
 
 // The weekly meal plan sheet, after the paper one: residents down the side, each day's meals across,
 // * where someone isn't on the plan and an empty box to mark by hand where they are.
@@ -11,30 +11,30 @@ const SIDE = 28;
 const NAME_W = 184;
 const APT_W = 46;
 const SIDE_MEAL_W = 26;
-const INK = "#111827";
-const LINE = "1px solid #6B7280";
-const DAY_LINE = "2px solid #111827";
-const TAN = "#F6E3CB";
-const LAVENDER = "#DCD9EE";
-const BOX = "#ECEBF2";
-export const DIABETIC = "#FFF176";
+const INK = '#111827';
+const LINE = '1px solid #6B7280';
+const DAY_LINE = '2px solid #111827';
+const TAN = '#F6E3CB';
+const LAVENDER = '#DCD9EE';
+const BOX = '#ECEBF2';
+export const DIABETIC = '#FFF176';
 
 const LEGEND: [string, string][][] = [
   [
-    ["Meal eaten", "✓"],
-    ["Meal canceled", "C"],
+    ['Meal eaten', '✓'],
+    ['Meal canceled', 'C'],
   ],
   [
-    ["No meal plan", "*"],
-    ["Sick tray", "S.T."],
+    ['No meal plan', '*'],
+    ['Sick tray', 'S.T.'],
   ],
   [
-    ["Diabetic diet", ""],
-    ["Nursing notified", "N.N."],
+    ['Diabetic diet', ''],
+    ['Nursing notified', 'N.N.'],
   ],
   [
-    ["Sack lunch", "SL"],
-    ["Room tray", "RT"],
+    ['Sack lunch', 'SL'],
+    ['Room tray', 'RT'],
   ],
 ];
 
@@ -50,32 +50,16 @@ interface Props {
   shadow?: boolean;
 }
 
-export function MealPlanSheet({
-  title,
-  month,
-  week,
-  days,
-  meals,
-  rows,
-  page,
-  pages,
-  shadow = true,
-}: Props) {
+export function MealPlanSheet({ title, month, week, days, meals, rows, page, pages, shadow = true }: Props) {
   const { w, h } = PAGE.letter;
   const main = mainMeal(meals);
   const dayW = (w - 2 * SIDE - NAME_W - APT_W) / 7;
-  const mealW = meals.map((_, i) =>
-    meals.length === 1
-      ? dayW
-      : i === main
-        ? dayW - (meals.length - 1) * SIDE_MEAL_W
-        : SIDE_MEAL_W,
-  );
+  const mealW = meals.map((_, i) => (meals.length === 1 ? dayW : i === main ? dayW - (meals.length - 1) * SIDE_MEAL_W : SIDE_MEAL_W));
   const cell = {
     border: LINE,
     padding: 0,
     height: ROW_H,
-    boxSizing: "border-box" as const,
+    boxSizing: 'border-box' as const,
   };
   const dayEdge = (i: number) => ({
     ...(i === 0 ? { borderLeft: DAY_LINE } : {}),
@@ -88,21 +72,21 @@ export function MealPlanSheet({
       style={{
         width: w,
         height: h,
-        boxSizing: "border-box",
+        boxSizing: 'border-box',
         padding: `20px ${SIDE}px 0`,
-        background: "#FFFFFF",
+        background: '#FFFFFF',
         color: INK,
-        boxShadow: shadow ? "0 2px 10px rgba(0,0,0,.18)" : undefined,
+        boxShadow: shadow ? '0 2px 10px rgba(0,0,0,.18)' : undefined,
         fontFamily: '"Times New Roman", Times, serif',
-        position: "relative",
+        position: 'relative',
       }}
     >
       <div
         style={{
-          textAlign: "center",
+          textAlign: 'center',
           fontSize: 21,
           fontWeight: 700,
-          lineHeight: "26px",
+          lineHeight: '26px',
         }}
       >
         {title}
@@ -110,25 +94,25 @@ export function MealPlanSheet({
 
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
+          display: 'flex',
+          justifyContent: 'space-between',
           gap: 24,
           marginTop: 8,
         }}
       >
         {[
-          ["Month:", month],
-          ["Week Of:", week],
+          ['Month:', month],
+          ['Week Of:', week],
         ].map(([k, v]) => (
           <div
             key={k}
             style={{
-              flex: "0 1 400px",
+              flex: '0 1 400px',
               background: TAN,
-              padding: "4px 16px",
+              padding: '4px 16px',
               fontSize: 17,
               fontWeight: 700,
-              textAlign: "center",
+              textAlign: 'center',
             }}
           >
             {k}&nbsp; {v}
@@ -138,10 +122,10 @@ export function MealPlanSheet({
 
       <div
         style={{
-          display: "flex",
-          justifyContent: "center",
+          display: 'flex',
+          justifyContent: 'center',
           marginTop: 8,
-          border: "1px solid #4B5563",
+          border: '1px solid #4B5563',
           fontSize: 12,
         }}
       >
@@ -150,22 +134,22 @@ export function MealPlanSheet({
             key={ci}
             style={{
               flex: 1,
-              padding: "3px 10px",
-              borderLeft: ci ? "1px solid #D1D5DB" : undefined,
+              padding: '3px 10px',
+              borderLeft: ci ? '1px solid #D1D5DB' : undefined,
             }}
           >
             {col.map(([label, mark]) => (
               <div
                 key={label}
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   gap: 8,
-                  lineHeight: "17px",
+                  lineHeight: '17px',
                 }}
               >
                 <span>{label}</span>
-                {label === "Diabetic diet" ? (
+                {label === 'Diabetic diet' ? (
                   <span
                     style={{
                       width: 54,
@@ -186,8 +170,8 @@ export function MealPlanSheet({
       <table
         style={{
           marginTop: 10,
-          borderCollapse: "collapse",
-          tableLayout: "fixed",
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
           width: w - 2 * SIDE,
           fontSize: 13,
         }}
@@ -195,11 +179,7 @@ export function MealPlanSheet({
         <colgroup>
           <col style={{ width: NAME_W }} />
           <col style={{ width: APT_W }} />
-          {days.map((d) =>
-            mealW.map((mw, i) => (
-              <col key={`${d.getDate()}-${i}`} style={{ width: mw }} />
-            )),
-          )}
+          {days.map((d) => mealW.map((mw, i) => <col key={`${d.getDate()}-${i}`} style={{ width: mw }} />))}
         </colgroup>
         <thead>
           <tr>
@@ -214,7 +194,7 @@ export function MealPlanSheet({
                   fontSize: 12,
                   height: 22,
                   padding: 0,
-                  whiteSpace: "nowrap",
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {dayLabel(d)}
@@ -226,8 +206,8 @@ export function MealPlanSheet({
               style={{
                 ...cell,
                 border: DAY_LINE,
-                textAlign: "left",
-                padding: "0 6px",
+                textAlign: 'left',
+                padding: '0 6px',
                 fontSize: 13,
               }}
             >
@@ -236,11 +216,8 @@ export function MealPlanSheet({
             <th style={{ ...cell, border: DAY_LINE, fontSize: 13 }}>Apt. #</th>
             {days.map((d) =>
               meals.map((m, i) => (
-                <th
-                  key={`${d.getDate()}-${m}`}
-                  style={{ ...cell, ...dayEdge(i), fontSize: 11 }}
-                >
-                  {meals.length === 1 ? "" : m.charAt(0)}
+                <th key={`${d.getDate()}-${m}`} style={{ ...cell, ...dayEdge(i), fontSize: 11 }}>
+                  {meals.length === 1 ? '' : m.charAt(0)}
                 </th>
               )),
             )}
@@ -253,11 +230,11 @@ export function MealPlanSheet({
                 style={{
                   ...cell,
                   borderLeft: DAY_LINE,
-                  padding: "0 6px",
+                  padding: '0 6px',
                   fontWeight: 700,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                   background: r.diabetic ? DIABETIC : undefined,
                 }}
               >
@@ -267,11 +244,11 @@ export function MealPlanSheet({
                 style={{
                   ...cell,
                   borderRight: DAY_LINE,
-                  textAlign: "center",
+                  textAlign: 'center',
                   fontWeight: 700,
                 }}
               >
-                {r.apt ?? ""}
+                {r.apt ?? ''}
               </td>
               {r.away ? (
                 <td
@@ -279,12 +256,12 @@ export function MealPlanSheet({
                   style={{
                     ...cell,
                     border: DAY_LINE,
-                    textAlign: "center",
+                    textAlign: 'center',
                     fontSize: 12,
                     fontWeight: 700,
                     letterSpacing: 4,
-                    color: "#4B5563",
-                    background: "#F3F4F6",
+                    color: '#4B5563',
+                    background: '#F3F4F6',
                   }}
                 >
                   {r.away}
@@ -297,12 +274,12 @@ export function MealPlanSheet({
                       style={{
                         ...cell,
                         ...dayEdge(i),
-                        textAlign: "center",
+                        textAlign: 'center',
                         fontSize: 14,
                         background: on ? BOX : undefined,
                       }}
                     >
-                      {on ? "" : "*"}
+                      {on ? '' : '*'}
                     </td>
                   )),
                 )
@@ -315,11 +292,11 @@ export function MealPlanSheet({
       {pages > 1 && (
         <div
           style={{
-            position: "absolute",
+            position: 'absolute',
             right: SIDE,
             bottom: 10,
             fontSize: 11,
-            color: "#4B5563",
+            color: '#4B5563',
           }}
         >
           Page {page} of {pages}

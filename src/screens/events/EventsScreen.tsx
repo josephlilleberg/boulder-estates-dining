@@ -10,6 +10,7 @@ import { Segmented } from '../../shell/Segmented';
 import { useSize } from '../../ui/useSize';
 import type { ScreenProps } from '../types';
 import { EventSeating } from './EventSeating';
+import { EventSheetDialog, type EventSheet } from './EventSheets';
 
 // Special events (Thanksgiving Dinner): a guest list of their own, made from whoever comes
 // to that meal today. Everyday seating and residents' cards are never changed here.
@@ -86,7 +87,7 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
   const [menuOpen, setMenuOpen] = useState(false);
   const [tab, setTab] = useState<'list' | 'seats'>('list');
   const t = E.eventTotals(data, e);
-  const over = t.people - t.seats;
+  const [sheet, setSheet] = useState<EventSheet | null>(null);
 
   return (
     <section className="card" style={{ height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -173,10 +174,14 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-          <Stat big value={t.people} label="coming" />
-          <Stat value={t.residents} label={t.residents === 1 ? 'resident' : 'residents'} />
-          <Stat value={t.guests} label={t.guests === 1 ? 'guest' : 'guests'} />
-          <Stat value={t.seats} label="seats" warn={over > 0 ? `${over} over` : undefined} />
+          <button type="button" className="btn sm" onClick={() => setSheet('overview')} title="Who's cancelled and who's added, to view or print">
+            Overview
+          </button>
+          <button type="button" className="btn sm" onClick={() => setSheet('residents')} title="Everyone coming, A–Z, with guests, to view or print">
+            Resident sheet
+          </button>
+          <Stat big label="Total for meal" value={t.people} />
+          <Stat label="Total cancellations" value={t.cancelled} />
           <span style={{ flex: '1 1 0' }} />
           <Segmented
             label="Show"
@@ -192,6 +197,7 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
       </div>
 
       {tab === 'seats' ? <EventSeating event={e} site={site} /> : <GuestList event={e} site={site} />}
+      {sheet && <EventSheetDialog kind={sheet} event={e} data={data} dateText={eventDate(e.date)} onClose={() => setSheet(null)} />}
     </section>
   );
 }
@@ -254,19 +260,28 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
         background: '#F7F8FA',
       }}
     >
-      <Column title="Cancelled" count={cancelled.length} q={qCancel} setQ={setQCancel} placeholder="Cancel someone" plus onEnter={enterCancel}>
-        {cancellable.length > 0 && (
-          <Results>
-            {cancellable.map((a) => (
+      <Column
+        title="Cancelled"
+        count={cancelled.length}
+        q={qCancel}
+        setQ={setQCancel}
+        placeholder="Cancel someone"
+        plus
+        onEnter={enterCancel}
+        results={
+          !qCancel.trim() ? null : cancellable.length ? (
+            cancellable.map((a) => (
               <Line key={a.residentId} name={fullName(a.resident)} onRow={() => void cancel(a)}>
                 <button type="button" className="btn sm">
                   Cancel
                 </button>
               </Line>
-            ))}
-          </Results>
-        )}
-        {qCancel.trim() && !cancellable.length && <Hint text="No one coming by that name." />}
+            ))
+          ) : (
+            <Hint text="No one coming by that name." />
+          )
+        }
+      >
         {cancelled.map((a) => {
           const name = fullName(a.resident);
           return (
@@ -278,9 +293,17 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
         })}
         {cancelled.length === 0 && !qCancel.trim() && <Hint text="No one has cancelled." />}
       </Column>
-      <Column title="Additions" count={additions.reduce((n, a) => n + (a.added ? 1 : 0) + a.guests, 0)} q={qAdd} setQ={setQAdd} placeholder="Add a guest or resident" plus onEnter={enterAdd}>
-        {(guestable.length > 0 || addable.length > 0) && (
-          <Results>
+      <Column
+        title="Additions"
+        count={additions.reduce((n, a) => n + (a.added ? 1 : 0) + a.guests, 0)}
+        q={qAdd}
+        setQ={setQAdd}
+        placeholder="Add a guest or resident"
+        plus
+        onEnter={enterAdd}
+        results={
+          !qAdd.trim() ? null : guestable.length || addable.length ? (
+            <>
             {guestable.map((a) => (
               <Line key={a.residentId} name={fullName(a.resident)} sub="coming" onRow={() => void setGuests(a, 1).then(() => setQAdd(''))}>
                 <button type="button" className="btn sm">
@@ -295,14 +318,18 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
                 </button>
               </Line>
             ))}
-          </Results>
-        )}
-        {qAdd.trim() && !guestable.length && !addable.length && <Hint text="No one to add by that name." />}
+            </>
+          ) : (
+            <Hint text="No one to add by that name." />
+          )
+        }
+      >
         {additions.map((a) => {
           const name = fullName(a.resident);
           return (
             <Line key={a.residentId} name={name} tags={[...(a.added ? ['Added'] : []), ...tag(a)]}>
               <Guests n={a.guests} name={name} onSet={(n) => setGuests(a, n)} />
+              <PartyTotal n={1 + a.guests} />
               <XButton label={a.added ? `Remove ${name}` : `No guests for ${name}`} onClick={() => (a.added ? act(label(`Remove ${name}`), E.removeFromEvent(e.id, a.residentId)) : setGuests(a, 0))} />
             </Line>
           );
@@ -323,6 +350,7 @@ function Column({
   plus,
   onEnter,
   style,
+  results,
   children,
 }: {
   title: string;
@@ -334,6 +362,8 @@ function Column({
   /** Enter in the search: act on the one match, if there's exactly one. */
   onEnter?: () => void;
   style?: CSSProperties;
+  /** Search matches: an overlay under the search box, over the list however far it's scrolled. */
+  results?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -379,13 +409,18 @@ function Column({
           />
         </div>
       </div>
-      <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>{children}</div>
+      <div style={{ flex: '1 1 0', minHeight: 0, position: 'relative' }}>
+        <div style={{ height: '100%', overflowY: 'auto' }}>{children}</div>
+        {results && (
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, maxHeight: '85%', overflowY: 'auto', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', boxShadow: '0 10px 24px rgba(17,24,39,.16)' }}>
+            {results}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
-/** Search results, set apart from the column's own list. */
-const Results = ({ children }: { children: ReactNode }) => <div style={{ background: '#EFF6FF', borderBottom: '1px solid #BFDBFE' }}>{children}</div>;
 
 /** A name and its controls. With `onRow`, the whole row is the click target (search results); its button just shows what a click does. */
 function Line({ name, sub, tags = [], dim, onRow, children }: { name: string; sub?: string; tags?: string[]; dim?: boolean; onRow?: () => void; children: ReactNode }) {
@@ -409,6 +444,16 @@ function Line({ name, sub, tags = [], dim, onRow, children }: { name: string; su
   );
 }
 
+/** A party's total, the resident plus their guests, so the count is never in doubt. */
+function PartyTotal({ n }: { n: number }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', justifyContent: 'flex-end', gap: 5, minWidth: 72, marginLeft: 8 }} aria-label={`Total ${n}`}>
+      <span style={{ fontSize: 12, color: '#4B5563' }}>Total</span>
+      <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{n}</span>
+    </span>
+  );
+}
+
 function XButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button type="button" className="iconbtn" aria-label={label} title={label} onClick={onClick}>
@@ -421,22 +466,12 @@ function XButton({ label, onClick }: { label: string; onClick: () => void }) {
 
 const Hint = ({ text }: { text: string }) => <p style={{ margin: 0, padding: '14px', fontSize: 13, color: '#4B5563', lineHeight: 1.5 }}>{text}</p>;
 
-function Stat({ value, label, big, warn }: { value: number; label: string; big?: boolean; warn?: string }) {
+/** "Total for meal 58": the label, then the number. */
+function Stat({ value, label, big }: { value: number; label: string; big?: boolean }) {
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'baseline',
-        gap: 5,
-        padding: '6px 12px',
-        borderRadius: 8,
-        background: warn ? '#FEF2F2' : big ? '#EFF6FF' : '#F3F4F6',
-        border: `1px solid ${warn ? '#FCA5A5' : big ? '#BFDBFE' : '#E5E7EB'}`,
-      }}
-    >
-      <span style={{ fontSize: big ? 18 : 15, fontWeight: 700, color: '#111827' }}>{value}</span>
+    <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, padding: '6px 12px', borderRadius: 8, background: big ? '#EFF6FF' : '#F3F4F6', border: `1px solid ${big ? '#BFDBFE' : '#E5E7EB'}` }}>
       <span style={{ fontSize: 13, color: '#4B5563' }}>{label}</span>
-      {warn && <span style={{ fontSize: 13, fontWeight: 700, color: '#B91C1C' }}>· {warn}</span>}
+      <span style={{ fontSize: big ? 18 : 15, fontWeight: 700, color: '#111827' }}>{value}</span>
     </div>
   );
 }

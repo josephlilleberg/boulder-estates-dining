@@ -151,8 +151,11 @@ starts with everyone who usually comes to that meal (not away or gone). Someone 
 afterwards (a new resident, someone who starts coming, back from away, or restored) joins every
 event for that meal, whatever its date; someone who stops coming stays on until cancelled.
 **Cancelled** (left) and **Additions** (right) each have a search: type a name and click its row,
-or press Enter when only one name matches; × on a cancelled name puts them back. Additions also
-takes guests (+ Guest beside someone coming).
+or press Enter when only one name matches (matches float over the list); × on a cancelled name
+puts them back. Additions also takes guests (+ Guest beside someone coming), each row showing the
+party's **Total** (resident plus guests). The header shows **Total for meal** (residents coming
+plus guests) and **Total cancellations**, with two pop-ups that print: **Overview** (who's
+cancelled and who's added) and **Resident sheet** (everyone coming, A–Z, with guests and totals).
 
 ### Room Designer
 

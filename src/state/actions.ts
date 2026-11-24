@@ -1,7 +1,7 @@
 import type { AppData } from '../db/repo';
 import type { MealName, SiteId } from '../domain/sites';
 import { seatCount } from '../domain/tables';
-import { joinUpcoming } from './eventActions';
+import { joinEvents } from './eventActions';
 import { del, put, type Op } from './ops';
 
 // Domain rules as pure functions: (current data) → row operations. The store
@@ -63,8 +63,8 @@ export const setAttendance = (residentId: string, meal: MealName, comes: boolean
       ops.push(put('meal_pref', { resident_id: residentId, meal, ro_water: 0, hot_water: 0, portion: 'Full' }));
       ops.push(put('drink', defaultCoffeeRow(residentId, meal)));
     }
-    // New to this meal: they join its upcoming events too (not while archived, away or gone).
-    if (!r.archived && r.status === 'here') ops.push(...joinUpcoming(data, residentId, r.siteId, [meal]));
+    // New to this meal: they join its events too (not while archived, away or gone).
+    if (!r.archived && r.status === 'here') ops.push(...joinEvents(data, residentId, r.siteId, [meal]));
     return ops;
   }
   const seat = seatOf(data, r.siteId, meal, residentId);

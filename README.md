@@ -149,7 +149,7 @@ and **Print** opens the print dialog. Who's on the plan is set on each resident'
 Thanksgiving, Christmas and the like, each with its own guest list and seating. The guest list
 starts with everyone who usually comes to that meal (not away or gone). Someone new to the meal
 afterwards (a new resident, someone who starts coming, back from away, or restored) joins every
-event for it dated today or later; someone who stops coming stays on until cancelled.
+event for that meal, whatever its date; someone who stops coming stays on until cancelled.
 **Cancelled** (left) and **Additions** (right) each have a search: type a name and click its row,
 or press Enter when only one name matches; × on a cancelled name puts them back. Additions also
 takes guests (+ Guest beside someone coming).

@@ -3,24 +3,23 @@ import { arrange, type ArrangeResult, type ArrangeTable, type Party } from '../d
 import { isAway, shortName, type AttendeeStatus, type DiningEvent, type DiningTable, type EventAttendee, type EventSeat, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { seatCount } from '../domain/tables';
-import { localDate } from './backup';
 import { del, patch, put, type Op } from './ops';
 
 // Special events (Thanksgiving Dinner) as (data) → ops, each one undo step.
 // An event's guest list is a snapshot: made from whoever comes to that meal on the day
 // it's created, so later changes to everyday attendance don't reshuffle it. The one exception
 // is joining: someone new to the meal (added, starts coming, back from away, restored) joins
-// the upcoming events for it (see joinUpcoming).
+// the events for it (see joinEvents).
 
 export const MAX_GUESTS = 20;
 
 /**
- * Upcoming events (today or later) at the site for these meals that don't list the resident yet:
- * they join as coming. Events that already list them (coming or cancelled) are left alone.
+ * The site's events for these meals that don't list the resident yet: they join as coming, whatever
+ * the event's date. Events that already list them (coming or cancelled) are left alone.
  */
-export function joinUpcoming(data: AppData, residentId: string, siteId: SiteId, meals: MealName[], today = localDate()): Op[] {
+export function joinEvents(data: AppData, residentId: string, siteId: SiteId, meals: MealName[]): Op[] {
   return data.events
-    .filter((e) => e.siteId === siteId && meals.includes(e.meal) && e.date >= today && !e.attendees.some((a) => a.residentId === residentId))
+    .filter((e) => e.siteId === siteId && meals.includes(e.meal) && !e.attendees.some((a) => a.residentId === residentId))
     .map((e) => put('event_attendee', { event_id: e.id, resident_id: residentId, added: 0, status: 'coming', guests: 0 }));
 }
 

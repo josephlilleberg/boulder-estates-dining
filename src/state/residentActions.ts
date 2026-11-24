@@ -2,7 +2,7 @@ import type { AppData } from '../db/repo';
 import { canHaveExtraGlass, drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, milkCupsFor, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident, type ResidentStatus } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { defaultCoffeeRow, setAttendance } from './actions';
-import { joinUpcoming } from './eventActions';
+import { joinEvents } from './eventActions';
 import { del, patch, put, type Op } from './ops';
 
 // Resident edits as (data) → ops. Each one is a single undo step.
@@ -109,7 +109,7 @@ export function addResident(n: NewResident): { id: string; ops: (data: AppData) 
           put('drink', defaultCoffeeRow(id, meal)),
         ]),
         // Events already made for their meals list them too.
-        ...joinUpcoming(data, id, n.siteId, n.meals),
+        ...joinEvents(data, id, n.siteId, n.meals),
       ];
     },
   };
@@ -141,8 +141,8 @@ export const setStatus = (id: string, status: ResidentStatus, awayUntil: string 
   const r = resident(data, id);
   const until = status === 'away' ? awayUntil || null : null;
   if (r.status === status && r.awayUntil === until) return [];
-  // Back from away or gone: they join upcoming events for their meals that don't list them.
-  const back = status === 'here' && r.status !== 'here' && !r.archived ? joinUpcoming(data, id, r.siteId, r.attends) : [];
+  // Back from away or gone: they join the events for their meals that don't list them.
+  const back = status === 'here' && r.status !== 'here' && !r.archived ? joinEvents(data, id, r.siteId, r.attends) : [];
   return [patch('resident', { id }, { status, away_until: until }), ...back];
 };
 
@@ -163,7 +163,7 @@ export const archiveResident = (id: string) => (data: AppData): Op[] => {
 export const restoreResident = (id: string) => (data: AppData): Op[] => {
   const r = resident(data, id);
   if (!r.archived) return [];
-  return [patch('resident', { id }, { archived: 0 }), ...(r.status === 'here' ? joinUpcoming(data, id, r.siteId, r.attends) : [])];
+  return [patch('resident', { id }, { archived: 0 }), ...(r.status === 'here' ? joinEvents(data, id, r.siteId, r.attends) : [])];
 };
 
 /**

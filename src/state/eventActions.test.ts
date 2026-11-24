@@ -81,7 +81,7 @@ describe('events', () => {
     expect(ev(id).attendees.some((a) => a.residentId === r.id)).toBe(true);
   });
 
-  it('someone new to the meal joins upcoming events (not past ones, and not one that cancelled them)', async () => {
+  it('someone new to the meal joins its events, whatever their date (but not one that cancelled them)', async () => {
     const day = (n: number) => localDate(new Date(Date.now() + n * 86_400_000));
     const make = async (date: string) => {
       const { id, ops } = createEvent({ siteId: 'BE', name: `Event ${date}`, date, meal: 'Dinner' });
@@ -94,7 +94,7 @@ describe('events', () => {
     // Added after the events were made.
     const { id: zed, ops } = addResident({ siteId: 'BE', first: 'Zed', last: 'Newman', meals: ['Dinner'] });
     await store.change('add', ops);
-    expect([on(past, zed), on(today, zed)?.status, on(soon, zed)?.status]).toEqual([undefined, 'coming', 'coming']);
+    expect([on(past, zed)?.status, on(today, zed)?.status, on(soon, zed)?.status]).toEqual(['coming', 'coming', 'coming']);
     await store.undoLast();
     expect(on(soon, zed)).toBeUndefined();
 

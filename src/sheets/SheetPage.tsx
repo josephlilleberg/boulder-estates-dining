@@ -1,5 +1,5 @@
 import { Fragment, useId, type CSSProperties, type ReactNode } from 'react';
-import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, RO_PILL, PAGE_SIDE, PAGE_TOP, type Change, type MugMark, type SeatPill, NAME_GAP, NAME_H, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw } from './model';
+import { BOX_LINE_H, BOX_PAD, BULLET_W, CHAIR_PILL, CHIP_CHAR_W, CHIP_H, CHIP_PAD, chipW, CUP_BAND_H, EXTRA_BG, itemH, NO_MUG, RO_PILL, PAGE_SIDE, PAGE_TOP, type Change, type MugMark, type SeatPill, NAME_GAP, NAME_H, NOTES_COLS, NOTES_LINE_H, PILL_GAP, PILL_ROW_H, type ServerNote, type ServerRoom, type SetupRoom, type TableDraw, GONE_CHIP, HERE_DAYS_BG } from './model';
 import { PAGE_CHROME, type PageData } from './pages';
 import { CHAIR_LABEL, type Chair } from '../domain/model';
 
@@ -139,7 +139,7 @@ function Chip({ c }: { c: Change }) {
       </div>
     );
   return (
-    <span style={{ ...chipText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: CHIP_H, padding: '0 4px', border: '1px solid #111827', borderRadius: CHIP_H / 2, background: c.bg, lineHeight: 1, color: c.color ?? '#111827', overflow: 'hidden', flex: 'none' }}>
+    <span style={{ ...chipText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box', width: chipW(c), height: CHIP_H, padding: '0 4px', border: c.dashed ? '1.5px dashed #111827' : '1px solid #111827', borderRadius: CHIP_H / 2, background: c.bg, lineHeight: 1, color: c.color ?? '#111827', overflow: 'hidden', flex: 'none' }}>
       <span style={{ fontSize: fitSize(c.text, c) }}>{c.text}</span>
     </span>
   );
@@ -291,6 +291,18 @@ export function SetupLegend({ vertical = false, supper = false }: { vertical?: b
     { head: 'Chairs', items: [[chairKey('arm'), CHAIR_LABEL.arm], [chairKey('no_arm'), CHAIR_LABEL.no_arm], [chairKey('none'), 'Remove chair']] },
     { head: 'Table', items: [[dotKey, 'Remove mug'], [creamerKey, 'Add creamer tray']] },
     { head: 'Place setting', items: [supper ? [cupKey, 'Add cup'] : [keyPill({ bg: '#86EFAC', border: '1px solid #111827' }, '+Glass'), 'Add drinkware'], [keyPill({ bg: EXTRA_BG, border: '1px solid #111827' }, '+Extra'), 'Add extras']] },
+    // The setup sheet is reused day to day, so it says who's gone and when part-timers come (Supper's is for one day).
+    ...(supper
+      ? []
+      : [
+          {
+            head: 'Resident',
+            items: [
+              [keyPill({ bg: GONE_CHIP.bg, border: '1.5px dashed #111827' }, 'Gone'), 'Gone: don’t set'] as [ReactNode, string],
+              [keyPill({ bg: HERE_DAYS_BG, border: '1px solid #111827' }, 'Here M–F'), 'Only those days'] as [ReactNode, string],
+            ],
+          },
+        ]),
   ];
   return (
     <div data-sheet-legend style={{ marginTop: vertical ? 0 : 12, display: 'flex', flexDirection: vertical ? 'column' : 'row', flexWrap: vertical ? undefined : 'wrap', gap: vertical ? 0 : 8, width: vertical ? 'max-content' : undefined, fontSize: 12, color: '#111827', ...(vertical ? { border: '1px solid #D1D5DB', borderRadius: 8, background: '#FFFFFF', overflow: 'hidden' } : {}) }}>

@@ -1,5 +1,5 @@
 import type { Beverage, Chair, DiningTable, Drink, Extra, MealPrefs, Resident } from '../domain/model';
-import { extraText } from '../domain/labels';
+import { extraText, hereDaysText } from '../domain/labels';
 import { hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
@@ -663,6 +663,8 @@ export interface Change {
   bg: string;
   /** Text colour; dark unless set (−Mug is white on solid red). */
   color?: string;
+  /** A dashed outline (Gone: the seat is kept, don't set it). */
+  dashed?: boolean;
   /** The extras box: one line per extra (text is them joined, for reading aloud and tests). */
   lines?: string[];
   /** Drawn width, the same for every chip on a sheet (set by evenChips). */
@@ -786,7 +788,18 @@ export const EXTRA_BG = '#FEF3C7';
  * What's added to the usual setting (one glass, one coffee mug) at a seat (green), then the
  * resident's extras (yellow). Taking the mug away is shown on the table instead (see noMug).
  */
+/** The setup sheet is printed once and reused, so it says who's gone, and when part-timers are here. */
+export const GONE_CHIP: Change = { text: 'Gone', bg: '#F3F4F6', dashed: true };
+export const HERE_DAYS_BG = '#DBEAFE';
+
 export function setupChanges(r: Resident, meal: string): Change[] {
+  // Gone until further notice: their seat is kept, but nothing is set there.
+  if (r.status === 'gone') return [{ ...GONE_CHIP }];
+  const days: Change[] = r.goneDays.length ? [{ text: `Here ${hereDaysText(r.goneDays)}`, bg: HERE_DAYS_BG }] : [];
+  return [...days, ...settingChanges(r, meal)];
+}
+
+function settingChanges(r: Resident, meal: string): Change[] {
   const p = prefsOf(r, meal);
   const dr = p?.drinks ?? [];
   // Hot water comes in a pitcher, not a mug.

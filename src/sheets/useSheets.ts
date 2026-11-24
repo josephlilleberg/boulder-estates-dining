@@ -17,14 +17,19 @@ export function useSheets(site: Site, meal: MealName, opening: MealOpening, day:
   const sheets = useMemo(() => sheetsFor(opening), [opening]);
   // The test app's Stress test: every resident with two drinks (and RO water), or a worst-case resident at every seat.
   const stress = useSyncExternalStore(onStress, stressMode);
-  const occupant = useMemo(() => {
-    if (stress === 'full') return stressOccupant(meal, { heavy: true });
-    const real = occupantFor(data, site.id, meal, weekday);
-    return stress === 'off' ? real : twoDrinksOccupant(real, meal, data.beverages, { ro: stress === 'ro' });
+  const occupants = useMemo(() => {
+    const of = (day: number | 'all') => {
+      if (stress === 'full') return stressOccupant(meal, { heavy: true });
+      const real = occupantFor(data, site.id, meal, day);
+      return stress === 'off' ? real : twoDrinksOccupant(real, meal, data.beverages, { ro: stress === 'ro' });
+    };
+    // The setup sheet is printed once and reused: everyone seated, gone ones marked. Server sheets are for the day.
+    return { setup: of('all'), day: of(weekday) };
   }, [stress, data, site.id, meal, weekday]);
   const stamp = data.settings[SHEETS_UPDATED];
   const updated = stamp ? printedDate(new Date(stamp)) : '';
   const forDay = sheetDay(day);
-  const page = (sheet: SheetRef) => buildPage(data, site, meal, opening, sheet, occupant, updated, forDay);
+  const page = (sheet: SheetRef) =>
+    sheet.kind === 'setup' ? buildPage(data, site, meal, opening, sheet, occupants.setup, updated) : buildPage(data, site, meal, opening, sheet, occupants.day, updated, forDay);
   return { sheets, page };
 }

@@ -98,11 +98,13 @@ meal tabs (each showing On or Off) pick the meal, so the top bar's meal picker i
   and the same first and last name can't be added twice (archived residents included).
 - **Meal plan:** a switch per meal (Breakfast, Dinner, Supper). On the plan is what makes them
   come and lets them be seated; off it, their seat at that meal is freed.
-- **Status:** **Active** (the default), **Gone certain days** (pick the weekdays) or **Gone until
-  further notice** (long or unknown absences, like winter). Gone residents keep their seats and
-  can still be seated: Seating shows them in a dashed box and the lists tag them "Gone"; the sheets
-  print the seat empty (on their gone weekdays, for those gone certain days); they're left off new
-  event guest lists for those days; the meal plan sheet says GONE. Archive is still for good.
+- **Status:** **Active** (the default), **Here certain days** (pick the days they come) or **Gone
+  until further notice** (long or unknown absences, like winter). Gone residents keep their seats
+  and can still be seated: Seating shows them in a dashed box and the lists tag them "Gone" (or
+  "Here M–F"). The Setup sheet, reused every day, marks their seat with a dashed **Gone** chip or a
+  blue **Here M–F** chip; the Server sheets, for one day, print the seat empty on days they're not
+  here; they're left off new event guest lists for those days; the meal plan sheet says GONE.
+  Archive is still for good.
 - **Every meal:** **Apt #**, **Diabetic diet** (highlights them on the meal plan sheet), chair
   (Arm chair, Armless chair, No chair) and allergies & notes.
 - **Per meal:**
@@ -138,8 +140,8 @@ and **Print** opens the print dialog. Who's on the plan is set on each resident'
 
 ### Sheets
 
-- **For** a day: today (the default) or one of the next six days. Anyone gone that weekday prints
-  as an empty seat; the day shows top right on every sheet.
+- **For** a day (Server sheets): today (the default) or one of the next six days. Anyone not here
+  that day prints as an empty seat; the day shows top right. The Setup sheet is for every day.
 - Every sheet for the meal, one tab each (Setup, Server 1 2 3). Two zooms: **Drawing** (the
   default) crops to the tables and labels and fits them to the window, with the key beside the
   setup sheet; **Whole page** shows the sheet exactly as

@@ -1,5 +1,5 @@
 // Wording shared by every screen and sheet. Kept identical to the mockup.
-import { ANY_KIND, WEEKDAYS, type Beverage, type DiningTable, type Drink, type Extra, type Resident, type SeatAssignment } from './model';
+import { ANY_KIND, type Beverage, type DiningTable, type Drink, type Extra, type Resident, type SeatAssignment } from './model';
 import type { MealName, Site } from './sites';
 import { getOpening } from './sites';
 
@@ -38,8 +38,22 @@ export function attendanceSummary(r: Resident, site: Site): string {
   return meals.length ? `Meal plan: ${meals.join(', ')}` : 'Not on the meal plan';
 }
 
-/** "Gone until further notice", "Gone Sun, Sat"; '' when they're active every day. */
+/** "Gone until further notice", "Here M–F", "Here M W F"; '' when they're here every day. */
 export function statusText(r: Pick<Resident, 'status' | 'goneDays'>): string {
   if (r.status === 'gone') return 'Gone until further notice';
-  return r.goneDays.length ? `Gone ${r.goneDays.map((d) => WEEKDAYS[d]).join(', ')}` : '';
+  return r.goneDays.length ? `Here ${hereDaysText(r.goneDays)}` : '';
+}
+
+const DAY_LETTER = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
+/**
+ * The days someone is here, short enough for a chip: "M–F" for a run of three or more (Monday
+ * first, so a weekend-only resident reads "Sa Su"), else the days spaced: "M W F". "None" if none.
+ */
+export function hereDaysText(goneDays: number[]): string {
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  const here = order.filter((d) => !goneDays.includes(d));
+  if (!here.length) return 'none';
+  const at = here.map((d) => order.indexOf(d));
+  const run = at.every((p, i) => i === 0 || p === at[i - 1]! + 1);
+  return run && here.length >= 3 ? `${DAY_LETTER[here[0]!]}–${DAY_LETTER[here[here.length - 1]!]}` : here.map((d) => DAY_LETTER[d]).join(' ');
 }

@@ -19,12 +19,12 @@ const CHAIRS: Chair[] = ['arm', 'no_arm', 'none'];
 type StatusChoice = 'active' | 'days' | 'gone';
 const STATUS_CHOICES: { value: StatusChoice; label: string }[] = [
   { value: 'active', label: 'Active' },
-  { value: 'days', label: 'Gone certain days' },
+  { value: 'days', label: 'Here certain days' },
   { value: 'gone', label: 'Gone until further notice' },
 ];
 const STATUS_HINT: Record<StatusChoice, string> = {
   active: 'Seated at every meal on their plan',
-  days: 'Their seat is kept; it prints empty on these days',
+  days: 'Pick the days they come; other days their seat prints empty',
   gone: 'Their seat is kept but prints empty',
 };
 
@@ -42,9 +42,11 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
     if (c === 'days') return; // nothing changes until a day is picked
     void act(`${name}: ${STATUS_CHOICES.find((x) => x.value === c)!.label}`, A.setStatus(r.id, c === 'gone' ? 'gone' : 'here'));
   };
+  // The buttons are the days they're here; what's saved is the days they're gone (the rest).
   const toggleDay = (d: number) => {
-    const days = r.goneDays.includes(d) ? r.goneDays.filter((x) => x !== d) : [...r.goneDays, d];
-    void act(`${name}: gone ${WEEKDAYS[d]}`, A.setStatus(r.id, 'here', days));
+    const here = !r.goneDays.includes(d);
+    const days = here ? [...r.goneDays, d] : r.goneDays.filter((x) => x !== d);
+    void act(`${name}: ${here ? 'not here' : 'here'} ${WEEKDAYS[d]}`, A.setStatus(r.id, 'here', days));
   };
 
   const meals = site.meals.map((m) => m.meal);
@@ -153,10 +155,10 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
             </div>
             {choice === 'days' && (
               <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
-                <span style={{ flex: '1 1 160px', fontSize: 14, color: '#111827' }}>Gone on</span>
-                <div className="segwrap" role="group" aria-label="Gone on">
+                <span style={{ flex: '1 1 160px', fontSize: 14, color: '#111827' }}>Here on</span>
+                <div className="segwrap" role="group" aria-label="Here on">
                   {WEEKDAYS.map((d, i) => (
-                    <button key={d} type="button" className={r.goneDays.includes(i) ? 'seg on' : 'seg'} aria-pressed={r.goneDays.includes(i)} onClick={() => toggleDay(i)} style={{ padding: '0 10px' }}>
+                    <button key={d} type="button" className={!r.goneDays.includes(i) ? 'seg on' : 'seg'} aria-pressed={!r.goneDays.includes(i)} onClick={() => toggleDay(i)} style={{ padding: '0 10px' }}>
                       {d}
                     </button>
                   ))}

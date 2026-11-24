@@ -99,6 +99,8 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
           })}
         </div>
         <div style={{ flex: '1 1 0' }} />
+        {/* The setup sheet is for every day (it marks who's gone), so the day only applies to the others. */}
+        {current.kind !== 'setup' && (
         <select
           aria-label="Sheets for"
           title="The day the sheets are for: anyone gone that day prints as an empty seat"
@@ -115,6 +117,7 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
             );
           })}
         </select>
+        )}
         <div className="segwrap" role="group" aria-label="Zoom">
           {(
             [

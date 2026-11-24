@@ -92,7 +92,7 @@ export interface PageData {
  * a weekday, anyone gone that day), with their extras
  * in the order of the Extras list in Settings, so every seat lists them the same way.
  */
-export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Partial<Pick<AppData, 'extraOptions'>>, siteId: string, meal: string, weekday?: number): Occupant {
+export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Partial<Pick<AppData, 'extraOptions'>>, siteId: string, meal: string, weekday?: number | 'all'): Occupant {
   const r = mealRoster(data.residents, data.seating, siteId, meal);
   const order = (data.extraOptions ?? []).filter((x) => x.siteId === siteId).map((x) => x.name);
   const sorted = new Map<Resident, Resident>();
@@ -108,7 +108,8 @@ export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Parti
   return (tableId, seat) => {
     const res = r.bySeat.get(seatKey(tableId, seat));
     // Gone (until further notice, or on this weekday): the seat is theirs but prints empty.
-    const gone = res && (weekday === undefined ? isGone(res) : goneOn(res, weekday));
+    // 'all': everyone seated, gone or not (the setup sheet marks them instead).
+    const gone = res && weekday !== 'all' && (weekday === undefined ? isGone(res) : goneOn(res, weekday));
     return res && !gone ? inOrder(res) : null;
   };
 }

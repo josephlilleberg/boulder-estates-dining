@@ -37,3 +37,7 @@
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 16px; border-radius: 10px; background: #111827; color: #FFFFFF; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
 .toast-undo { border: 0; border-radius: 6px; padding: 6px 12px; background: #FFFFFF; color: #1D4ED8; font: inherit; font-weight: 700; cursor: pointer; }
 .toast-x { border: 0; background: transparent; color: #9CA3AF; font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+
+/* A search result whose whole row is the click target (Events guest list). */
+.pickrow:hover { background: #DBEAFE; box-shadow: inset 3px 0 0 #2563EB; }
+.pickrow:hover .btn { border-color: #2563EB; color: #1D4ED8; }

@@ -258,12 +258,8 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
         {cancellable.length > 0 && (
           <Results>
             {cancellable.map((a) => (
-              <Line key={a.residentId} name={fullName(a.resident)}>
-                <button
-                  type="button"
-                  className="btn sm"
-                  onClick={() => void cancel(a)}
-                >
+              <Line key={a.residentId} name={fullName(a.resident)} onRow={() => void cancel(a)}>
+                <button type="button" className="btn sm">
                   Cancel
                 </button>
               </Line>
@@ -286,15 +282,15 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
         {(guestable.length > 0 || addable.length > 0) && (
           <Results>
             {guestable.map((a) => (
-              <Line key={a.residentId} name={fullName(a.resident)} sub="coming">
-                <button type="button" className="btn sm" onClick={() => setGuests(a, 1).then(() => setQAdd(''))}>
+              <Line key={a.residentId} name={fullName(a.resident)} sub="coming" onRow={() => void setGuests(a, 1).then(() => setQAdd(''))}>
+                <button type="button" className="btn sm">
                   + Guest
                 </button>
               </Line>
             ))}
             {addable.map((r) => (
-              <Line key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']}>
-                <button type="button" className="btn sm" onClick={() => void addResident(r)}>
+              <Line key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']} onRow={() => void addResident(r)}>
+                <button type="button" className="btn sm">
                   + Add
                 </button>
               </Line>
@@ -391,9 +387,14 @@ function Column({
 /** Search results, set apart from the column's own list. */
 const Results = ({ children }: { children: ReactNode }) => <div style={{ background: '#EFF6FF', borderBottom: '1px solid #BFDBFE' }}>{children}</div>;
 
-function Line({ name, sub, tags = [], dim, children }: { name: string; sub?: string; tags?: string[]; dim?: boolean; children: ReactNode }) {
+/** A name and its controls. With `onRow`, the whole row is the click target (search results); its button just shows what a click does. */
+function Line({ name, sub, tags = [], dim, onRow, children }: { name: string; sub?: string; tags?: string[]; dim?: boolean; onRow?: () => void; children: ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '4px 10px 4px 14px', borderBottom: '1px solid #F0F1F3' }}>
+    <div
+      className={onRow ? 'pickrow' : undefined}
+      onClick={onRow}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '4px 10px 4px 14px', borderBottom: '1px solid #F0F1F3', cursor: onRow ? 'pointer' : undefined }}
+    >
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: 6, rowGap: 2 }}>
         <span style={{ fontSize: 14, fontWeight: 500, color: dim ? '#6B7280' : '#111827', overflowWrap: 'anywhere' }}>{name}</span>
         {sub && <span style={{ fontSize: 12, color: '#4B5563' }}>{sub}</span>}

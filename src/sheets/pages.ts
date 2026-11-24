@@ -1,5 +1,5 @@
 import type { AppData } from '../db/repo';
-import type { Resident } from '../domain/model';
+import { isAway, type Resident } from '../domain/model';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
 import { areaFor, type Area, drawW, LETTER_AREA, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
@@ -88,7 +88,7 @@ export interface PageData {
 }
 
 /**
- * Who sits where at this meal (archived residents and non-attendees never show), with their extras
+ * Who sits where at this meal (archived, away and gone residents and non-attendees never show), with their extras
  * in the order of the Extras list in Settings, so every seat lists them the same way.
  */
 export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Partial<Pick<AppData, 'extraOptions'>>, siteId: string, meal: string): Occupant {
@@ -106,7 +106,7 @@ export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Parti
   };
   return (tableId, seat) => {
     const res = r.bySeat.get(seatKey(tableId, seat));
-    return res ? inOrder(res) : null;
+    return res && !isAway(res) ? inOrder(res) : null; // away or gone: the seat is theirs but prints empty
   };
 }
 

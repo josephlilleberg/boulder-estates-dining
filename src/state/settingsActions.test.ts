@@ -28,8 +28,8 @@ const site = () => data().sites.find((s) => s.id === 'BE')!;
 const bev = (name: string) => data().beverages.find((b) => b.siteId === 'BE' && b.name === name);
 const someone = () => data().residents.find((r) => r.attends.includes('Dinner') && !r.archived && (r.prefs.Dinner?.drinks.filter((d) => d.slot === 'drink').length ?? 0) < 2)!;
 
-// Columns v10 added; a database rewound to an older version mustn't have them yet.
-const PRE_V10 = [{ sql: 'ALTER TABLE resident DROP COLUMN apt' }, { sql: 'ALTER TABLE resident DROP COLUMN diabetic' }];
+// Columns v10 and later added; a database rewound to an older version mustn't have them yet.
+const PRE_V10 = ['apt', 'diabetic', 'status', 'away_until'].map((c) => ({ sql: `ALTER TABLE resident DROP COLUMN ${c}` }));
 
 describe('Drinks: a new drink works without code changes', () => {
   it('adds a drink, puts it on a resident, and both sheets print it', async () => {

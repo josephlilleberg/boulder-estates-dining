@@ -1,6 +1,6 @@
 import { extraText } from '../../domain/labels';
 import type { Beverage, DiningTable, MealPrefs, Resident, SeatAssignment } from '../../domain/model';
-import { CHAIR_LABEL, fullName, pouredInto, pouredTogether, shortName } from '../../domain/model';
+import { CHAIR_LABEL, fullName, isAway, pouredInto, pouredTogether, shortName } from '../../domain/model';
 import { footprint, seatPoints } from '../../domain/room';
 import { seatGeom } from '../../domain/tables';
 
@@ -190,7 +190,8 @@ export function mealRoster(residents: Resident[], seating: SeatAssignment[], sit
     seatOf.set(r.id, s);
     bySeat.set(seatKey(s.tableId, s.seat), r);
   }
-  return { coming, seatOf, bySeat, waiting: coming.filter((r) => !seatOf.has(r.id)) };
+  // Away and gone keep their seats but aren't waiting for one.
+  return { coming, seatOf, bySeat, waiting: coming.filter((r) => !seatOf.has(r.id) && !isAway(r)) };
 }
 
 export interface PickerList {

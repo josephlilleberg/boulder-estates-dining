@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { seatLabel } from '../../domain/labels';
-import { fullName, type Resident } from '../../domain/model';
+import { fullName, isAway, type Resident } from '../../domain/model';
 import { seatCount } from '../../domain/tables';
 import { Segmented } from '../../shell/Segmented';
 import { act } from '../../state/act';
@@ -44,6 +44,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
   const room = seatRoom(tables, sc, view, (k) => roster.bySeat.get(k) ?? null, !!cur.pick);
 
   const totalSeats = openTables.reduce((n, t) => n + seatCount(t.shape), 0);
+  const nAway = roster.coming.filter((r) => roster.seatOf.has(r.id) && isAway(r)).length;
   const seatedAt = (ts: typeof openTables) => ts.reduce((n, t) => n + Array.from({ length: seatCount(t.shape) }, (_, i) => seatKey(t.id, i)).filter((k) => roster.bySeat.has(k)).length, 0);
   const nSeated = seatedAt(openTables);
   const seatedIn = (s: number) => seatedAt(openTables.filter((t) => t.section === s));
@@ -111,6 +112,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
           <h1 className="h1">Seating · {meal}</h1>
           <span style={{ fontSize: 13, color: '#4B5563' }}>
             {nSeated} seated · {roster.waiting.length} not seated · {totalSeats - nSeated} empty seats
+            {nAway > 0 && <span title="Away or gone: their seats print empty"> · {nAway} away</span>}
           </span>
           <div style={{ flex: '1 1 0' }} />
           <Segmented

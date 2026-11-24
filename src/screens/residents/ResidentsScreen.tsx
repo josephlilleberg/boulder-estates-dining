@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { isAway, STATUS_LABEL } from '../../domain/model';
+import { statusText } from '../../domain/labels';
 import { useStore } from '../../state/store';
 import type { ScreenProps } from '../types';
 import { NameDialog } from './dialogs';
@@ -20,6 +22,7 @@ export function ResidentsScreen(props: ScreenProps) {
   const pool = useMemo(() => atSite.filter((r) => r.archived === archivedView), [atSite, archivedView]);
   const archivedCount = atSite.length - atSite.filter((r) => !r.archived).length;
   const { groups, ids } = useMemo(() => buildList(pool, q, sort), [pool, q, sort]);
+  const statusOf = useMemo(() => new Map(pool.filter(isAway).map((r) => [r.id, STATUS_LABEL[r.status]])), [pool]);
 
   // Mockup: keep the chosen resident if they belong here, otherwise show the first in the list.
   const selected = pool.find((r) => r.id === residentId) ?? pool.find((r) => r.id === ids[0]) ?? null;
@@ -85,6 +88,11 @@ export function ResidentsScreen(props: ScreenProps) {
               {g.rows.map((r) => (
                 <button key={r.id} type="button" className={selected?.id === r.id ? 'rrow on' : 'rrow'} aria-current={selected?.id === r.id || undefined} onClick={() => onResident(r.id)}>
                   <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                  {statusOf.get(r.id) && (
+                    <span title={statusText(pool.find((p) => p.id === r.id)!)} style={{ flex: 'none', fontSize: 11, fontWeight: 600, color: '#92400E', background: '#FEF3C7', borderRadius: 999, padding: '2px 8px' }}>
+                      {statusOf.get(r.id)}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>

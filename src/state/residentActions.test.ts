@@ -44,6 +44,19 @@ async function checkEdit(id: string, label: string, ops: (d: AppData) => Op[], e
 describe('every resident edit survives a restart and can be undone', () => {
   it('chair', () => checkEdit('R0', 'Chair', A.setChair('R0', 'no_arm'), (r) => expect(r.chair).toBe('no_arm')));
 
+  it('apt and diabetic diet', async () => {
+    await checkEdit('R0', 'Apt', A.setApt('R0', ' 218a '), (r) => expect(r.apt).toBe('218A'));
+    await checkEdit('R0', 'Diabetic', A.setDiabetic('R0', true), (r) => expect(r.diabetic).toBe(true));
+  });
+
+  it('away with a return date, then gone (which has no date), keeping their seats', async () => {
+    const seats = store.get().data.seating.filter((s) => s.residentId === 'R0');
+    await checkEdit('R0', 'Away', A.setStatus('R0', 'away', '2027-01-15'), (r) => expect([r.status, r.awayUntil]).toEqual(['away', '2027-01-15']));
+    await store.change('Away', A.setStatus('R0', 'away', '2027-01-15'));
+    await checkEdit('R0', 'Gone', A.setStatus('R0', 'gone', '2027-01-15'), (r) => expect([r.status, r.awayUntil]).toEqual(['gone', null]));
+    expect(store.get().data.seating.filter((s) => s.residentId === 'R0')).toEqual(seats);
+  });
+
   it('rename', () =>
     checkEdit('R0', 'Rename', A.renameResident('R0', '  Jimmy ', 'Ashcombe'), (r) => expect([r.first, r.last]).toEqual(['Jimmy', 'Ashcombe'])));
 

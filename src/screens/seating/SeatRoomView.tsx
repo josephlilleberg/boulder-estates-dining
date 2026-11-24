@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { hasAlert } from '../../domain/model';
+import { hasAlert, isAway, STATUS_LABEL } from '../../domain/model';
 import { AlertBadge } from '../../sheets/SheetPage';
 import type { SeatKey, SeatLabel, SeatRoom } from './model';
 
@@ -121,7 +121,8 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
             className="seatlab"
             data-seat={lab.key}
             data-sel={sel || undefined}
-            aria-label={r ? `${r.first} ${r.last}, table ${lab.tableNumber}` : placing ? `Seat here, table ${lab.tableNumber}` : `Empty seat at table ${lab.tableNumber}`}
+            title={r && isAway(r) ? `${STATUS_LABEL[r.status]}: the seat prints empty` : undefined}
+            aria-label={r ? `${r.first} ${r.last}${isAway(r) ? ` (${STATUS_LABEL[r.status]})` : ''}, table ${lab.tableNumber}` : placing ? `Seat here, table ${lab.tableNumber}` : `Empty seat at table ${lab.tableNumber}`}
             onPointerDown={down(lab)}
             onPointerMove={move}
             onPointerUp={up}
@@ -140,10 +141,11 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
               height: box.h,
               transform: `rotate(${lab.angle}deg)`,
               background: sel ? '#DBEAFE' : !r && placing ? '#DBEAFE' : !r ? '#FFFFFF' : 'transparent',
-              border: sel ? '1px solid #93C5FD' : r ? '1px solid transparent' : placing ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+              border: sel ? '1px solid #93C5FD' : r && isAway(r) ? '1px dashed #CBD5E1' : r ? '1px solid transparent' : placing ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
               borderRadius: r ? 6 : '50%',
-              color: r ? '#111827' : placing ? '#1D4ED8' : '#9CA3AF',
+              color: r && isAway(r) ? '#9CA3AF' : r ? '#111827' : placing ? '#1D4ED8' : '#9CA3AF',
               fontWeight: r ? 600 : 500,
+              fontStyle: r && isAway(r) ? 'italic' : undefined,
               fontSize: lab.fontSize,
               touchAction: r ? 'none' : undefined,
               cursor: r ? (ghost ? 'grabbing' : 'pointer') : 'pointer',

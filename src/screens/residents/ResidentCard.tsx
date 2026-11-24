@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { attendanceSummary, drinkSubtitle, extraText, seatLabel } from '../../domain/labels';
-import { CHAIR_LABEL, drinkUnits, fullName, pouredInto, pouredTogether, type Chair, type Resident } from '../../domain/model';
+import { attendanceSummary, drinkSubtitle, extraText, seatLabel, statusText } from '../../domain/labels';
+import { CHAIR_LABEL, STATUS_LABEL, drinkUnits, fullName, pouredInto, pouredTogether, type Chair, type Resident, type ResidentStatus } from '../../domain/model';
 import type { MealName } from '../../domain/sites';
 import { act } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -15,6 +15,12 @@ interface Props extends ScreenProps {
 }
 
 const CHAIRS: Chair[] = ['arm', 'no_arm', 'none'];
+const STATUSES: ResidentStatus[] = ['here', 'away', 'gone'];
+const STATUS_HINT: Record<ResidentStatus, string> = {
+  here: 'Comes to their meals as usual',
+  away: 'On vacation: keeps their seat, which prints empty',
+  gone: 'Until further notice: keeps their seat, which prints empty',
+};
 
 export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props) {
   const data = useStore((s) => s.data);
@@ -34,7 +40,10 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
             {name}
             {r.nickname && <span style={{ fontSize: 15, fontWeight: 500, color: '#4B5563' }}> · goes by {r.nickname}</span>}
           </h2>
-          <div style={{ fontSize: 13, color: '#4B5563', marginTop: 3 }}>{attendanceSummary(r, site)}</div>
+          <div style={{ fontSize: 13, color: '#4B5563', marginTop: 3 }}>
+            {r.status !== 'here' && <span style={{ color: '#B45309', fontWeight: 600 }}>{statusText(r)} · </span>}
+            {attendanceSummary(r, site)}
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, position: 'relative' }}>
           <button type="button" className="iconbtn" aria-label="More" aria-haspopup="menu" aria-expanded={menuOpen} title="More" onClick={() => setMenuOpen((o) => !o)}>
@@ -82,6 +91,33 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
         <div>
           <div className="seclbl">Every meal</div>
           <div className="group">
+            <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: '#111827' }}>Status</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>{STATUS_HINT[r.status]}</div>
+              </div>
+              <div className="segwrap" role="group" aria-label="Status">
+                {STATUSES.map((st) => (
+                  <button key={st} type="button" className={r.status === st ? 'seg on' : 'seg'} aria-pressed={r.status === st} onClick={() => act(`${name}: ${STATUS_LABEL[st]}`, A.setStatus(r.id, st, st === 'away' ? r.awayUntil : null))}>
+                    {STATUS_LABEL[st]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {r.status === 'away' && (
+              <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
+                <span style={{ flex: '1 1 160px', fontSize: 14, color: '#111827' }}>
+                  Back on <span style={{ fontSize: 12, color: '#4B5563' }}>(optional)</span>
+                </span>
+                <input
+                  type="date"
+                  aria-label="Back on"
+                  value={r.awayUntil ?? ''}
+                  onChange={(e) => act('Back on', A.setStatus(r.id, 'away', e.target.value || null))}
+                  style={{ height: 34, boxSizing: 'border-box', padding: '0 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', color: '#111827' }}
+                />
+              </div>
+            )}
             <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
               <span style={{ flex: '1 1 120px', fontSize: 14, color: '#111827' }}>Apt #</span>
               <AptInput key={r.apt ?? ''} id={r.id} apt={r.apt} />

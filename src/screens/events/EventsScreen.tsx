@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { fullName, type DiningEvent, type Resident } from '../../domain/model';
+import { fullName, isAway, type DiningEvent, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { localDate } from '../../state/backup';
 import { act, actUndoable } from '../../state/act';
@@ -275,9 +275,8 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
           const name = fullName(a.resident);
           return (
             <Line key={a.residentId} name={name} dim>
-              <button type="button" className="btn sm" title={`${name} is coming after all`} onClick={() => act(label(`${name} coming`), E.setAttendeeStatus(e.id, a.residentId, 'coming'))}>
-                Coming
-              </button>
+              {/* Like Additions' ×: off this list, which puts them back on the guest list. */}
+              <XButton label={`Not cancelled: ${name} is coming after all`} onClick={() => act(label(`${name} coming`), E.setAttendeeStatus(e.id, a.residentId, 'coming'))} />
             </Line>
           );
         })}
@@ -496,7 +495,7 @@ function EventDialog({ site, event, onClose, onSaved }: { site: Site; event?: Di
   const [name, setName] = useState(event?.name ?? `Thanksgiving ${new Date().getFullYear()}`);
   const [date, setDate] = useState(event?.date ?? localDate());
   const [meal, setMeal] = useState<MealName>(event?.meal ?? (meals.includes('Dinner') ? 'Dinner' : meals[0]!));
-  const regulars = data.residents.filter((r) => r.siteId === site.id && !r.archived && r.attends.includes(meal)).length;
+  const regulars = data.residents.filter((r) => r.siteId === site.id && !r.archived && !isAway(r) && r.attends.includes(meal)).length;
 
   const submit = async () => {
     if (event) {

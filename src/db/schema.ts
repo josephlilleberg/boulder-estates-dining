@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -178,6 +178,12 @@ export const MIGRATIONS: Record<number, string[]> = {
   ],
   // v10: apartment number and diabetic diet, for the weekly meal plan sheet.
   10: [`ALTER TABLE resident ADD COLUMN apt TEXT`, `ALTER TABLE resident ADD COLUMN diabetic INTEGER NOT NULL DEFAULT 0`],
+  // v11: here, away (vacation; optional return date, YYYY-MM-DD) or gone until further notice.
+  // Away and gone keep their seats; the sheets print those seats empty.
+  11: [
+    `ALTER TABLE resident ADD COLUMN status TEXT NOT NULL DEFAULT 'here' CHECK (status IN ('here', 'away', 'gone'))`,
+    `ALTER TABLE resident ADD COLUMN away_until TEXT`,
+  ],
 };
 
 /** Primary key columns per table; the undo log needs them to build inverse operations. */

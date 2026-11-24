@@ -1,6 +1,6 @@
 import type { Beverage, Chair, DiningTable, Drink, Extra, MealPrefs, Resident } from '../domain/model';
 import { extraText } from '../domain/labels';
-import { ANY_KIND, hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
+import { hasAmount, pouredInto, pouredTogether, shortName } from '../domain/model';
 import { footprint, rowsOf } from '../domain/room';
 import type { OpenSection } from '../domain/sites';
 import { seatGeom } from '../domain/tables';
@@ -348,7 +348,7 @@ export const textW = (t: string) => [...t].reduce((w, ch) => w + (GLYPH_W[ch] ??
 /** Width a chip or box needs for its longest line at full size. */
 export const needW = (c: Change) =>
   c.entries
-    ? Math.ceil(Math.max(...c.entries.map((e) => Math.max(textW(e.head), e.sub ? textW(e.sub) + SUB_INDENT + BULLET_W : 0, e.alt ? textW(e.alt) + SUB_INDENT : 0)))) + BOX_PAD
+    ? Math.ceil(Math.max(...c.entries.map((e) => Math.max(textW(e.head), e.sub ? textW(e.sub) + SUB_INDENT + BULLET_W : 0)))) + BOX_PAD
     : Math.ceil(Math.max(...(c.lines ?? [c.text]).map(textW))) + CHIP_PAD;
 /**
  * Gives every chip and extras box on a sheet one width: what its longest line needs, at least CHIP_W
@@ -362,8 +362,6 @@ export function evenChips(all: Change[], max = CHIP_MAX_W, min = CHIP_W): void {
       c.rows = c.entries.flatMap((e) => [
         ...wrapLine(e.head, w, 0, CONT_INDENT, false),
         ...(e.sub ? wrapLine(e.sub, w, SUB_INDENT, SUB_INDENT + BULLET_W, true) : []),
-        // A backup on its own line under the kind, lined up with its bullet.
-        ...(e.alt ? wrapLine(e.alt, w, SUB_INDENT, SUB_INDENT + BULLET_W, false) : []),
       ]);
   }
 }
@@ -675,33 +673,31 @@ export interface Change {
   rows?: BoxRow[];
 }
 
-/** A resident's extras for a meal as one box, an extra per line, as written ("Banana", "Napkins ×2"). */
+/**
+ * A resident's extras for a meal as one box, an extra per line, as written ("Banana", "Napkins ×2").
+ * Backups ("else Apple") stay on the resident card; the sheets show only the first choice.
+ */
 export const extraChips = (r: Resident, meal: string): Change[] => {
   // In the order given (occupantFor puts them in the Settings list's order).
   const xs = prefsOf(r, meal)?.extras ?? [];
-  const extras = xs.map(extraText);
+  const extras = xs.map((x) => extraText({ ...x, backup: null }));
   return extras.length ? [{ text: extras.join(', '), lines: extras, entries: xs.map(boxEntry), bg: EXTRA_BG }] : [];
 };
 
 /**
  * An extra in the setup box: an extra with kinds shows its name and count, the kind indented under it
- * with a bullet ("Jelly ×2" / "• Grape"), and a named backup below ("else Strawberry"). Fruit is just
- * its kind ("Banana", "else Apple").
+ * with a bullet ("Jelly ×2" / "• Grape"). Fruit is just its kind ("Banana"). No backups.
  */
 function boxEntry(x: Extra): BoxEntry {
-  // "Any kind" as a backup goes without saying, so only a named backup is shown ("else Apple").
-  const alt = x.variant && x.backup && x.backup !== ANY_KIND ? { alt: `else ${x.backup}` } : {};
-  if (!x.variant) return { head: extraText(x) };
-  if (x.name === 'Fruit') return { head: extraText({ ...x, backup: null }), ...alt };
+  if (!x.variant || x.name === 'Fruit') return { head: extraText({ ...x, backup: null }) };
   // A bowl's kind names it, on one line: "Cereal Bowl", not a bulleted "Cereal" under "Bowl".
-  if (x.name === 'Bowl') return { head: `${x.variant} Bowl${x.count > 1 ? ` ×${x.count}` : ''}`, ...alt };
-  return { head: `${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`, sub: x.variant, ...alt };
+  if (x.name === 'Bowl') return { head: `${x.variant} Bowl${x.count > 1 ? ` ×${x.count}` : ''}` };
+  return { head: `${x.name}${x.count > 1 ? ` ×${x.count}` : ''}`, sub: x.variant };
 }
-/** An extra in the setup box: its name and count; with kinds, the kind (bulleted) and any backup under it. */
+/** An extra in the setup box: its name and count; with kinds, the kind (bulleted) under it. */
 export interface BoxEntry {
   head: string;
   sub?: string;
-  alt?: string;
 }
 
 /** "Mug" on the table at a seat that has no coffee or tea: take the mug away. Solid red with white text, so it stands out (and prints dark). */
@@ -1194,6 +1190,8 @@ export function stressOccupant(meal: string, opts: { heavy?: boolean } = {}): Oc
     chair: 'arm',
     apt: null,
     diabetic: false,
+    status: 'here',
+    awayUntil: null,
     archived: false,
     notes: [{ id: 'sn', text: 'No nuts' }],
     attends: [meal as never],

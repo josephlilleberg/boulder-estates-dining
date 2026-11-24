@@ -37,3 +37,12 @@ export function attendanceSummary(r: Resident, site: Site): string {
   const meals = site.meals.map((m) => m.meal).filter((m) => r.attends.includes(m));
   return meals.length ? `Comes to ${meals.join(', ')}` : 'Not coming to any meal';
 }
+
+/** "Away until Jan 15", "Away", "Gone until further notice"; '' when they're here. */
+export function statusText(r: Pick<Resident, 'status' | 'awayUntil'>): string {
+  if (r.status === 'gone') return 'Gone until further notice';
+  if (r.status !== 'away') return '';
+  if (!r.awayUntil) return 'Away';
+  const [y, m, d] = r.awayUntil.split('-').map(Number);
+  return `Away until ${new Date(y!, m! - 1, d!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+}

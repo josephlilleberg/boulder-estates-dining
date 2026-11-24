@@ -1,6 +1,6 @@
 import type { AppData } from '../db/repo';
 import { arrange, type ArrangeResult, type ArrangeTable, type Party } from '../domain/arrange';
-import { shortName, type AttendeeStatus, type DiningEvent, type DiningTable, type EventAttendee, type EventSeat, type Resident } from '../domain/model';
+import { isAway, shortName, type AttendeeStatus, type DiningEvent, type DiningTable, type EventAttendee, type EventSeat, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { seatCount } from '../domain/tables';
 import { del, patch, put, type Op } from './ops';
@@ -44,7 +44,7 @@ export function createEvent(n: NewEvent): { id: string; ops: (data: AppData) => 
       const name = tidy(n.name);
       if (!name) throw new Error('The event needs a name');
       if (!validDate(n.date)) throw new Error('The event needs a date');
-      const regulars = data.residents.filter((r) => r.siteId === n.siteId && !r.archived && r.attends.includes(n.meal));
+      const regulars = data.residents.filter((r) => r.siteId === n.siteId && !r.archived && !isAway(r) && r.attends.includes(n.meal));
       return [put('event', { id, site_id: n.siteId, name, date: n.date, meal: n.meal }), ...regulars.map((r) => put('event_attendee', { ...key(id, r.id), added: 0, status: 'coming', guests: 0 }))];
     },
   };

@@ -1,5 +1,5 @@
 import type { AppData } from '../db/repo';
-import { canHaveExtraGlass, drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, milkCupsFor, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident } from '../domain/model';
+import { canHaveExtraGlass, drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, milkCupsFor, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident, type ResidentStatus } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { defaultCoffeeRow, setAttendance } from './actions';
 import { del, patch, put, type Op } from './ops';
@@ -131,6 +131,13 @@ export const setChair = (id: string, chair: Chair) => (data: AppData): Op[] =>
 export const setApt = (id: string, apt: string) => (data: AppData): Op[] => {
   const a = apt.trim().toUpperCase() || null;
   return resident(data, id).apt === a ? [] : [patch('resident', { id }, { apt: a })];
+};
+
+/** Here, away (with an optional return date) or gone until further notice. Seats are kept either way. */
+export const setStatus = (id: string, status: ResidentStatus, awayUntil: string | null = null) => (data: AppData): Op[] => {
+  const r = resident(data, id);
+  const until = status === 'away' ? awayUntil || null : null;
+  return r.status === status && r.awayUntil === until ? [] : [patch('resident', { id }, { status, away_until: until })];
 };
 
 export const setDiabetic = (id: string, on: boolean) => (data: AppData): Op[] =>

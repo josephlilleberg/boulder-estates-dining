@@ -125,6 +125,11 @@ export interface Note {
   text: string;
 }
 
+export type ResidentStatus = 'here' | 'away' | 'gone';
+export const STATUS_LABEL: Record<ResidentStatus, string> = { here: 'Here', away: 'Away', gone: 'Gone' };
+/** Not here today (away or gone): their seats print empty. */
+export const isAway = (r: Pick<Resident, 'status'>): boolean => r.status !== 'here';
+
 export interface Resident {
   id: string;
   siteId: SiteId;
@@ -137,6 +142,10 @@ export interface Resident {
   apt: string | null;
   /** Diabetic diet: their row is highlighted on the meal plan sheet. */
   diabetic: boolean;
+  /** Away (vacation) or gone until further notice: they keep their seats, which print empty. */
+  status: ResidentStatus;
+  /** Away only, optional: the day they're expected back (YYYY-MM-DD). They're switched back by hand. */
+  awayUntil: string | null;
   archived: boolean;
   notes: Note[];
   /** Meals they come to. */

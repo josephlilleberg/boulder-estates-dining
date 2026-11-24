@@ -44,6 +44,8 @@ const resident = (drinks: Drink[], p: Partial<MealPrefs> = {}, chair: Chair = 'a
   chair,
   apt: null,
   diabetic: false,
+  status: 'here',
+  awayUntil: null,
   archived: false,
   notes: [],
   attends: ['Dinner'],
@@ -515,7 +517,7 @@ describe('setup chip layout', () => {
     expect(orderExtras([x('Soup Spoon'), x('Fruit')], ['Fruit', 'Soup Spoon']).map((e) => e.name)).toEqual(['Fruit', 'Soup Spoon']);
   });
 
-  it('an extra with kinds shows its name and count, the kind bulleted under it and any backup below; Fruit stays just the kind', () => {
+  it('an extra with kinds shows its name and count and the kind bulleted under it, never a backup; Fruit stays just the kind', () => {
     const x = (id: string, name: string, variant: string | null, count = 1, backup: string | null = null) => ({ id, name, variant, backup, count });
     const r = resident([coffee()], { extras: [x('a', 'Jelly', 'Grape', 2), x('b', 'Fruit', 'Banana'), x('c', 'Soup Spoon', null), x('d', 'Jelly', 'Mixed Fruit', 1, '*any*')] });
     const box = setupChanges(r, 'Dinner').find((c) => c.lines)!;
@@ -526,12 +528,13 @@ describe('setup chip layout', () => {
       ['Banana', false, false],
       ['Soup Spoon', false, false],
       ['Jelly', false, false],
-      ['Mixed Fruit', true, true], // "else any kind" goes without saying
+      ['Mixed Fruit', true, true],
     ]);
     expect(itemH(box)).toBe(2 + 4 + 6 * BOX_LINE_H);
     const named = setupChanges(resident([coffee()], { extras: [x('f', 'Fruit', 'Banana', 1, 'Apple'), x('g', 'Fruit', 'Orange', 1, '*any*')] }), 'Dinner').find((c) => c.lines)!;
     evenChips([named], SEAT_W);
-    expect(named.rows!.map((row) => row.text)).toEqual(['Banana', 'else Apple', 'Orange']);
+    expect(named.rows!.map((row) => row.text)).toEqual(['Banana', 'Orange']); // "else Apple" stays on the card
+    expect(named.text).toBe('Banana, Orange');
     // Without kinds, nothing changes: one line each, no bullets.
     const plain = setupChanges(resident([coffee()], { extras: [x('e', 'Napkins', null, 2)] }), 'Dinner').find((c) => c.lines)!;
     evenChips([plain]);

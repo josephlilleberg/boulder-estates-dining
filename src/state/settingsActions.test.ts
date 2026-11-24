@@ -30,7 +30,7 @@ const someone = () => data().residents.find((r) => r.attends.includes('Dinner') 
 
 // Columns v10 and later added; a database rewound to an older version mustn't have them yet.
 const PRE_V10 = [
-  ...['apt', 'diabetic', 'status', 'away_until'].map((c) => ({ sql: `ALTER TABLE resident DROP COLUMN ${c}` })),
+  ...['apt', 'diabetic', 'status', 'away_until', 'gone_days'].map((c) => ({ sql: `ALTER TABLE resident DROP COLUMN ${c}` })),
   ...['listed', 'family'].map((c) => ({ sql: `ALTER TABLE event_attendee DROP COLUMN ${c}` })),
 ];
 

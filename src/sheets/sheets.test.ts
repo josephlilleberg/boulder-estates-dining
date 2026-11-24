@@ -45,7 +45,7 @@ const resident = (drinks: Drink[], p: Partial<MealPrefs> = {}, chair: Chair = 'a
   apt: null,
   diabetic: false,
   status: 'here',
-  awayUntil: null,
+  goneDays: [],
   archived: false,
   notes: [],
   attends: ['Dinner'],
@@ -118,8 +118,11 @@ describe('Setup sheet rules', () => {
     const chairs: Chair[] = ['arm', 'no_arm', 'none'];
     const room = plan((s) => (s < 3 ? resident([coffee()], {}, chairs[s]) : null));
     expect(room.pills.map((p) => p.chair)).toEqual(chairs);
-    // One length for every chair, reading along the edge, never upside down; the plain arm chair mark is thinner.
-    expect(new Set(room.pills.map((p) => p.w)).size).toBe(1);
+    // One length for the worded marks, the plain arm chair bar a little shorter (90%), reading along the edge,
+    // never upside down; the arm chair mark is thinner too.
+    const [arm, ...worded] = room.pills;
+    expect(new Set(worded.map((p) => p.w)).size).toBe(1);
+    expect(arm!.w).toBeLessThan(worded[0]!.w);
     expect(room.pills.map((p) => p.h)).toEqual([ARM_TAG_H, CHAIR_TAG_H, CHAIR_TAG_H]);
     for (const p of room.pills) expect(Math.abs(p.ang)).toBeLessThanOrEqual(90);
     // A round table: each mark bends along its circle, a bit under a quarter of it, so they don't touch.

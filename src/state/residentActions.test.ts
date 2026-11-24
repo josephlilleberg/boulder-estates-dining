@@ -49,12 +49,21 @@ describe('every resident edit survives a restart and can be undone', () => {
     await checkEdit('R0', 'Diabetic', A.setDiabetic('R0', true), (r) => expect(r.diabetic).toBe(true));
   });
 
-  it('away with a return date, then gone (which has no date), keeping their seats', async () => {
+  it('gone certain days, then gone until further notice (which has no days), keeping their seats', async () => {
     const seats = store.get().data.seating.filter((s) => s.residentId === 'R0');
-    await checkEdit('R0', 'Away', A.setStatus('R0', 'away', '2027-01-15'), (r) => expect([r.status, r.awayUntil]).toEqual(['away', '2027-01-15']));
-    await store.change('Away', A.setStatus('R0', 'away', '2027-01-15'));
-    await checkEdit('R0', 'Gone', A.setStatus('R0', 'gone', '2027-01-15'), (r) => expect([r.status, r.awayUntil]).toEqual(['gone', null]));
+    await checkEdit('R0', 'Sundays', A.setStatus('R0', 'here', [6, 0, 0]), (r) => expect([r.status, r.goneDays]).toEqual(['here', [0, 6]]));
+    await store.change('Sundays', A.setStatus('R0', 'here', [0, 6]));
+    await checkEdit('R0', 'Gone', A.setStatus('R0', 'gone', [0, 6]), (r) => expect([r.status, r.goneDays]).toEqual(['gone', []]));
     expect(store.get().data.seating.filter((s) => s.residentId === 'R0')).toEqual(seats);
+  });
+
+  it('the meal plan decides who comes: on the plan comes (and can be seated), off it unseats them', async () => {
+    const r = res(store, 'R0');
+    const meal = r.attends[0]!;
+    await checkEdit('R0', 'Off plan', A.setMealPlan('R0', meal, false), (x) => expect([x.onPlan.includes(meal), x.attends.includes(meal)]).toEqual([false, false]));
+    await store.change('Off plan', A.setMealPlan('R0', meal, false));
+    expect(store.get().data.seating.some((s) => s.residentId === 'R0' && s.meal === meal)).toBe(false);
+    await checkEdit('R0', 'On plan', A.setMealPlan('R0', meal, true), (x) => expect([x.onPlan.includes(meal), x.attends.includes(meal)]).toEqual([true, true]));
   });
 
   it('rename', () =>

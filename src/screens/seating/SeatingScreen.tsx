@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { seatLabel } from '../../domain/labels';
-import { fullName, isAway, type Resident } from '../../domain/model';
+import { fullName, isGone, type Resident } from '../../domain/model';
 import { seatCount } from '../../domain/tables';
 import { Segmented } from '../../shell/Segmented';
 import { act } from '../../state/act';
@@ -9,7 +9,7 @@ import { useStore } from '../../state/store';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 import { cropOf, frameCrop, detailFacts, detailRows, mealRoster, parseSeatKey, pickerList, pickerPosition, seatingScale, seatKey, seatRoom, shortWhere, type SeatKey, type SeatLabel } from './model';
-import { NotSeatedList } from './NotSeatedList';
+import { GoneTag, NotSeatedList } from './NotSeatedList';
 import { SeatRoomView } from './SeatRoomView';
 
 export function SeatingScreen({ site, meal, opening, onResident, navigate }: ScreenProps) {
@@ -44,7 +44,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
   const room = seatRoom(tables, sc, view, (k) => roster.bySeat.get(k) ?? null, !!cur.pick);
 
   const totalSeats = openTables.reduce((n, t) => n + seatCount(t.shape), 0);
-  const nAway = roster.coming.filter((r) => roster.seatOf.has(r.id) && isAway(r)).length;
+  const nAway = roster.coming.filter((r) => roster.seatOf.has(r.id) && isGone(r)).length;
   const seatedAt = (ts: typeof openTables) => ts.reduce((n, t) => n + Array.from({ length: seatCount(t.shape) }, (_, i) => seatKey(t.id, i)).filter((k) => roster.bySeat.has(k)).length, 0);
   const nSeated = seatedAt(openTables);
   const seatedIn = (s: number) => seatedAt(openTables.filter((t) => t.section === s));
@@ -112,7 +112,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
           <h1 className="h1">Seating · {meal}</h1>
           <span style={{ fontSize: 13, color: '#4B5563' }}>
             {nSeated} seated · {roster.waiting.length} not seated · {totalSeats - nSeated} empty seats
-            {nAway > 0 && <span title="Away or gone: their seats print empty"> · {nAway} away</span>}
+            {nAway > 0 && <span title="Gone until further notice: their seats are kept but print empty"> · {nAway} gone</span>}
           </span>
           <div style={{ flex: '1 1 0' }} />
           <Segmented
@@ -162,7 +162,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
                       <div>
                         {searching && picker.others.length > 0 && <div className="pophead">Waiting</div>}
                         {picker.waiting.map((r, i) => (
-                          <PopRow key={r.id} name={fullName(r)} where="" first={i === 0} onClick={() => void seat(popLab.key, r.id)} />
+                          <PopRow key={r.id} name={fullName(r)} where="" first={i === 0} gone={isGone(r)} onClick={() => void seat(popLab.key, r.id)} />
                         ))}
                       </div>
                     )}
@@ -170,7 +170,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
                       <div>
                         <div className="pophead">Seated elsewhere</div>
                         {picker.others.map((r, i) => (
-                          <PopRow key={r.id} name={fullName(r)} where={shortSeat(r)} first={!picker.waiting.length && i === 0} onClick={() => void seat(popLab.key, r.id)} />
+                          <PopRow key={r.id} name={fullName(r)} where={shortSeat(r)} first={!picker.waiting.length && i === 0} gone={isGone(r)} onClick={() => void seat(popLab.key, r.id)} />
                         ))}
                       </div>
                     )}
@@ -196,6 +196,11 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
             <>
               <div style={{ fontSize: 12, color: '#6B7280' }}>{where(cur.sel)}</div>
               <h2 style={{ margin: '2px 0 14px', fontSize: 20, fontWeight: 700, color: '#111827', letterSpacing: '-.01em' }}>{fullName(selRes)}</h2>
+              {isGone(selRes) && (
+                <div style={{ margin: '-8px 0 12px', padding: '6px 10px', border: '1.5px dashed #6B7280', borderRadius: 8, fontSize: 12.5, color: '#374151' }}>
+                  Gone until further notice: the seat stays theirs but prints empty.
+                </div>
+              )}
               <div className="sdlbl">{meal}</div>
               <div className="sdlist">
                 {rows.map((d, i) => (
@@ -267,10 +272,11 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
   );
 }
 
-function PopRow({ name, where, first, onClick }: { name: string; where: string; first: boolean; onClick: () => void }) {
+function PopRow({ name, where, first, gone, onClick }: { name: string; where: string; first: boolean; gone?: boolean; onClick: () => void }) {
   return (
     <button type="button" className={first ? 'poprow first' : 'poprow'} onClick={onClick}>
       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      {gone && <GoneTag />}
       <span style={{ flex: 'none', fontSize: 11, color: '#6B7280', whiteSpace: 'nowrap' }}>{where}</span>
     </button>
   );

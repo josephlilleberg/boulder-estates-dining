@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { fullName, isAway, type DiningEvent, type Resident } from '../../domain/model';
+import { fullName, goneOn, type DiningEvent, type Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { localDate } from '../../state/backup';
 import { act, actUndoable } from '../../state/act';
@@ -601,7 +601,7 @@ function EventDialog({ site, event, onClose, onSaved }: { site: Site; event?: Di
   const [name, setName] = useState(event?.name ?? `Thanksgiving ${new Date().getFullYear()}`);
   const [date, setDate] = useState(event?.date ?? localDate());
   const [meal, setMeal] = useState<MealName>(event?.meal ?? (meals.includes('Dinner') ? 'Dinner' : meals[0]!));
-  const regulars = data.residents.filter((r) => r.siteId === site.id && !r.archived && !isAway(r) && r.attends.includes(meal)).length;
+  const regulars = data.residents.filter((r) => r.siteId === site.id && !r.archived && !goneOn(r, E.weekdayOf(date)) && r.attends.includes(meal)).length;
 
   const submit = async () => {
     if (event) {

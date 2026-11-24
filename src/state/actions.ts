@@ -55,9 +55,11 @@ export const defaultCoffeeRow = (residentId: string, meal: MealName) => ({
 export const setAttendance = (residentId: string, meal: MealName, comes: boolean) => (data: AppData): Op[] => {
   const r = data.residents.find((x) => x.id === residentId);
   if (!r) throw new Error(`Unknown resident ${residentId}`);
-  if (r.attends.includes(meal) === comes) return [];
+  // Coming and the meal plan go together: on the plan means they come and are seated.
+  const plan = r.onPlan.includes(meal);
+  if (r.attends.includes(meal) === comes) return plan === comes ? [] : [comes ? put('meal_plan', { resident_id: residentId, meal }) : del('meal_plan', { resident_id: residentId, meal })];
   if (comes) {
-    const ops: Op[] = [put('attendance', { resident_id: residentId, meal })];
+    const ops: Op[] = [put('attendance', { resident_id: residentId, meal }), ...(plan ? [] : [put('meal_plan', { resident_id: residentId, meal })])];
     // Keep existing prefs if they came before; otherwise start with defaults.
     if (!r.prefs[meal]) {
       ops.push(put('meal_pref', { resident_id: residentId, meal, ro_water: 0, hot_water: 0, portion: 'Full' }));
@@ -71,6 +73,7 @@ export const setAttendance = (residentId: string, meal: MealName, comes: boolean
   return [
     ...(seat ? [del('seating', seatKey(seat))] : []), // seat first: the DB refuses the reverse order
     del('attendance', { resident_id: residentId, meal }),
+    ...(plan ? [del('meal_plan', { resident_id: residentId, meal })] : []),
   ];
 };
 

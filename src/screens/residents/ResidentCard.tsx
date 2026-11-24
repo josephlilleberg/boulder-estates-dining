@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { attendanceSummary, drinkSubtitle, extraText, seatLabel, statusText } from '../../domain/labels';
-import { CHAIR_LABEL, STATUS_LABEL, drinkUnits, fullName, pouredInto, pouredTogether, type Chair, type Resident, type ResidentStatus } from '../../domain/model';
+import { CHAIR_LABEL, WEEKDAYS, drinkUnits, fullName, pouredInto, pouredTogether, type Chair, type Resident } from '../../domain/model';
 import type { MealName } from '../../domain/sites';
 import { act } from '../../state/act';
 import * as A from '../../state/residentActions';
@@ -15,11 +15,17 @@ interface Props extends ScreenProps {
 }
 
 const CHAIRS: Chair[] = ['arm', 'no_arm', 'none'];
-const STATUSES: ResidentStatus[] = ['here', 'away', 'gone'];
-const STATUS_HINT: Record<ResidentStatus, string> = {
-  here: 'Comes to their meals as usual',
-  away: 'On vacation: keeps their seat, which prints empty',
-  gone: 'Until further notice: keeps their seat, which prints empty',
+/** The status dropdown: active, gone on certain weekdays, or gone until further notice. */
+type StatusChoice = 'active' | 'days' | 'gone';
+const STATUS_CHOICES: { value: StatusChoice; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'days', label: 'Gone certain days' },
+  { value: 'gone', label: 'Gone until further notice' },
+];
+const STATUS_HINT: Record<StatusChoice, string> = {
+  active: 'Seated at every meal on their plan',
+  days: 'Their seat is kept; it prints empty on these days',
+  gone: 'Their seat is kept but prints empty',
 };
 
 export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props) {
@@ -28,6 +34,18 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
   const [dialog, setDialog] = useState<null | 'rename' | 'archive' | 'delete'>(null);
   const [drink, setDrink] = useState<DrinkTarget | null>(null);
   const [extra, setExtra] = useState<ExtraTarget | null>(null);
+  // "Gone certain days" picked before any day is: show the day buttons anyway.
+  const [daysOpen, setDaysOpen] = useState(false);
+  const choice: StatusChoice = r.status === 'gone' ? 'gone' : r.goneDays.length || daysOpen ? 'days' : 'active';
+  const setChoice = (c: StatusChoice) => {
+    setDaysOpen(c === 'days');
+    if (c === 'days') return; // nothing changes until a day is picked
+    void act(`${name}: ${STATUS_CHOICES.find((x) => x.value === c)!.label}`, A.setStatus(r.id, c === 'gone' ? 'gone' : 'here'));
+  };
+  const toggleDay = (d: number) => {
+    const days = r.goneDays.includes(d) ? r.goneDays.filter((x) => x !== d) : [...r.goneDays, d];
+    void act(`${name}: gone ${WEEKDAYS[d]}`, A.setStatus(r.id, 'here', days));
+  };
 
   const meals = site.meals.map((m) => m.meal);
   const name = fullName(r);
@@ -41,7 +59,7 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
             {r.nickname && <span style={{ fontSize: 15, fontWeight: 500, color: '#4B5563' }}> · goes by {r.nickname}</span>}
           </h2>
           <div style={{ fontSize: 13, color: '#4B5563', marginTop: 3 }}>
-            {r.status !== 'here' && <span style={{ color: '#B45309', fontWeight: 600 }}>{statusText(r)} · </span>}
+            {statusText(r) && <span style={{ color: '#B45309', fontWeight: 600 }}>{statusText(r)} · </span>}
             {attendanceSummary(r, site)}
           </div>
         </div>
@@ -93,29 +111,56 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
           <div className="group">
             <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
               <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-                <div style={{ fontSize: 14, color: '#111827' }}>Status</div>
-                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>{STATUS_HINT[r.status]}</div>
+                <div style={{ fontSize: 14, color: '#111827' }}>Meal plan</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>Signed up for: they come and are seated</div>
               </div>
-              <div className="segwrap" role="group" aria-label="Status">
-                {STATUSES.map((st) => (
-                  <button key={st} type="button" className={r.status === st ? 'seg on' : 'seg'} aria-pressed={r.status === st} onClick={() => act(`${name}: ${STATUS_LABEL[st]}`, A.setStatus(r.id, st, st === 'away' ? r.awayUntil : null))}>
-                    {STATUS_LABEL[st]}
-                  </button>
-                ))}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="Meal plan">
+                {meals.map((m) => {
+                  const on = r.onPlan.includes(m);
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={`On the meal plan for ${m}`}
+                      onClick={() => act(`${name}: ${on ? 'off' : 'on'} the ${m} meal plan`, A.setMealPlan(r.id, m, !on))}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 36, padding: '0 10px 0 12px', border: `1px solid ${on ? '#93C5FD' : '#D1D5DB'}`, background: on ? '#EFF6FF' : '#FFFFFF', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, color: '#111827' }}
+                    >
+                      {m}
+                      <SwitchMark on={on} />
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            {r.status === 'away' && (
+            <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: '#111827' }}>Status</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>{STATUS_HINT[choice]}</div>
+              </div>
+              <select
+                aria-label="Status"
+                value={choice}
+                onChange={(ev) => setChoice(ev.target.value as StatusChoice)}
+                style={{ height: 36, padding: '0 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', color: '#111827', background: '#FFFFFF' }}
+              >
+                {STATUS_CHOICES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {choice === 'days' && (
               <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
-                <span style={{ flex: '1 1 160px', fontSize: 14, color: '#111827' }}>
-                  Back on <span style={{ fontSize: 12, color: '#4B5563' }}>(optional)</span>
-                </span>
-                <input
-                  type="date"
-                  aria-label="Back on"
-                  value={r.awayUntil ?? ''}
-                  onChange={(e) => act('Back on', A.setStatus(r.id, 'away', e.target.value || null))}
-                  style={{ height: 34, boxSizing: 'border-box', padding: '0 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', color: '#111827' }}
-                />
+                <span style={{ flex: '1 1 160px', fontSize: 14, color: '#111827' }}>Gone on</span>
+                <div className="segwrap" role="group" aria-label="Gone on">
+                  {WEEKDAYS.map((d, i) => (
+                    <button key={d} type="button" className={r.goneDays.includes(i) ? 'seg on' : 'seg'} aria-pressed={r.goneDays.includes(i)} onClick={() => toggleDay(i)} style={{ padding: '0 10px' }}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
@@ -184,9 +229,8 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
     const onDrink = setDrink;
     const onExtra = setExtra;
     const on = resident.attends.includes(m);
-    const plan = resident.onPlan.includes(m);
     const seat = data.seating.find((s) => s.siteId === site.id && s.meal === m && s.residentId === resident.id);
-    const where = !on ? `Turn on if they start coming to ${m}` : seat ? seatLabel(site, m, seat, data.tables) : 'Not seated yet';
+    const where = !on ? `Not on the ${siteHasSwitch ? m : ''} meal plan: turn it on above`.replace('  ', ' ') : seat ? seatLabel(site, m, seat, data.tables) : 'Not seated yet';
     const p = resident.prefs[m];
     const drinks = p?.drinks.filter((d) => d.slot === 'drink') ?? [];
     const coffee = p?.drinks.filter((d) => d.slot === 'coffee') ?? [];
@@ -201,23 +245,9 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
           <div className="group" style={{ marginBottom: 14 }}>
             <div className="grow" style={{ cursor: 'default', minHeight: 56 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{siteHasSwitch ? `Comes to ${m}` : 'All meals'}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{siteHasSwitch ? m : 'All meals'}</div>
                 <div className={on && !seat ? 'mwhere warn' : 'mwhere'}>{where}</div>
               </div>
-              {siteHasSwitch && (
-                <button type="button" className="swbtn" aria-pressed={on} aria-label={`Comes to ${m}`} onClick={() => act(`${on ? 'Stop' : 'Start'} coming to ${m}`, A.setAttendance(resident.id, m, !on))}>
-                  <SwitchMark on={on} />
-                </button>
-              )}
-            </div>
-            <div className="grow" style={{ cursor: 'default' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, color: '#111827' }}>On the meal plan</div>
-                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>{plan === on ? (plan ? `On the plan for ${m}` : `Not on the plan for ${m}`) : plan ? 'On the plan, but doesn’t come' : 'Comes, but not on the plan'}</div>
-              </div>
-              <button type="button" className="swbtn" aria-pressed={plan} aria-label={`On the meal plan for ${m}`} onClick={() => act(`${plan ? 'Off' : 'On'} the ${m} meal plan`, A.setMealPlan(resident.id, m, !plan))}>
-                <SwitchMark on={plan} />
-              </button>
             </div>
           </div>
 

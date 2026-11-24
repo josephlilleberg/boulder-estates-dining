@@ -96,15 +96,17 @@ meal tabs (each showing On or Off) pick the meal, so the top bar's meal picker i
 - **Name:** first, last and an optional **nickname**. The nickname is what shows on the
   seating map and server sheets ("Bobby F."). Names typed in lowercase are capitalized,
   and the same first and last name can't be added twice (archived residents included).
-- **Status:** **Here**, **Away** (vacation, with an optional "Back on" date; switch them back
-  yourself) or **Gone** until further notice. Away and gone residents keep their seats: Seating
-  shows them greyed, the sheets print the seat empty, they're left off new event guest lists, and
-  the meal plan sheet says AWAY or GONE across their week. Archive is still for good.
+- **Meal plan:** a switch per meal (Breakfast, Dinner, Supper). On the plan is what makes them
+  come and lets them be seated; off it, their seat at that meal is freed.
+- **Status:** **Active** (the default), **Gone certain days** (pick the weekdays) or **Gone until
+  further notice** (long or unknown absences, like winter). Gone residents keep their seats and
+  can still be seated: Seating shows them in a dashed box and the lists tag them "Gone"; the sheets
+  print the seat empty (on their gone weekdays, for those gone certain days); they're left off new
+  event guest lists for those days; the meal plan sheet says GONE. Archive is still for good.
 - **Every meal:** **Apt #**, **Diabetic diet** (highlights them on the meal plan sheet), chair
   (Arm chair, Armless chair, No chair) and allergies & notes.
 - **Per meal:**
-  - Whether they come, and whether they're **on the meal plan** (separate: some come
-    without it, and some on it don't come).
+  - Where they sit.
   - Up to **2 drinks**, picked by type first (Milk, Juice, Coffee, Tea), then the drink.
     Coffee is the default for anyone new to a meal: at Breakfast it's a **Coffee** switch
     that doesn't count toward the 2, and at Dinner and Supper it's their first drink.
@@ -136,6 +138,8 @@ and **Print** opens the print dialog. Who's on the plan is set on each resident'
 
 ### Sheets
 
+- **For** a day: today (the default) or one of the next six days. Anyone gone that weekday prints
+  as an empty seat; the day shows top right on every sheet.
 - Every sheet for the meal, one tab each (Setup, Server 1 2 3). Two zooms: **Drawing** (the
   default) crops to the tables and labels and fits them to the window, with the key beside the
   setup sheet; **Whole page** shows the sheet exactly as

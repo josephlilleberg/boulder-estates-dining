@@ -1,5 +1,5 @@
 // Wording shared by every screen and sheet. Kept identical to the mockup.
-import { ANY_KIND, type Beverage, type DiningTable, type Drink, type Extra, type Resident, type SeatAssignment } from './model';
+import { ANY_KIND, WEEKDAYS, type Beverage, type DiningTable, type Drink, type Extra, type Resident, type SeatAssignment } from './model';
 import type { MealName, Site } from './sites';
 import { getOpening } from './sites';
 
@@ -32,17 +32,14 @@ export function extraText(x: Pick<Extra, 'name' | 'variant' | 'count'> & { backu
   return `${main}, else ${x.backup === ANY_KIND ? 'any kind' : x.backup}`;
 }
 
-/** "Comes to Breakfast, Dinner" in the site's meal order. */
+/** "Meal plan: Breakfast, Dinner" in the site's meal order. */
 export function attendanceSummary(r: Resident, site: Site): string {
   const meals = site.meals.map((m) => m.meal).filter((m) => r.attends.includes(m));
-  return meals.length ? `Comes to ${meals.join(', ')}` : 'Not coming to any meal';
+  return meals.length ? `Meal plan: ${meals.join(', ')}` : 'Not on the meal plan';
 }
 
-/** "Away until Jan 15", "Away", "Gone until further notice"; '' when they're here. */
-export function statusText(r: Pick<Resident, 'status' | 'awayUntil'>): string {
+/** "Gone until further notice", "Gone Sun, Sat"; '' when they're active every day. */
+export function statusText(r: Pick<Resident, 'status' | 'goneDays'>): string {
   if (r.status === 'gone') return 'Gone until further notice';
-  if (r.status !== 'away') return '';
-  if (!r.awayUntil) return 'Away';
-  const [y, m, d] = r.awayUntil.split('-').map(Number);
-  return `Away until ${new Date(y!, m! - 1, d!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  return r.goneDays.length ? `Gone ${r.goneDays.map((d) => WEEKDAYS[d]).join(', ')}` : '';
 }

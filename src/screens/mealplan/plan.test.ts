@@ -12,7 +12,7 @@ const site: Site = {
 };
 
 const person = (id: string, first: string, last: string, onPlan: MealName[], more: Partial<Resident> = {}): Resident => ({
-  id, siteId: 'BE', first, last, nickname: null, chair: 'arm', apt: null, diabetic: false, status: 'here', awayUntil: null, archived: false, notes: [], attends: [], onPlan, prefs: {}, ...more,
+  id, siteId: 'BE', first, last, nickname: null, chair: 'arm', apt: null, diabetic: false, status: 'here', goneDays: [], archived: false, notes: [], attends: [], onPlan, prefs: {}, ...more,
 });
 
 describe('meal plan sheet', () => {
@@ -22,7 +22,7 @@ describe('meal plan sheet', () => {
         person('a', 'Ann', 'Young', ['Dinner'], { apt: '218A', diabetic: true }),
         person('b', 'Zed', 'Adams', ['Breakfast', 'Dinner']),
         person('c', 'Cal', 'Avery', []),
-        person('f', 'Fay', 'Cole', ['Dinner'], { status: 'away', awayUntil: '2027-01-15' }),
+        person('f', 'Fay', 'Cole', ['Dinner'], { goneDays: [0, 6] }),
         person('g', 'Gus', 'Dunn', ['Dinner'], { status: 'gone' }),
         person('d', 'Dee', 'Baker', ['Dinner'], { archived: true }),
         person('e', 'Eve', 'Brown', ['Dinner'], { siteId: 'HSP' }),
@@ -30,10 +30,10 @@ describe('meal plan sheet', () => {
       site,
     );
     expect(rows).toEqual([
-      { id: 'b', name: 'Adams, Zed', apt: null, diabetic: false, away: '', plan: [true, true, false] },
-      { id: 'f', name: 'Cole, Fay', apt: null, diabetic: false, away: 'AWAY UNTIL JAN 15', plan: [false, true, false] },
-      { id: 'g', name: 'Dunn, Gus', apt: null, diabetic: false, away: 'GONE UNTIL FURTHER NOTICE', plan: [false, true, false] },
-      { id: 'a', name: 'Young, Ann', apt: '218A', diabetic: true, away: '', plan: [false, true, false] },
+      { id: 'b', name: 'Adams, Zed', apt: null, diabetic: false, away: '', goneDays: [], plan: [true, true, false] },
+      { id: 'f', name: 'Cole, Fay', apt: null, diabetic: false, away: '', goneDays: [0, 6], plan: [false, true, false] },
+      { id: 'g', name: 'Dunn, Gus', apt: null, diabetic: false, away: 'GONE UNTIL FURTHER NOTICE', goneDays: [], plan: [false, true, false] },
+      { id: 'a', name: 'Young, Ann', apt: '218A', diabetic: true, away: '', goneDays: [], plan: [false, true, false] },
     ]);
   });
 

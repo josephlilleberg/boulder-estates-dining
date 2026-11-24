@@ -136,14 +136,17 @@ export const setApt = (id: string, apt: string) => (data: AppData): Op[] => {
   return resident(data, id).apt === a ? [] : [patch('resident', { id }, { apt: a })];
 };
 
-/** Here, away (with an optional return date) or gone until further notice. Seats are kept either way. */
-export const setStatus = (id: string, status: ResidentStatus, awayUntil: string | null = null) => (data: AppData): Op[] => {
+/**
+ * Active (optionally gone on certain weekdays) or gone until further notice. Seats are kept either
+ * way. Gone until further notice has no weekdays.
+ */
+export const setStatus = (id: string, status: ResidentStatus, goneDays: number[] = []) => (data: AppData): Op[] => {
   const r = resident(data, id);
-  const until = status === 'away' ? awayUntil || null : null;
-  if (r.status === status && r.awayUntil === until) return [];
-  // Back from away or gone: they join the events for their meals that don't list them.
-  const back = status === 'here' && r.status !== 'here' && !r.archived ? joinEvents(data, id, r.siteId, r.attends) : [];
-  return [patch('resident', { id }, { status, away_until: until }), ...back];
+  const days = status === 'gone' ? [] : [...new Set(goneDays)].sort();
+  if (r.status === status && r.goneDays.join(',') === days.join(',')) return [];
+  // Back from gone: they join the events for their meals that don't list them.
+  const back = status === 'here' && r.status !== 'here' && !r.archived ? joinEvents(data, id, r.siteId, r.attends, days) : [];
+  return [patch('resident', { id }, { status, gone_days: days.length ? days.join(',') : null }), ...back];
 };
 
 export const setDiabetic = (id: string, on: boolean) => (data: AppData): Op[] =>
@@ -204,7 +207,8 @@ export { setAttendance };
 /** On or off the meal plan for a meal. Doesn't change whether they come. */
 export const setMealPlan = (id: string, meal: MealName, on: boolean) => (data: AppData): Op[] => {
   if (resident(data, id).onPlan.includes(meal) === on) return [];
-  return [on ? put('meal_plan', { resident_id: id, meal }) : del('meal_plan', { resident_id: id, meal })];
+  // On the plan is coming: setAttendance keeps both in step (and unseats them when they come off).
+  return setAttendance(id, meal, on)(data);
 };
 
 export type SpecialWater = 'none' | 'ro' | 'hot';

@@ -1,5 +1,5 @@
 import type { AppData } from '../db/repo';
-import { isAway, type Resident } from '../domain/model';
+import { goneOn, isGone, type Resident } from '../domain/model';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { mealRoster, seatKey } from '../screens/seating/model';
 import { areaFor, type Area, drawW, LETTER_AREA, NOTES_ROOM, notesHeight, PAGE, serverNotes, serverRoom, setupRoom, type Occupant, type ServerNote, type Paper, type ServerRoom, type SetupRoom } from './model';
@@ -88,10 +88,11 @@ export interface PageData {
 }
 
 /**
- * Who sits where at this meal (archived, away and gone residents and non-attendees never show), with their extras
+ * Who sits where at this meal (archived and gone residents and non-attendees never show; nor, given
+ * a weekday, anyone gone that day), with their extras
  * in the order of the Extras list in Settings, so every seat lists them the same way.
  */
-export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Partial<Pick<AppData, 'extraOptions'>>, siteId: string, meal: string): Occupant {
+export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Partial<Pick<AppData, 'extraOptions'>>, siteId: string, meal: string, weekday?: number): Occupant {
   const r = mealRoster(data.residents, data.seating, siteId, meal);
   const order = (data.extraOptions ?? []).filter((x) => x.siteId === siteId).map((x) => x.name);
   const sorted = new Map<Resident, Resident>();
@@ -106,7 +107,9 @@ export function occupantFor(data: Pick<AppData, 'residents' | 'seating'> & Parti
   };
   return (tableId, seat) => {
     const res = r.bySeat.get(seatKey(tableId, seat));
-    return res && !isAway(res) ? inOrder(res) : null; // away or gone: the seat is theirs but prints empty
+    // Gone (until further notice, or on this weekday): the seat is theirs but prints empty.
+    const gone = res && (weekday === undefined ? isGone(res) : goneOn(res, weekday));
+    return res && !gone ? inOrder(res) : null;
   };
 }
 
@@ -158,11 +161,14 @@ export function buildPage(
   occupant: Occupant,
   /** When anything on the sheets last changed ("Nov 21, 2026"), shown top right. */
   updated: string,
+  /** The day the sheets are for ("Tue, Nov 24"), shown top right before it. */
+  forDay = '',
 ): PageData {
   const layoutId = data.layouts.find((l) => l.siteId === site.id && l.active)?.id;
   const tables = data.tables.filter((t) => t.layoutId === layoutId && opening.sections.some((s) => s.section === t.section));
   const { w, h } = PAGE[sheet.paper];
-  const base = { key: sheet.key, paper: sheet.paper, w, h, right: updated ? `Updated ${updated}` : '' };
+  const right = [forDay && `For ${forDay}`, updated && `Updated ${updated}`].filter(Boolean).join(' · ');
+  const base = { key: sheet.key, paper: sheet.paper, w, h, right };
 
   if (sheet.kind === 'combined') {
     const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'both', area: areaFor(w, h, LEGEND_ROOM) });

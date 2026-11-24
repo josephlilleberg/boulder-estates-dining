@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -187,6 +187,16 @@ export const MIGRATIONS: Record<number, string[]> = {
   // v12, events: `listed` puts a resident who usually comes on the Additions list (to give them
   // guests); `family` groups relatives at an event, so Arrange seats them together.
   12: [`ALTER TABLE event_attendee ADD COLUMN listed INTEGER NOT NULL DEFAULT 0`, `ALTER TABLE event_attendee ADD COLUMN family TEXT`],
+  // v13: status is active or gone until further notice ('away' with a return date is dropped and
+  // becomes gone); gone_days ("0,6" = Sundays and Saturdays) marks someone gone on certain weekdays.
+  // The meal plan now decides who comes: whoever comes is on the plan and whoever is on it comes.
+  13: [
+    `ALTER TABLE resident ADD COLUMN gone_days TEXT`,
+    `UPDATE resident SET status = 'gone', away_until = NULL WHERE status = 'away'`,
+    `INSERT OR IGNORE INTO meal_plan (resident_id, meal) SELECT resident_id, meal FROM attendance`,
+    `INSERT OR IGNORE INTO attendance (resident_id, meal) SELECT resident_id, meal FROM meal_plan`,
+    `INSERT OR IGNORE INTO meal_pref (resident_id, meal) SELECT resident_id, meal FROM meal_plan`,
+  ],
 };
 
 /** Primary key columns per table; the undo log needs them to build inverse operations. */

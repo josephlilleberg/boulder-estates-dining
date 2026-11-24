@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent } from 'react';
-import { fullName, hasAlert, type Resident } from '../../domain/model';
+import { fullName, hasAlert, isGone, type Resident } from '../../domain/model';
 import { AlertBadge } from '../../sheets/SheetPage';
 import type { SeatKey } from './model';
 
@@ -66,6 +66,7 @@ export function NotSeatedList({ residents, placingId, onPick, onDrop }: Props) {
               >
                 {hasAlert(r) && <AlertBadge />}
                 <span style={{ fontSize: 14, fontWeight: 500, color: '#111827' }}>{fullName(r)}</span>
+                {isGone(r) && <GoneTag />}
               </button>
             ))}
           </div>
@@ -78,5 +79,14 @@ export function NotSeatedList({ residents, placingId, onPick, onDrop }: Props) {
         </div>
       )}
     </section>
+  );
+}
+
+/** Beside a name in a list: gone until further notice (they can still be seated; the seat prints empty). */
+export function GoneTag() {
+  return (
+    <span title="Gone until further notice: their seat is kept but prints empty" style={{ flex: 'none', marginLeft: 'auto', fontSize: 11, fontWeight: 600, color: '#374151', border: '1.5px dashed #6B7280', borderRadius: 999, padding: '0 7px' }}>
+      Gone
+    </span>
   );
 }

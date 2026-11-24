@@ -54,15 +54,15 @@ async function thanksgiving() {
 }
 
 describe('meal plan', () => {
-  it('starts as everyone who comes, and is changed apart from attendance', async () => {
+  it('is who comes: off the plan, they stop coming; Undo puts both back', async () => {
     const r = data().residents.find((x) => x.attends.includes('Dinner'))!;
     expect(r.onPlan).toEqual(r.attends);
     await store.change('off plan', setMealPlan(r.id, 'Dinner', false));
     const after = data().residents.find((x) => x.id === r.id)!;
-    expect(after.onPlan).not.toContain('Dinner');
-    expect(after.attends).toContain('Dinner');
+    expect([after.onPlan.includes('Dinner'), after.attends.includes('Dinner')]).toEqual([false, false]);
     await store.undoLast();
-    expect(data().residents.find((x) => x.id === r.id)!.onPlan).toContain('Dinner');
+    const back = data().residents.find((x) => x.id === r.id)!;
+    expect([back.onPlan.includes('Dinner'), back.attends.includes('Dinner')]).toEqual([true, true]);
   });
 
   it('a new resident is on the plan for the meals they come to', async () => {
@@ -111,9 +111,9 @@ describe('events', () => {
     await store.change('comes', setAttendance(outsider.id, 'Dinner', true));
     expect(on(soon, outsider.id)?.status).toBe('coming');
 
-    // Back from away: joins where missing, but a cancellation stays.
+    // Back from gone: joins where missing, but a cancellation stays.
     const regular = ev(soon).attendees[0]!.residentId;
-    await store.change('away', setStatus(regular, 'away'));
+    await store.change('gone', setStatus(regular, 'gone'));
     await store.change('cancel', setAttendeeStatus(soon, regular, 'cancelled'));
     await store.change('remove', removeFromEvent(today, regular));
     await store.change('here', setStatus(regular, 'here'));

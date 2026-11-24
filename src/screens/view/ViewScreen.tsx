@@ -4,7 +4,7 @@ import { fitPage } from '../../sheets/model';
 import { printPages } from '../../sheets/print';
 import { PrintIcon } from '../../shell/icons';
 import { ScaledPage, ServerNotes, SetupLegend } from '../../sheets/SheetPage';
-import { useSheets } from '../../sheets/useSheets';
+import { sheetDay, useSheets } from '../../sheets/useSheets';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 
@@ -23,7 +23,11 @@ const savedZoom = (): Zoom => {
 };
 
 export function ViewScreen({ site, meal, opening }: ScreenProps) {
-  const { sheets, page } = useSheets(site, meal, opening);
+  // The day the sheets are for: today, or one of the next six days. Anyone gone that weekday prints empty.
+  const [dayOffset, setDayOffset] = useState(0);
+  const today = new Date();
+  const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset);
+  const { sheets, page } = useSheets(site, meal, opening, day);
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     const open = () => setPrinting(true);
@@ -95,6 +99,22 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
           })}
         </div>
         <div style={{ flex: '1 1 0' }} />
+        <select
+          aria-label="Sheets for"
+          title="The day the sheets are for: anyone gone that day prints as an empty seat"
+          value={dayOffset}
+          onChange={(ev) => setDayOffset(Number(ev.target.value))}
+          style={{ height: 36, padding: '0 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 13.5, fontFamily: 'inherit', color: '#111827', background: '#FFFFFF' }}
+        >
+          {Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+            return (
+              <option key={i} value={i}>
+                {i === 0 ? `Today · ${sheetDay(d)}` : i === 1 ? `Tomorrow · ${sheetDay(d)}` : sheetDay(d)}
+              </option>
+            );
+          })}
+        </select>
         <div className="segwrap" role="group" aria-label="Zoom">
           {(
             [

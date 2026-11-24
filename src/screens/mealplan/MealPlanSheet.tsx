@@ -268,6 +268,12 @@ export function MealPlanSheet({ title, month, week, days, meals, rows, page, pag
                 </td>
               ) : (
                 days.map((d) =>
+                  r.goneDays.includes(d.getDay()) ? (
+                    // One of their gone days: the whole day says so.
+                    <td key={`${d.getDate()}-gone`} colSpan={meals.length} style={{ ...cell, borderLeft: DAY_LINE, borderRight: DAY_LINE, textAlign: 'center', fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#4B5563', background: '#F3F4F6' }}>
+                      GONE
+                    </td>
+                  ) : (
                   r.plan.map((on, i) => (
                     <td
                       key={`${d.getDate()}-${i}`}
@@ -281,7 +287,8 @@ export function MealPlanSheet({ title, month, week, days, meals, rows, page, pag
                     >
                       {on ? '' : '*'}
                     </td>
-                  )),
+                  ))
+                  ),
                 )
               )}
             </tr>

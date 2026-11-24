@@ -1,6 +1,6 @@
 import type { AppData } from '../db/repo';
 import { arrange, type ArrangeResult, type ArrangeTable, type Party } from '../domain/arrange';
-import { isAway, shortName, type AttendeeStatus, type DiningEvent, type DiningTable, type EventAttendee, type EventSeat, type Resident } from '../domain/model';
+import { goneOn, shortName, type AttendeeStatus, type DiningEvent, type DiningTable, type EventAttendee, type EventSeat, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { seatCount } from '../domain/tables';
 import { del, patch, put, type Op } from './ops';
@@ -13,13 +13,19 @@ import { del, patch, put, type Op } from './ops';
 
 export const MAX_GUESTS = 20;
 
+/** The weekday (0 = Sunday) of a YYYY-MM-DD date. */
+export const weekdayOf = (date: string): number => new Date(`${date}T00:00`).getDay();
+
 /**
  * The site's events for these meals that don't list the resident yet: they join as coming, whatever
  * the event's date. Events that already list them (coming or cancelled) are left alone.
  */
-export function joinEvents(data: AppData, residentId: string, siteId: SiteId, meals: MealName[]): Op[] {
+export function joinEvents(data: AppData, residentId: string, siteId: SiteId, meals: MealName[], goneDays?: number[]): Op[] {
+  // Not on a weekday they're always gone: their days as they'll be (`goneDays`), else as saved.
+  const days = goneDays ?? data.residents.find((x) => x.id === residentId)?.goneDays ?? [];
   return data.events
     .filter((e) => e.siteId === siteId && meals.includes(e.meal) && !e.attendees.some((a) => a.residentId === residentId))
+    .filter((e) => !days.includes(weekdayOf(e.date)))
     .map((e) => put('event_attendee', { event_id: e.id, resident_id: residentId, added: 0, status: 'coming', guests: 0 }));
 }
 
@@ -56,7 +62,7 @@ export function createEvent(n: NewEvent): { id: string; ops: (data: AppData) => 
       const name = tidy(n.name);
       if (!name) throw new Error('The event needs a name');
       if (!validDate(n.date)) throw new Error('The event needs a date');
-      const regulars = data.residents.filter((r) => r.siteId === n.siteId && !r.archived && !isAway(r) && r.attends.includes(n.meal));
+      const regulars = data.residents.filter((r) => r.siteId === n.siteId && !r.archived && !goneOn(r, weekdayOf(n.date)) && r.attends.includes(n.meal));
       return [put('event', { id, site_id: n.siteId, name, date: n.date, meal: n.meal }), ...regulars.map((r) => put('event_attendee', { ...key(id, r.id), added: 0, status: 'coming', guests: 0 }))];
     },
   };

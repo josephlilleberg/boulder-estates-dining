@@ -125,10 +125,13 @@ export interface Note {
   text: string;
 }
 
-export type ResidentStatus = 'here' | 'away' | 'gone';
-export const STATUS_LABEL: Record<ResidentStatus, string> = { here: 'Here', away: 'Away', gone: 'Gone' };
-/** Not here today (away or gone): their seats print empty. */
-export const isAway = (r: Pick<Resident, 'status'>): boolean => r.status !== 'here';
+/** Active, or gone until further notice (their seats are kept but print empty). */
+export type ResidentStatus = 'here' | 'gone';
+/** Gone until further notice. */
+export const isGone = (r: Pick<Resident, 'status'>): boolean => r.status === 'gone';
+/** Gone on this weekday (0 = Sunday): until further notice, or one of their gone days. */
+export const goneOn = (r: Pick<Resident, 'status' | 'goneDays'>, weekday: number): boolean => r.status === 'gone' || r.goneDays.includes(weekday);
+export const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 
 export interface Resident {
   id: string;
@@ -142,10 +145,10 @@ export interface Resident {
   apt: string | null;
   /** Diabetic diet: their row is highlighted on the meal plan sheet. */
   diabetic: boolean;
-  /** Away (vacation) or gone until further notice: they keep their seats, which print empty. */
+  /** Gone until further notice: they keep their seats, which print empty. */
   status: ResidentStatus;
-  /** Away only, optional: the day they're expected back (YYYY-MM-DD). They're switched back by hand. */
-  awayUntil: string | null;
+  /** Weekdays they're always gone (0 = Sunday), e.g. [0] for Sundays; their seat prints empty then. */
+  goneDays: number[];
   archived: boolean;
   notes: Note[];
   /** Meals they come to. */

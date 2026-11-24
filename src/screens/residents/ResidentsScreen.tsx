@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { isAway, STATUS_LABEL } from '../../domain/model';
 import { statusText } from '../../domain/labels';
 import { useStore } from '../../state/store';
 import type { ScreenProps } from '../types';
@@ -22,7 +21,8 @@ export function ResidentsScreen(props: ScreenProps) {
   const pool = useMemo(() => atSite.filter((r) => r.archived === archivedView), [atSite, archivedView]);
   const archivedCount = atSite.length - atSite.filter((r) => !r.archived).length;
   const { groups, ids } = useMemo(() => buildList(pool, q, sort), [pool, q, sort]);
-  const statusOf = useMemo(() => new Map(pool.filter(isAway).map((r) => [r.id, STATUS_LABEL[r.status]])), [pool]);
+  // A tag for anyone gone: "Gone", or their weekdays ("Sun, Sat").
+  const statusOf = useMemo(() => new Map(pool.filter((r) => r.status === 'gone' || r.goneDays.length).map((r) => [r.id, r.status === 'gone' ? 'Gone' : statusText(r).replace('Gone ', 'Off ')])), [pool]);
 
   // Mockup: keep the chosen resident if they belong here, otherwise show the first in the list.
   const selected = pool.find((r) => r.id === residentId) ?? pool.find((r) => r.id === ids[0]) ?? null;

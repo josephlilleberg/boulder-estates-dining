@@ -3,8 +3,8 @@ import type { Resident } from '../../domain/model';
 import type { MealName, Site } from '../../domain/sites';
 import { buildList } from '../residents/list';
 
-/** "AWAY", "AWAY UNTIL JAN 15" or "GONE UNTIL FURTHER NOTICE"; '' when they're here. */
-const awayText = (r: Resident): string => statusText(r).toUpperCase();
+/** "GONE UNTIL FURTHER NOTICE", or '' (gone on certain weekdays shows on those days only). */
+const awayText = (r: Resident): string => (r.status === 'gone' ? statusText(r).toUpperCase() : '');
 
 export interface PlanRow {
   id: string;
@@ -12,8 +12,10 @@ export interface PlanRow {
   name: string;
   apt: string | null;
   diabetic: boolean;
-  /** Away or gone: the row says so across the week instead of boxes. Empty when they're here. */
+  /** Gone until further notice: the row says so across the week instead of boxes. Empty otherwise. */
   away: string;
+  /** Weekdays they're always gone (0 = Sunday): those days say GONE instead of boxes. */
+  goneDays: number[];
   /** One per site meal, in the site's meal order: on the plan for it. */
   plan: boolean[];
 }
@@ -26,7 +28,7 @@ export function planRows(residents: Resident[], site: Site): PlanRow[] {
   return buildList(on, '', 'last').groups.flatMap((g) =>
     g.rows.map(({ id, name }) => {
       const r = byId.get(id)!;
-      return { id, name, apt: r.apt, diabetic: r.diabetic, away: awayText(r), plan: meals.map((m) => r.onPlan.includes(m)) };
+      return { id, name, apt: r.apt, diabetic: r.diabetic, away: awayText(r), goneDays: r.goneDays, plan: meals.map((m) => r.onPlan.includes(m)) };
     }),
   );
 }

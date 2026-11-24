@@ -346,7 +346,7 @@ function Notes({ resident: r }: { resident: Resident }) {
         </span>
       ))}
       {adding ? (
-        <input
+        <input autoComplete="off"
           autoFocus
           className="text-input note-input"
           aria-label="New note"
@@ -375,7 +375,7 @@ function AptInput({ id, apt }: { id: string; apt: string | null }) {
     if (v.trim().toUpperCase() !== (apt ?? '')) void act('Apt #', A.setApt(id, v));
   };
   return (
-    <input
+    <input autoComplete="off"
       type="text"
       aria-label="Apt #"
       placeholder="—"

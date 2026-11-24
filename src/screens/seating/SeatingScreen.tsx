@@ -156,7 +156,7 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
                         <circle cx="11" cy="11" r="6.5" />
                         <path d="M16 16l4 4" />
                       </svg>
-                      <input type="text" placeholder="Who sits here?" aria-label="Search residents" autoFocus value={popQ} onChange={(e) => setPopQ(e.target.value)} onKeyDown={popKey} />
+                      <input autoComplete="off" type="text" placeholder="Who sits here?" aria-label="Search residents" autoFocus value={popQ} onChange={(e) => setPopQ(e.target.value)} onKeyDown={popKey} />
                     </div>
                     {picker.waiting.length > 0 && (
                       <div>

@@ -472,7 +472,7 @@ export function ExtraDialog({ target, resident: r, onClose }: { target: ExtraTar
             </button>
           </div>
           {pick === OTHER && (
-            <input className="text-input" style={{ marginTop: 8 }} autoFocus placeholder="e.g. Extra toast" value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void save()} />
+            <input autoComplete="off" className="text-input" style={{ marginTop: 8 }} autoFocus placeholder="e.g. Extra toast" value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void save()} />
           )}
       </Field>
 

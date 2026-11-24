@@ -358,7 +358,7 @@ function Column({
               </>
             )}
           </svg>
-          <input
+          <input autoComplete="off"
             type="search"
             aria-label={`${title}: ${placeholder}`}
             placeholder={placeholder}

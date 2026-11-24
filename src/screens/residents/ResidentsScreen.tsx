@@ -53,7 +53,7 @@ export function ResidentsScreen(props: ScreenProps) {
               <circle cx="11" cy="11" r="7" />
               <path d="M20 20l-4-4" />
             </svg>
-            <input
+            <input autoComplete="off"
               id="rsearch"
               type="search"
               aria-label="Search residents"

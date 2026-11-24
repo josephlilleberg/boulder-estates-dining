@@ -354,7 +354,7 @@ export function MealSectionsDialog({ site, meal, onClose }: { site: Site; meal: 
               {o && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
                   <span style={{ fontSize: 13, color: '#4B5563' }}>called</span>
-                  <input
+                  <input autoComplete="off"
                     className="text-input"
                     style={{ width: 150, height: 36 }}
                     aria-label={`Name for the Section ${sec} tables at ${meal}`}

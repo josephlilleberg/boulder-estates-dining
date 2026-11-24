@@ -2,6 +2,7 @@ import type { AppData } from '../db/repo';
 import { canHaveExtraGlass, drinkUnits, hasAmount, JUICE_CUPS, MILK_CUPS, milkCupsFor, tidyName, type Beverage, type Chair, type Drink, type Extra, type Portion, type Resident, type ResidentStatus } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { defaultCoffeeRow, setAttendance } from './actions';
+import { joinUpcoming } from './eventActions';
 import { del, patch, put, type Op } from './ops';
 
 // Resident edits as (data) → ops. Each one is a single undo step.
@@ -107,6 +108,8 @@ export function addResident(n: NewResident): { id: string; ops: (data: AppData) 
           put('meal_pref', { resident_id: id, meal, ro_water: 0, hot_water: 0, portion: 'Full' }),
           put('drink', defaultCoffeeRow(id, meal)),
         ]),
+        // Events already made for their meals list them too.
+        ...joinUpcoming(data, id, n.siteId, n.meals),
       ];
     },
   };
@@ -137,7 +140,10 @@ export const setApt = (id: string, apt: string) => (data: AppData): Op[] => {
 export const setStatus = (id: string, status: ResidentStatus, awayUntil: string | null = null) => (data: AppData): Op[] => {
   const r = resident(data, id);
   const until = status === 'away' ? awayUntil || null : null;
-  return r.status === status && r.awayUntil === until ? [] : [patch('resident', { id }, { status, away_until: until })];
+  if (r.status === status && r.awayUntil === until) return [];
+  // Back from away or gone: they join upcoming events for their meals that don't list them.
+  const back = status === 'here' && r.status !== 'here' && !r.archived ? joinUpcoming(data, id, r.siteId, r.attends) : [];
+  return [patch('resident', { id }, { status, away_until: until }), ...back];
 };
 
 export const setDiabetic = (id: string, on: boolean) => (data: AppData): Op[] =>
@@ -154,8 +160,11 @@ export const archiveResident = (id: string) => (data: AppData): Op[] => {
   ];
 };
 
-export const restoreResident = (id: string) => (data: AppData): Op[] =>
-  resident(data, id).archived ? [patch('resident', { id }, { archived: 0 })] : [];
+export const restoreResident = (id: string) => (data: AppData): Op[] => {
+  const r = resident(data, id);
+  if (!r.archived) return [];
+  return [patch('resident', { id }, { archived: 0 }), ...(r.status === 'here' ? joinUpcoming(data, id, r.siteId, r.attends) : [])];
+};
 
 /**
  * Removes them and everything that's theirs (seats, drinks, extras, notes, meals) in one

@@ -24,7 +24,8 @@ import {
   setAttendeeStatus,
   setGuests,
 } from './eventActions';
-import { addResident, deleteResident, setAttendance, setMealPlan } from './residentActions';
+import { localDate } from './backup';
+import { addResident, deleteResident, setAttendance, setMealPlan, setStatus } from './residentActions';
 import { Store } from './store';
 
 const SQL = await initSqlJs();
@@ -78,6 +79,37 @@ describe('events', () => {
     const r = data().residents.find((x) => x.attends.includes('Dinner'))!;
     await store.change('stop', setAttendance(r.id, 'Dinner', false));
     expect(ev(id).attendees.some((a) => a.residentId === r.id)).toBe(true);
+  });
+
+  it('someone new to the meal joins upcoming events (not past ones, and not one that cancelled them)', async () => {
+    const day = (n: number) => localDate(new Date(Date.now() + n * 86_400_000));
+    const make = async (date: string) => {
+      const { id, ops } = createEvent({ siteId: 'BE', name: `Event ${date}`, date, meal: 'Dinner' });
+      await store.change('New event', ops);
+      return id;
+    };
+    const [past, today, soon] = [await make(day(-3)), await make(day(0)), await make(day(5))];
+    const on = (eid: string, rid: string) => ev(eid).attendees.find((a) => a.residentId === rid);
+
+    // Added after the events were made.
+    const { id: zed, ops } = addResident({ siteId: 'BE', first: 'Zed', last: 'Newman', meals: ['Dinner'] });
+    await store.change('add', ops);
+    expect([on(past, zed), on(today, zed)?.status, on(soon, zed)?.status]).toEqual([undefined, 'coming', 'coming']);
+    await store.undoLast();
+    expect(on(soon, zed)).toBeUndefined();
+
+    // Starts coming to Dinner.
+    const outsider = data().residents.find((r) => r.siteId === 'BE' && !r.archived && !r.attends.includes('Dinner'))!;
+    await store.change('comes', setAttendance(outsider.id, 'Dinner', true));
+    expect(on(soon, outsider.id)?.status).toBe('coming');
+
+    // Back from away: joins where missing, but a cancellation stays.
+    const regular = ev(soon).attendees[0]!.residentId;
+    await store.change('away', setStatus(regular, 'away'));
+    await store.change('cancel', setAttendeeStatus(soon, regular, 'cancelled'));
+    await store.change('remove', removeFromEvent(today, regular));
+    await store.change('here', setStatus(regular, 'here'));
+    expect([on(today, regular)?.status, on(soon, regular)?.status]).toEqual(['coming', 'cancelled']);
   });
 
   it('cancels, adds, counts guests and totals', async () => {

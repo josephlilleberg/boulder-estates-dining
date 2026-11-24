@@ -83,6 +83,19 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
           <div className="seclbl">Every meal</div>
           <div className="group">
             <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
+              <span style={{ flex: '1 1 120px', fontSize: 14, color: '#111827' }}>Apt #</span>
+              <AptInput key={r.apt ?? ''} id={r.id} apt={r.apt} />
+            </div>
+            <div className="grow" style={{ cursor: 'default' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: '#111827' }}>Diabetic diet</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>Highlighted on the meal plan sheet</div>
+              </div>
+              <button type="button" className="swbtn" aria-pressed={r.diabetic} aria-label="Diabetic diet" onClick={() => act(r.diabetic ? 'Not diabetic' : 'Diabetic diet', A.setDiabetic(r.id, !r.diabetic))}>
+                <SwitchMark on={r.diabetic} />
+              </button>
+            </div>
+            <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
               <span style={{ flex: '1 1 120px', fontSize: 14, color: '#111827' }}>Chair</span>
               <div className="segwrap" role="group" aria-label="Chair">
                 {CHAIRS.map((c) => (
@@ -316,5 +329,29 @@ function Notes({ resident: r }: { resident: Resident }) {
         </button>
       )}
     </div>
+  );
+}
+
+/** Saves when focus leaves or Enter is pressed; Escape puts it back. */
+function AptInput({ id, apt }: { id: string; apt: string | null }) {
+  const [v, setV] = useState(apt ?? '');
+  const save = () => {
+    if (v.trim().toUpperCase() !== (apt ?? '')) void act('Apt #', A.setApt(id, v));
+  };
+  return (
+    <input
+      type="text"
+      aria-label="Apt #"
+      placeholder="—"
+      value={v}
+      maxLength={8}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+        if (e.key === 'Escape') setV(apt ?? '');
+      }}
+      style={{ width: 96, boxSizing: 'border-box', height: 34, padding: '0 10px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', color: '#111827', textAlign: 'center' }}
+    />
   );
 }

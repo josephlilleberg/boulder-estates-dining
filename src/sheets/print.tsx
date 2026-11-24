@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { PAGE, type Paper } from './model';
@@ -32,30 +33,34 @@ export async function printPages(pages: PageData[]): Promise<void> {
   for (const paper of PAPER_ORDER) {
     const group = pages.filter((p) => p.paper === paper);
     if (!group.length) continue;
-    const { w, h } = PAGE[paper];
-    const style = document.createElement('style');
-    style.textContent = `@page { size: ${w / 96}in ${h / 96}in; margin: 0; }`;
-    const host = document.createElement('div');
-    host.className = 'print-root';
-    document.head.appendChild(style);
-    document.body.appendChild(host);
-    const root = createRoot(host);
-    try {
-      flushSync(() =>
-        root.render(
-          <>
-            {group.map((p) => (
-              <SheetPage key={p.key} page={p} shadow={false} />
-            ))}
-          </>,
-        ),
-      );
-      await document.fonts.ready;
-      await waitForAfterPrint();
-    } finally {
-      root.unmount();
-      host.remove();
-      style.remove();
-    }
+    await printOn(
+      paper,
+      <>
+        {group.map((p) => (
+          <SheetPage key={p.key} page={p} shadow={false} />
+        ))}
+      </>,
+    );
+  }
+}
+
+/** One print dialog for pages of one paper size. Each page is a `.sheet-page` element at true size. */
+export async function printOn(paper: Paper, pages: ReactNode): Promise<void> {
+  const { w, h } = PAGE[paper];
+  const style = document.createElement('style');
+  style.textContent = `@page { size: ${w / 96}in ${h / 96}in; margin: 0; }`;
+  const host = document.createElement('div');
+  host.className = 'print-root';
+  document.head.appendChild(style);
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  try {
+    flushSync(() => root.render(pages));
+    await document.fonts.ready;
+    await waitForAfterPrint();
+  } finally {
+    root.unmount();
+    host.remove();
+    style.remove();
   }
 }

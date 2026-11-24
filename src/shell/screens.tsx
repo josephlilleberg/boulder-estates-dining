@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { EventsIcon, PrintIcon, ResidentsIcon, SeatingIcon, SettingsIcon } from './icons';
+import { EventsIcon, MealPlanIcon, PrintIcon, ResidentsIcon, SeatingIcon, SettingsIcon } from './icons';
 
 /** 'designer' (Room Designer) isn't in the bar: it opens from Settings. */
-export type Screen = 'seating' | 'residents' | 'designer' | 'view' | 'events' | 'settings';
+export type Screen = 'seating' | 'residents' | 'mealplan' | 'designer' | 'view' | 'events' | 'settings';
 
 export interface ScreenDef {
   id: Screen;
@@ -20,6 +20,8 @@ export const SCREENS: ScreenDef[] = [
   { id: 'seating', label: 'Seating', icon: <SeatingIcon />, usesMeal: true },
   // The resident card has its own meal tabs (with each meal's On/Off), so the bar's meal switch stays away here.
   { id: 'residents', label: 'Residents', icon: <ResidentsIcon />, usesMeal: false },
+  // Every meal's plan switch for everyone, side by side, so the meal switch doesn't apply.
+  { id: 'mealplan', label: 'Meal Plan', icon: <MealPlanIcon />, usesMeal: false },
   // Sheets: see them on screen, and print them from there.
   { id: 'view', label: 'Sheets', icon: <PrintIcon />, usesMeal: true },
   // Holidays: an event has its own meal, so the shared meal switch doesn't apply.

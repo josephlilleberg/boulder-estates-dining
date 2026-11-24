@@ -42,6 +42,9 @@ export const ViewIcon = () => (
 export const PrintIcon = ({ size = 19 }: { size?: number }) => (
   <Svg size={size}><path d="M6 9V3h12v6" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M6 14h12v7H6z" /></Svg>
 );
+export const MealPlanIcon = () => (
+  <Svg><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1" /><path d="M8.5 10l1.5 1.5 3-3M8.5 16l1.5 1.5 3-3" /><path d="M15 10.5h1.5M15 16.5h1.5" /></Svg>
+);
 export const SettingsIcon = () => (
   <Svg>
     <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" />

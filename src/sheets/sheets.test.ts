@@ -42,6 +42,8 @@ const resident = (drinks: Drink[], p: Partial<MealPrefs> = {}, chair: Chair = 'a
   last: 'H',
   nickname: null,
   chair,
+  apt: null,
+  diabetic: false,
   archived: false,
   notes: [],
   attends: ['Dinner'],

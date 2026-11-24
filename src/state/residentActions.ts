@@ -127,6 +127,15 @@ export const renameResident = (id: string, first: string, last: string, nickname
 export const setChair = (id: string, chair: Chair) => (data: AppData): Op[] =>
   resident(data, id).chair === chair ? [] : [patch('resident', { id }, { chair })];
 
+/** Apartment number, trimmed; '' clears it. */
+export const setApt = (id: string, apt: string) => (data: AppData): Op[] => {
+  const a = apt.trim().toUpperCase() || null;
+  return resident(data, id).apt === a ? [] : [patch('resident', { id }, { apt: a })];
+};
+
+export const setDiabetic = (id: string, on: boolean) => (data: AppData): Op[] =>
+  resident(data, id).diabetic === on ? [] : [patch('resident', { id }, { diabetic: on ? 1 : 0 })];
+
 /** Hides them everywhere and frees their seats. History (drinks, notes, attendance) stays. */
 export const archiveResident = (id: string) => (data: AppData): Op[] => {
   const r = resident(data, id);

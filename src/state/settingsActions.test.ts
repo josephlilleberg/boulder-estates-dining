@@ -28,6 +28,9 @@ const site = () => data().sites.find((s) => s.id === 'BE')!;
 const bev = (name: string) => data().beverages.find((b) => b.siteId === 'BE' && b.name === name);
 const someone = () => data().residents.find((r) => r.attends.includes('Dinner') && !r.archived && (r.prefs.Dinner?.drinks.filter((d) => d.slot === 'drink').length ?? 0) < 2)!;
 
+// Columns v10 added; a database rewound to an older version mustn't have them yet.
+const PRE_V10 = [{ sql: 'ALTER TABLE resident DROP COLUMN apt' }, { sql: 'ALTER TABLE resident DROP COLUMN diabetic' }];
+
 describe('Drinks: a new drink works without code changes', () => {
   it('adds a drink, puts it on a resident, and both sheets print it', async () => {
     await store.change('Add', S.addBeverage('BE', { name: 'Grape Juice', shortLabel: 'Grape', kind: 'juice', color: '#F29BE0' }));
@@ -170,7 +173,7 @@ describe('Backups setting and upgrades', () => {
 
   it('a version 1 database (or restored backup) upgrades to the current schema', async () => {
     // Make it a true v1 database: no extras list, no nickname column.
-    await db.batch([{ sql: 'DROP TABLE extra_option' }, { sql: 'ALTER TABLE resident DROP COLUMN nickname' }, { sql: 'ALTER TABLE extra DROP COLUMN backup' }, { sql: "UPDATE meta SET value = '1' WHERE key = 'schema_version'" }]);
+    await db.batch([{ sql: 'DROP TABLE extra_option' }, { sql: 'ALTER TABLE resident DROP COLUMN nickname' }, { sql: 'ALTER TABLE extra DROP COLUMN backup' }, ...PRE_V10, { sql: "UPDATE meta SET value = '1' WHERE key = 'schema_version'" }]);
     expect(await migrate(db)).toEqual({ seeded: false, upgradedFrom: 1 });
     const [v] = await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'");
     expect(Number(v!.value)).toBe(SCHEMA_VERSION);
@@ -184,7 +187,7 @@ describe('Backups setting and upgrades', () => {
       { sql: "UPDATE extra_option SET name = 'Big Spoon' WHERE name = 'Soup Spoon'" },
       { sql: "UPDATE extra SET name = 'Big Spoon' WHERE name = 'Soup Spoon'" },
       { sql: 'ALTER TABLE extra DROP COLUMN backup' }, // a true v3 database
-      { sql: "UPDATE meta SET value = '3' WHERE key = 'schema_version'" },
+      ...PRE_V10, { sql: "UPDATE meta SET value = '3' WHERE key = 'schema_version'" },
     ]);
     const before = (await db.select<{ n: number }>("SELECT COUNT(*) AS n FROM extra WHERE name = 'Big Spoon'"))[0]!.n;
     expect(before).toBeGreaterThan(0);
@@ -198,7 +201,7 @@ describe('Backups setting and upgrades', () => {
     await db.batch([
       { sql: "UPDATE extra_option SET variants = 'Grape|Mixed Fruit' WHERE name = 'Jelly'" },
       { sql: 'ALTER TABLE extra DROP COLUMN backup' },
-      { sql: "UPDATE meta SET value = '4' WHERE key = 'schema_version'" },
+      ...PRE_V10, { sql: "UPDATE meta SET value = '4' WHERE key = 'schema_version'" },
     ]);
     await migrate(db);
     expect(data().extraOptions.length).toBeGreaterThan(0);
@@ -211,7 +214,7 @@ describe('Backups setting and upgrades', () => {
       { sql: "UPDATE beverage SET short_label = 'OJ' WHERE name = 'Orange Juice'" },
       { sql: "UPDATE beverage SET short_label = 'Cran Juice' WHERE name = 'Cranberry Juice'" },
       { sql: "UPDATE beverage SET short_label = 'Apple J.' WHERE name = 'Apple Juice'" }, // the manager's own
-      { sql: "UPDATE meta SET value = '5' WHERE key = 'schema_version'" },
+      ...PRE_V10, { sql: "UPDATE meta SET value = '5' WHERE key = 'schema_version'" },
     ]);
     await migrate(db);
     const label = async (name: string) => (await db.select<{ short_label: string }>('SELECT short_label FROM beverage WHERE name = ?', [name]))[0]!.short_label;

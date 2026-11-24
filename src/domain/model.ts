@@ -133,6 +133,10 @@ export interface Resident {
   /** What they go by; shown on the seating map and server sheets instead of the first name. */
   nickname: string | null;
   chair: Chair;
+  /** Apartment number as written (e.g. "218A"); shown on the meal plan sheet. */
+  apt: string | null;
+  /** Diabetic diet: their row is highlighted on the meal plan sheet. */
+  diabetic: boolean;
   archived: boolean;
   notes: Note[];
   /** Meals they come to. */

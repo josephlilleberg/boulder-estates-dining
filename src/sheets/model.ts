@@ -1192,6 +1192,8 @@ export function stressOccupant(meal: string, opts: { heavy?: boolean } = {}): Oc
     last: 'H',
     nickname: null,
     chair: 'arm',
+    apt: null,
+    diabetic: false,
     archived: false,
     notes: [{ id: 'sn', text: 'No nuts' }],
     attends: [meal as never],

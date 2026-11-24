@@ -6,6 +6,7 @@ import type { Screen } from './shell/screens';
 import { SCREENS } from './shell/screens';
 import { EventsScreen } from './screens/events/EventsScreen';
 import { DesignerScreen } from './screens/designer/DesignerScreen';
+import { MealPlanScreen } from './screens/mealplan/MealPlanScreen';
 import { ResidentsScreen } from './screens/residents/ResidentsScreen';
 import { SeatingScreen } from './screens/seating/SeatingScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
@@ -17,6 +18,7 @@ import { UndoToast } from './ui/toast';
 const SCREEN_COMPONENTS: Record<Screen, (p: ScreenProps) => JSX.Element> = {
   seating: SeatingScreen,
   residents: ResidentsScreen,
+  mealplan: MealPlanScreen,
   designer: DesignerScreen,
   view: ViewScreen,
   events: EventsScreen,

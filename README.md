@@ -66,7 +66,7 @@ The rooms and tables for Boulder Estates' three sections come built in.
 
 ## Using the app
 
-The top bar runs in shift order: **Seating · Residents · Sheets · Events**, then **Settings**
+The top bar runs in shift order: **Seating · Residents · Meal Plan · Sheets · Events**, then **Settings**
 (the Room Designer opens from there), with the **meal** picker (Breakfast, Dinner, Supper)
 beside them on Seating and Sheets. It fits on one line on a laptop; on narrower windows the
 screen names shrink to icons (hover for the name).
@@ -96,9 +96,11 @@ meal tabs (each showing On or Off) pick the meal, so the top bar's meal picker i
 - **Name:** first, last and an optional **nickname**. The nickname is what shows on the
   seating map and server sheets ("Bobby F."). Names typed in lowercase are capitalized,
   and the same first and last name can't be added twice (archived residents included).
-- **Every meal:** chair (Arm chair, Armless chair, No chair) and allergies & notes.
+- **Every meal:** **Apt #**, **Diabetic diet** (highlights them on the meal plan sheet), chair
+  (Arm chair, Armless chair, No chair) and allergies & notes.
 - **Per meal:**
-  - Whether they come.
+  - Whether they come, and whether they're **on the meal plan** (separate: some come
+    without it, and some on it don't come).
   - Up to **2 drinks**, picked by type first (Milk, Juice, Coffee, Tea), then the drink.
     Coffee is the default for anyone new to a meal: at Breakfast it's a **Coffee** switch
     that doesn't count toward the 2, and at Dinner and Supper it's their first drink.
@@ -117,6 +119,16 @@ meal tabs (each showing On or Off) pick the meal, so the top bar's meal picker i
   cups become one. The card says so, and the sheets follow.
 - The **⋯** menu offers rename, **Archive** (hides them everywhere but keeps their details,
   and can be restored) and **Delete** (removes them; Undo brings them back).
+
+### Meal Plan
+
+The weekly meal plan sheet, after the paper one, to print and mark by hand. It lists everyone on
+the plan for at least one meal (last name A–Z, 28 to a Letter page), with their Apt # and a
+yellow name if they're on a diabetic diet. Each day, Sunday to Saturday, has a box for Breakfast,
+a wide one for Dinner and one for Supper: shaded and empty where they're on the plan, * where
+they aren't. The header has the month, the week and the legend of codes (✓ eaten, C canceled,
+S.T. sick tray, N.N. nursing notified, SL sack lunch, RT room tray). **‹ ›** changes the week,
+and **Print** opens the print dialog. Who's on the plan is set on each resident's card.
 
 ### Sheets
 

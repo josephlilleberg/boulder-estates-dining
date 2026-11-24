@@ -97,6 +97,67 @@ export const removeFromEvent =
     return attendee(e, residentId) ? [...freeSeats(e, residentId), del('event_attendee', key(eventId, residentId))] : [];
   };
 
+/**
+ * Puts someone on the Additions list with no guests: someone who usually comes is listed there,
+ * anyone else is added to the event. (Guests are set on the list afterwards.)
+ */
+export const addToAdditions =
+  (eventId: string, residentId: string) =>
+  (data: AppData): Op[] => {
+    const e = event(data, eventId);
+    const a = attendee(e, residentId);
+    if (!a) return addToEvent(eventId, residentId)(data);
+    const ops: Op[] = a.status === 'coming' ? [] : [patch('event_attendee', key(eventId, residentId), { status: 'coming' })];
+    return a.added || a.listed ? ops : [...ops, patch('event_attendee', key(eventId, residentId), { listed: 1 })];
+  };
+
+/** × on the Additions list: an added resident leaves the event; someone who usually comes just loses their guests. */
+export const removeFromAdditions =
+  (eventId: string, residentId: string) =>
+  (data: AppData): Op[] => {
+    const e = event(data, eventId);
+    const a = attendee(e, residentId);
+    if (!a) return [];
+    if (a.added) return removeFromEvent(eventId, residentId)(data);
+    return [...freeSeats(e, residentId, 0), patch('event_attendee', key(eventId, residentId), { listed: 0, guests: 0 })];
+  };
+
+/** On the Additions list: added for the event, listed there, or bringing guests. */
+export const inAdditions = (a: EventAttendee) => a.status === 'coming' && (a.added || a.listed || a.guests > 0);
+
+// ---- Relatives ------------------------------------------------------------------------------
+
+/** Everyone in `residentId`'s family at this event (themselves included), or just them. */
+export const relativesOf = (e: DiningEvent, residentId: string): string[] => {
+  const f = attendee(e, residentId)?.family;
+  return f ? e.attendees.filter((a) => a.family === f).map((a) => a.residentId) : [residentId];
+};
+
+/** Makes two people at the event relatives; their families (if any) become one. */
+export const linkRelatives =
+  (eventId: string, a: string, b: string) =>
+  (data: AppData): Op[] => {
+    const e = event(data, eventId);
+    const fa = attendee(e, a);
+    const fb = attendee(e, b);
+    if (!fa || !fb) throw new Error('Not on the guest list');
+    if (a === b || (fa.family && fa.family === fb.family)) return [];
+    const family = fa.family ?? fb.family ?? crypto.randomUUID();
+    const members = new Set([...relativesOf(e, a), ...relativesOf(e, b)]);
+    return [...members].filter((r) => attendee(e, r)!.family !== family).map((r) => patch('event_attendee', key(eventId, r), { family }));
+  };
+
+/** Takes someone out of their family; a family left with one person is no family. */
+export const unlinkRelative =
+  (eventId: string, residentId: string) =>
+  (data: AppData): Op[] => {
+    const e = event(data, eventId);
+    const a = attendee(e, residentId);
+    if (!a?.family) return [];
+    const rest = relativesOf(e, residentId).filter((r) => r !== residentId);
+    return [residentId, ...(rest.length === 1 ? rest : [])].map((r) => patch('event_attendee', key(eventId, r), { family: null }));
+  };
+
 /** Cancelling frees their seats (and their guests'). */
 export const setAttendeeStatus =
   (eventId: string, residentId: string, status: AttendeeStatus) =>
@@ -191,7 +252,43 @@ export function tableLabel(data: AppData, e: DiningEvent, t: DiningTable): strin
 export function planSeats(data: AppData, e: DiningEvent, allowOver = false): ArrangeResult {
   const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t) }));
   const fixed = e.seats.filter((s) => s.pinned);
-  return arrange(tables, eventParties(data, e), { allowOver, fixed });
+  const { parties, slots } = withFamilies(e, eventParties(data, e), new Set(fixed.map((s) => s.residentId)));
+  const r = arrange(tables, parties, { allowOver, fixed });
+  // A family's seats come back as one party's (its first member and "guests"); give each seat its person.
+  return { ...r, seats: r.seats.map((s) => ({ ...s, ...(slots.get(s.residentId)?.[s.guest] ?? {}) })) };
+}
+
+/**
+ * Relatives coming to the event become one party: the first of them (with an everyday seat, if any)
+ * and everyone else, relatives and guests, as that party's "guests", in order, so they sit side by
+ * side at one table. A family with anyone pinned is left to the pins. `slots` maps each merged
+ * party's seats back to the real person: slots[first][g] = who sits in "guest" g's seat.
+ */
+function withFamilies(e: DiningEvent, parties: Party[], pinned: Set<string>) {
+  const byId = new Map(parties.map((p) => [p.residentId, p]));
+  const families = new Map<string, Party[]>();
+  for (const a of e.attendees) {
+    const p = a.family ? byId.get(a.residentId) : undefined;
+    if (p) families.set(a.family!, [...(families.get(a.family!) ?? []), p]);
+  }
+  const slots = new Map<string, { residentId: string; guest: number }[]>();
+  const merged = new Set<string>();
+  const out: Party[] = [];
+  for (const ps of families.values()) {
+    if (ps.length < 2 || ps.some((p) => pinned.has(p.residentId))) continue;
+    const members = [...ps].sort((a, b) => Number(!a.usualTable) - Number(!b.usualTable) || a.name.localeCompare(b.name));
+    const first = members[0]!;
+    slots.set(
+      first.residentId,
+      members.flatMap((m) => Array.from({ length: 1 + m.guests }, (_, g) => ({ residentId: m.residentId, guest: g }))),
+    );
+    for (const m of members) merged.add(m.residentId);
+    const guests = members.reduce((n, m) => n + m.guests, 0);
+    const who = members.map((m) => m.name);
+    const label = `${who.slice(0, -1).join(', ')} and ${who[who.length - 1]} (relatives${guests ? `, +${guests}` : ''})`;
+    out.push({ ...first, guests: members.length - 1 + guests, added: members.every((m) => m.added), label });
+  }
+  return { parties: [...out, ...parties.filter((p) => !merged.has(p.residentId))], slots };
 }
 
 /** Re-seats everyone who isn't pinned (one undo step). */

@@ -191,6 +191,10 @@ export interface EventAttendee {
   status: AttendeeStatus;
   /** How many guests they bring; they sit at the resident's table. */
   guests: number;
+  /** Someone who usually comes, put on the Additions list (to bring guests). */
+  listed: boolean;
+  /** Relatives at this event share a family id; Arrange seats them side by side at one table. */
+  family: string | null;
 }
 
 export interface EventSeat {

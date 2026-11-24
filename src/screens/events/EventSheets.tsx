@@ -37,7 +37,7 @@ export function eventLists(data: AppData, e: DiningEvent) {
   return {
     coming: coming.map(rowOf),
     cancelled: list.filter((a) => a.status === 'cancelled').map(rowOf),
-    added: coming.filter((a) => a.added || a.guests > 0).map(rowOf),
+    added: list.filter(E.inAdditions).map(rowOf),
   };
 }
 

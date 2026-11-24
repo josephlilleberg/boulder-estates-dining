@@ -156,6 +156,11 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
   const selWho = selSeat ? { residentId: selSeat.residentId, guest: selSeat.guest } : null;
   const selTable = selSeat && all.find((t) => t.id === selSeat.tableId);
   const nPinned = e.seats.filter((s) => s.pinned).length;
+  // Relatives at this event, by family; "together" when all of them sit at one table.
+  const families = [...new Set(e.attendees.filter((a) => a.family && a.status === 'coming').map((a) => a.family!))]
+    .map((f) => e.attendees.filter((a) => a.family === f && a.status === 'coming').map((a) => a.residentId))
+    .filter((ids) => ids.length > 1);
+  const together = (ids: string[]) => new Set(ids.map((id) => e.seats.find((s) => s.residentId === id && s.guest === 0)?.tableId ?? `none:${id}`)).size === 1;
 
   const run = async (allowOver: boolean) => {
     const plan = E.planSeats(data, e, allowOver);
@@ -241,6 +246,24 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
               Take off seat
             </button>
           </div>
+          {selWho.guest === 0 && <Relatives event={e} residentId={selWho.residentId} />}
+        </div>
+      )}
+
+      {families.length > 0 && (
+        <div style={{ ...card, padding: 0 }}>
+          <div style={head}>Relatives ({families.length})</div>
+          {families.map((ids) => (
+            <div key={ids.join('|')} style={{ ...rowStyle, cursor: 'default', flexWrap: 'wrap', gap: '2px 6px' }}>
+              {ids.map((id, i) => (
+                <button key={id} type="button" className="linkbtn" style={{ fontWeight: 600, color: '#111827' }} onClick={() => show(id)} title="Show on the map">
+                  {nameOfWho({ residentId: id, guest: 0 })}
+                  {i < ids.length - 1 ? ',' : ''}
+                </button>
+              ))}
+              {!together(ids) && <span style={{ color: '#B45309', fontSize: 12, fontWeight: 600 }}>not together yet · Arrange again</span>}
+            </div>
+          ))}
         </div>
       )}
 
@@ -425,3 +448,75 @@ const rowStyle: CSSProperties = {
   textAlign: 'left',
   cursor: 'pointer',
 };
+
+/**
+ * The selected resident's relatives at this event, with × to unlink, and a search to link another
+ * resident who's coming. Arrange then seats the family side by side at one table.
+ */
+function Relatives({ event: e, residentId }: { event: DiningEvent; residentId: string }) {
+  const data = useStore((s) => s.data);
+  const [q, setQ] = useState('');
+  const list = E.guestList(data, e).filter((a) => a.status === 'coming');
+  const mine = new Set(E.relativesOf(e, residentId));
+  const relatives = list.filter((a) => mine.has(a.residentId) && a.residentId !== residentId);
+  const needle = q.trim().toLowerCase();
+  const matches = needle ? list.filter((a) => !mine.has(a.residentId) && `${a.resident.first} ${a.resident.last} ${a.resident.nickname ?? ''}`.toLowerCase().includes(needle)).slice(0, 6) : [];
+  const me = fullName(byIdOf(data.residents, residentId));
+  const link = (a: E.ListedAttendee) => void act(`${me} and ${fullName(a.resident)} are relatives · ${e.name}`, E.linkRelatives(e.id, residentId, a.residentId)).then(() => setQ(''));
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #EEF0F3' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: '#4B5563', marginBottom: 6 }}>Relatives (seated together)</div>
+      {relatives.map((a) => (
+        <div key={a.residentId} style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 30 }}>
+          <span style={{ flex: 1, minWidth: 0 }}>{fullName(a.resident)}</span>
+          <button
+            type="button"
+            className="iconbtn"
+            style={{ width: 26, height: 26 }}
+            aria-label={`Not relatives: ${fullName(a.resident)}`}
+            title="Not relatives"
+            onClick={() => void act(`${fullName(a.resident)} not with ${me} · ${e.name}`, E.unlinkRelative(e.id, a.residentId))}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+      ))}
+      <div>
+        <input
+          autoComplete="off"
+          type="search"
+          aria-label="Add a relative"
+          placeholder="+ Add a relative"
+          value={q}
+          onChange={(ev) => setQ(ev.target.value)}
+          onKeyDown={(ev) => {
+            if (ev.key === 'Escape') {
+              ev.stopPropagation();
+              setQ('');
+            } else if (ev.key === 'Enter' && matches.length === 1) link(matches[0]!);
+          }}
+          style={{ width: '100%', boxSizing: 'border-box', height: 32, padding: '0 10px', border: 0, background: '#F1F3F5', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', color: '#111827' }}
+        />
+        {needle && (
+          // Inline under the box: the side panel scrolls, so a floating list would be cut off.
+          <div style={{ marginTop: 4, background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, overflow: 'hidden' }}>
+            {matches.length ? (
+              matches.map((a) => (
+                <div key={a.residentId} className="pickrow" onClick={() => link(a)} style={{ padding: '8px 10px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid #F0F1F3' }}>
+                  {fullName(a.resident)}
+                </div>
+              ))
+            ) : (
+              <div style={{ padding: '8px 10px', fontSize: 13, color: '#4B5563' }}>No one coming by that name.</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const byIdOf = (rs: Resident[], id: string): Resident => rs.find((r) => r.id === id)!;

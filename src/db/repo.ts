@@ -46,7 +46,7 @@ export async function loadAll(db: Db): Promise<AppData> {
     db.select<{ key: string; value: string }>(`SELECT * FROM meta`),
     db.select<{ resident_id: string; meal: MealName }>(`SELECT p.* FROM meal_plan p JOIN site_meal m ON m.meal = p.meal JOIN resident r ON r.id = p.resident_id AND r.site_id = m.site_id ORDER BY p.resident_id, m.sort`),
     db.select<{ id: string; site_id: SiteId; name: string; date: string; meal: MealName }>(`SELECT * FROM event ORDER BY date DESC, name`),
-    db.select<{ event_id: string; resident_id: string; added: number; status: AttendeeStatus; guests: number }>(`SELECT * FROM event_attendee`),
+    db.select<{ event_id: string; resident_id: string; added: number; status: AttendeeStatus; guests: number; listed: number | null; family: string | null }>(`SELECT * FROM event_attendee`),
     db.select<{ event_id: string; table_id: string; seat: number; resident_id: string; guest: number; pinned: number }>(`SELECT * FROM event_seat ORDER BY event_id, table_id, seat`),
   ]);
 
@@ -95,7 +95,7 @@ export async function loadAll(db: Db): Promise<AppData> {
       name: e.name,
       date: e.date,
       meal: e.meal,
-      attendees: attendees.filter((a) => a.event_id === e.id).map((a) => ({ residentId: a.resident_id, added: bool(a.added), status: a.status, guests: a.guests })),
+      attendees: attendees.filter((a) => a.event_id === e.id).map((a) => ({ residentId: a.resident_id, added: bool(a.added), status: a.status, guests: a.guests, listed: bool(a.listed ?? 0), family: a.family || null })),
       seats: eventSeats.filter((x) => x.event_id === e.id).map((x) => ({ tableId: x.table_id, seat: x.seat, residentId: x.resident_id, guest: x.guest, pinned: bool(x.pinned) })),
     })),
     settings: Object.fromEntries(meta.map((m) => [m.key, m.value])),

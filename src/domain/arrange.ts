@@ -9,7 +9,8 @@
 //      that already have people, its groups moving whole. The smaller table moves, so most people
 //      keep their table. Merging never crosses sections.
 //   5. Everyone keeps their usual table, and their usual seat, when they can.
-//   6. Guests sit beside their host.
+//   6. Guests sit beside their host. Relatives come in as one party (see planSeats), so they sit
+//      side by side at one table too.
 // Everyone else (added residents, regulars without a seat) fills what's left, biggest party first.
 // Whoever has a seat at this meal and has to move stays in that seat's section when there's room
 // there; someone with no seat at this meal goes wherever there's room.
@@ -33,6 +34,8 @@ export interface Party {
   usualSeat: number | null;
   /** Doesn't usually come (added to the event). */
   added: boolean;
+  /** For the notes, in place of "name (+guests)": a family seated as one party ("X A. and Y A."). */
+  label?: string;
 }
 
 export interface Placed {
@@ -54,7 +57,7 @@ const size = (p: Party) => 1 + p.guests;
 const total = (ps: Party[]) => ps.reduce((n, p) => n + size(p), 0);
 
 export function names(ps: Party[]): string {
-  const n = ps.map((p) => (p.guests ? `${p.name} (+${p.guests})` : p.name));
+  const n = ps.map((p) => p.label ?? (p.guests ? `${p.name} (+${p.guests})` : p.name));
   return n.length <= 1 ? (n[0] ?? '') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
 }
 

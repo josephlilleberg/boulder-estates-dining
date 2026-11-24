@@ -212,7 +212,7 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
 
   const list = E.guestList(data, e);
   const regulars = list.filter((a) => a.status === 'coming' && !a.added);
-  const additions = list.filter((a) => a.status === 'coming' && (a.added || a.guests > 0));
+  const additions = list.filter(E.inAdditions);
   const cancelled = list.filter((a) => a.status === 'cancelled');
   const onList = new Set(e.attendees.map((a) => a.residentId));
 
@@ -225,8 +225,15 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
 
   // Additions search: someone coming without guests can bring one; anyone not on the list can be added.
   const mAdd = matcher(qAdd);
-  const guestable = qAdd.trim() ? regulars.filter((a) => a.guests === 0 && mAdd(a.resident)).slice(0, 6) : [];
-  const addable = qAdd.trim() ? data.residents.filter((r) => r.siteId === site.id && !r.archived && !onList.has(r.id) && mAdd(r)).slice(0, 6) : [];
+  // Anyone not on Additions yet: someone already coming, or anyone not on the list (cancelled people
+  // aren't offered; × on Cancelled brings them back).
+  const offered = new Set([...regulars.filter((a) => !E.inAdditions(a)).map((a) => a.residentId)]);
+  const addable = qAdd.trim()
+    ? data.residents
+        .filter((r) => r.siteId === site.id && !r.archived && (offered.has(r.id) || !onList.has(r.id)) && mAdd(r))
+        .sort((a, b) => a.last.localeCompare(b.last) || a.first.localeCompare(b.first))
+        .slice(0, 8)
+    : [];
   // Cancelled search: anyone still coming.
   const mCancel = matcher(qCancel);
   const cancellable = qCancel.trim() ? regulars.filter((a) => mCancel(a.resident)).slice(0, 8) : [];
@@ -234,12 +241,10 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
   // Cancellations on the left, additions on the right; stacked when the window is narrow.
   const wide = size.w >= 560;
   const cancel = (a: E.ListedAttendee) => act(label(`${fullName(a.resident)} cancelled`), E.setAttendeeStatus(e.id, a.residentId, 'cancelled')).then(() => setQCancel(''));
-  const addResident = (r: Resident) => act(label(`Add ${fullName(r)}`), E.addToEvent(e.id, r.id)).then(() => setQAdd(''));
+  const addResident = (r: Resident) => act(label(`Add ${fullName(r)}`), E.addToAdditions(e.id, r.id)).then(() => setQAdd(''));
   // Enter adds or cancels the only match, so a name can be typed and entered without the mouse.
   const enterAdd = () => {
-    if (guestable.length + addable.length !== 1) return;
-    if (guestable[0]) void setGuests(guestable[0], 1).then(() => setQAdd(''));
-    else void addResident(addable[0]!);
+    if (addable.length === 1) void addResident(addable[0]!);
   };
   const enterCancel = () => {
     if (cancellable.length === 1) void cancel(cancellable[0]!);
@@ -295,30 +300,16 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
       </Column>
       <Column
         title="Additions"
-        count={additions.reduce((n, a) => n + (a.added ? 1 : 0) + a.guests, 0)}
+        count={additions.length}
         q={qAdd}
         setQ={setQAdd}
         placeholder="Add a guest or resident"
         plus
         onEnter={enterAdd}
         results={
-          !qAdd.trim() ? null : guestable.length || addable.length ? (
-            <>
-            {guestable.map((a) => (
-              <Line key={a.residentId} name={fullName(a.resident)} sub="coming" onRow={() => void setGuests(a, 1).then(() => setQAdd(''))}>
-                <button type="button" className="btn sm">
-                  + Guest
-                </button>
-              </Line>
-            ))}
-            {addable.map((r) => (
-              <Line key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']} onRow={() => void addResident(r)}>
-                <button type="button" className="btn sm">
-                  + Add
-                </button>
-              </Line>
-            ))}
-            </>
+          !qAdd.trim() ? null : addable.length ? (
+            // Click a name: they go on Additions with no guests (set them on the list).
+            addable.map((r) => <Line key={r.id} name={fullName(r)} tags={r.onPlan.includes(e.meal) ? [] : ['Not on plan']} onRow={() => void addResident(r)} />)
           ) : (
             <Hint text="No one to add by that name." />
           )
@@ -330,11 +321,11 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
             <Line key={a.residentId} name={name} tags={[...(a.added ? ['Added'] : []), ...tag(a)]}>
               <Guests n={a.guests} name={name} onSet={(n) => setGuests(a, n)} />
               <PartyTotal n={1 + a.guests} />
-              <XButton label={a.added ? `Remove ${name}` : `No guests for ${name}`} onClick={() => (a.added ? act(label(`Remove ${name}`), E.removeFromEvent(e.id, a.residentId)) : setGuests(a, 0))} />
+              <XButton label={a.added ? `Remove ${name}` : `Off Additions: ${name} (no guests)`} onClick={() => act(label(`${name} off Additions`), E.removeFromAdditions(e.id, a.residentId))} />
             </Line>
           );
         })}
-        {additions.length === 0 && !qAdd.trim() && <Hint text="Guests and residents who don’t usually come. Search above to add them." />}
+        {additions.length === 0 && !qAdd.trim() && <Hint text="Search above to add a resident, then set their guests here." />}
       </Column>
 
     </div>
@@ -423,7 +414,7 @@ function Column({
 
 
 /** A name and its controls. With `onRow`, the whole row is the click target (search results); its button just shows what a click does. */
-function Line({ name, sub, tags = [], dim, onRow, children }: { name: string; sub?: string; tags?: string[]; dim?: boolean; onRow?: () => void; children: ReactNode }) {
+function Line({ name, sub, tags = [], dim, onRow, children }: { name: string; sub?: string; tags?: string[]; dim?: boolean; onRow?: () => void; children?: ReactNode }) {
   return (
     <div
       className={onRow ? 'pickrow' : undefined}

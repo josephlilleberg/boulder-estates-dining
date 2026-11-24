@@ -3,8 +3,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { sqljsDb } from '../db/sqljsDb';
 import { seedTestDb } from '../test/seed';
 import {
+  addToAdditions,
   addToEvent,
   arrangeSeats,
+  inAdditions,
+  linkRelatives,
+  relativesOf,
+  removeFromAdditions,
+  unlinkRelative,
   createEvent,
   eventChanges,
   eventTables,
@@ -27,6 +33,7 @@ import {
 import { localDate } from './backup';
 import { addResident, deleteResident, setAttendance, setMealPlan, setStatus } from './residentActions';
 import { Store } from './store';
+import { seatCount } from '../domain/tables';
 
 const SQL = await initSqlJs();
 let store: Store;
@@ -151,6 +158,55 @@ describe('events', () => {
     expect(data().events).toHaveLength(0);
     await store.undoLast();
     expect(ev(id).attendees.length).toBeGreaterThan(0);
+  });
+});
+
+describe('additions and relatives', () => {
+  it('picking someone puts them on Additions with no guests; × takes them back off', async () => {
+    const id = await thanksgiving();
+    const regular = ev(id).attendees[0]!.residentId;
+    const outsider = data().residents.find((r) => r.siteId === 'BE' && !r.archived && !r.attends.includes('Dinner'))!.id;
+    await store.change('a', addToAdditions(id, regular));
+    await store.change('b', addToAdditions(id, outsider));
+    const listed = () => guestList(data(), ev(id)).filter(inAdditions).map((a) => [a.residentId, a.added, a.guests]);
+    expect(listed()).toEqual(expect.arrayContaining([[regular, false, 0], [outsider, true, 0]]));
+    await store.change('g', setGuests(id, regular, 2));
+    await store.change('x', removeFromAdditions(id, regular));
+    const r = ev(id).attendees.find((a) => a.residentId === regular)!;
+    expect([r.status, r.listed, r.guests]).toEqual(['coming', false, 0]); // still coming, just off Additions
+    await store.change('x', removeFromAdditions(id, outsider));
+    expect(ev(id).attendees.some((a) => a.residentId === outsider)).toBe(false);
+  });
+
+  it('links relatives into one family, unlinks them, and Arrange seats them side by side at one table', async () => {
+    const id = await thanksgiving();
+    await store.change('arrange', arrangeSeats(id));
+    // Two people who sit at different tables every day.
+    const seatOf = (rid: string) => ev(id).seats.find((s) => s.residentId === rid && s.guest === 0)!;
+    const [a, b, c] = (() => {
+      const s = ev(id).seats.filter((x) => x.guest === 0);
+      const x = s[0]!;
+      const y = s.find((q) => q.tableId !== x.tableId)!;
+      const z = s.find((q) => q.tableId !== x.tableId && q.tableId !== y.tableId)!;
+      return [x.residentId, y.residentId, z.residentId];
+    })();
+    await store.change('link', linkRelatives(id, a, b));
+    await store.change('link', linkRelatives(id, c, b));
+    expect(new Set(relativesOf(ev(id), a))).toEqual(new Set([a, b, c]));
+    await store.change('guests', setGuests(id, b, 1));
+    await store.change('arrange', arrangeSeats(id));
+    const fam = [seatOf(a), seatOf(b), seatOf(c), ev(id).seats.find((s) => s.residentId === b && s.guest === 1)!];
+    expect(new Set(fam.map((s) => s.tableId)).size).toBe(1);
+    // Side by side: the four seats are a run around the table.
+    const t = data().tables.find((x) => x.id === fam[0]!.tableId)!;
+    const n = seatCount(t.shape);
+    const nums = fam.map((s) => s.seat).sort((p, q) => p - q);
+    const gaps = nums.map((s, i) => (nums[(i + 1) % nums.length]! - s + n) % n);
+    expect(gaps.filter((g) => g !== 1).length).toBeLessThanOrEqual(1);
+    // Unlinking: a family of one is no family.
+    await store.change('u', unlinkRelative(id, a));
+    await store.change('u', unlinkRelative(id, b));
+    expect(ev(id).attendees.filter((x) => x.family).length).toBe(0);
   });
 });
 

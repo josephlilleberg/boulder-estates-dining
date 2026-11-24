@@ -209,6 +209,9 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
   const [box, size] = useSize<HTMLDivElement>();
   const [qAdd, setQAdd] = useState('');
   const [qCancel, setQCancel] = useState('');
+  // "+ Relative" on an Additions row: whose row is picking a relative, and the search.
+  const [relFor, setRelFor] = useState<string | null>(null);
+  const [qRel, setQRel] = useState('');
 
   const list = E.guestList(data, e);
   const regulars = list.filter((a) => a.status === 'coming' && !a.added);
@@ -250,6 +253,17 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
     if (cancellable.length === 1) void cancel(cancellable[0]!);
   };
   const tag = (a: E.ListedAttendee) => (a.onPlan ? [] : ['Not on plan']);
+  // Additions, with each family's members together (in the order the first of them appears).
+  const families: E.ListedAttendee[][] = [];
+  const grouped = new Set<string>();
+  for (const a of additions) {
+    if (grouped.has(a.residentId)) continue;
+    const fam = a.family ? additions.filter((b) => b.family === a.family) : [a];
+    for (const b of fam) grouped.add(b.residentId);
+    families.push(fam);
+  }
+  const addRelative = (host: E.ListedAttendee, r: Resident) =>
+    act(label(`${fullName(r)} with ${fullName(host.resident)}'s family`), E.addRelative(e.id, host.residentId, r.id)).then(() => (setRelFor(null), setQRel('')));
 
   return (
     <div
@@ -315,14 +329,43 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
           )
         }
       >
-        {additions.map((a) => {
-          const name = fullName(a.resident);
+        {families.map((fam) => {
+          const rows = fam.map((a) => {
+            const name = fullName(a.resident);
+            return (
+              <div key={a.residentId}>
+                <Line name={name} tags={[...(a.added ? ['Added'] : []), ...tag(a)]}>
+                  {fam.length > 1 && (
+                    <button type="button" className="linkbtn" style={{ fontSize: 12, fontWeight: 500, color: '#6B21A8' }} title="Not part of this family" onClick={() => void act(label(`${name} not with the family`), E.unlinkRelative(e.id, a.residentId))}>
+                      Unlink
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn sm"
+                    aria-expanded={relFor === a.residentId}
+                    title="Add a family member: they join Additions and are seated with this family"
+                    onClick={() => (setRelFor(relFor === a.residentId ? null : a.residentId), setQRel(''))}
+                  >
+                    + Relative
+                  </button>
+                  <Guests n={a.guests} name={name} onSet={(n) => setGuests(a, n)} />
+                  <PartyTotal n={1 + a.guests} />
+                  <XButton label={a.added ? `Remove ${name}` : `Off Additions: ${name} (no guests)`} onClick={() => act(label(`${name} off Additions`), E.removeFromAdditions(e.id, a.residentId))} />
+                </Line>
+                {relFor === a.residentId && <RelativePicker event={e} host={a} q={qRel} setQ={setQRel} onPick={(r) => addRelative(a, r)} onClose={() => setRelFor(null)} />}
+              </div>
+            );
+          });
+          if (fam.length === 1) return <div key={fam[0]!.residentId}>{rows}</div>;
           return (
-            <Line key={a.residentId} name={name} tags={[...(a.added ? ['Added'] : []), ...tag(a)]}>
-              <Guests n={a.guests} name={name} onSet={(n) => setGuests(a, n)} />
-              <PartyTotal n={1 + a.guests} />
-              <XButton label={a.added ? `Remove ${name}` : `Off Additions: ${name} (no guests)`} onClick={() => act(label(`${name} off Additions`), E.removeFromAdditions(e.id, a.residentId))} />
-            </Line>
+            <div key={fam[0]!.family!} style={{ borderLeft: '4px solid #A855F7', background: '#FAF5FF', borderBottom: '1px solid #E9D5FF' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px 2px 14px', fontSize: 12, fontWeight: 700, color: '#6B21A8' }}>
+                <span>Family · seated together</span>
+                <span>Family total {fam.reduce((n, a) => n + 1 + a.guests, 0)}</span>
+              </div>
+              {rows}
+            </div>
           );
         })}
         {additions.length === 0 && !qAdd.trim() && <Hint text="Search above to add a resident, then set their guests here." />}
@@ -431,6 +474,42 @@ function Line({ name, sub, tags = [], dim, onRow, children }: { name: string; su
         ))}
       </span>
       {children}
+    </div>
+  );
+}
+
+/** Under an Additions row: search for a family member to add; they join Additions and the family. */
+function RelativePicker({ event: e, host, q, setQ, onPick, onClose }: { event: DiningEvent; host: E.ListedAttendee; q: string; setQ: (q: string) => void; onPick: (r: Resident) => void; onClose: () => void }) {
+  const data = useStore((s) => s.data);
+  const family = new Set(E.relativesOf(e, host.residentId));
+  const needle = q.trim().toLowerCase();
+  const matches = needle
+    ? data.residents
+        .filter((r) => r.siteId === host.resident.siteId && !r.archived && !family.has(r.id) && `${r.first} ${r.last} ${r.nickname ?? ''}`.toLowerCase().includes(needle))
+        .sort((a, b) => a.last.localeCompare(b.last) || a.first.localeCompare(b.first))
+        .slice(0, 6)
+    : [];
+  return (
+    <div style={{ padding: '6px 10px 10px 14px', background: '#F5F3FF', borderBottom: '1px solid #E9D5FF' }}>
+      <input
+        autoComplete="off"
+        autoFocus
+        type="search"
+        aria-label={`Relative of ${fullName(host.resident)}`}
+        placeholder={`Family member of ${fullName(host.resident)}`}
+        value={q}
+        onChange={(ev) => setQ(ev.target.value)}
+        onKeyDown={(ev) => {
+          if (ev.key === 'Escape') onClose();
+          else if (ev.key === 'Enter' && matches.length === 1) onPick(matches[0]!);
+        }}
+        style={{ width: '100%', boxSizing: 'border-box', height: 34, padding: '0 10px', border: '1px solid #C4B5FD', background: '#FFFFFF', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', color: '#111827' }}
+      />
+      {needle && (
+        <div style={{ marginTop: 4, background: '#FFFFFF', border: '1px solid #DDD6FE', borderRadius: 8, overflow: 'hidden' }}>
+          {matches.length ? matches.map((r) => <Line key={r.id} name={fullName(r)} onRow={() => onPick(r)} />) : <Hint text="No one by that name." />}
+        </div>
+      )}
     </div>
   );
 }

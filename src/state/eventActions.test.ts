@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { sqljsDb } from '../db/sqljsDb';
 import { seedTestDb } from '../test/seed';
 import {
+  addRelative,
   addToAdditions,
   addToEvent,
   arrangeSeats,
@@ -207,6 +208,39 @@ describe('additions and relatives', () => {
     await store.change('u', unlinkRelative(id, a));
     await store.change('u', unlinkRelative(id, b));
     expect(ev(id).attendees.filter((x) => x.family).length).toBe(0);
+  });
+});
+
+describe('a relative from the Additions list', () => {
+  it('joins Additions and the family, and Arrange seats the family and guests at one table', async () => {
+    const id = await thanksgiving();
+    const outsiders = data().residents.filter((r) => r.siteId === 'BE' && !r.archived && !r.attends.includes('Dinner'));
+    const host = outsiders[0]!.id;
+    await store.change('add', addToAdditions(id, host));
+    await store.change('guests', setGuests(id, host, 3)); // a family of 6: fits one table
+    // Someone not on the event yet, and someone who comes every day.
+    const newcomer = outsiders[1]!.id;
+    const regular = ev(id).attendees.find((a) => !a.added)!.residentId;
+    await store.change('rel', addRelative(id, host, newcomer));
+    await store.change('rel', addRelative(id, host, regular));
+    const fam = relativesOf(ev(id), host);
+    expect(new Set(fam)).toEqual(new Set([host, newcomer, regular]));
+    expect(guestList(data(), ev(id)).filter(inAdditions).map((a) => a.residentId)).toEqual(expect.arrayContaining(fam));
+    await store.change('arrange', arrangeSeats(id, true)); // the room is nearly full, so allow going over
+    const tablesOf = ev(id).seats.filter((s) => fam.includes(s.residentId)).map((s) => s.tableId);
+    expect(tablesOf).toHaveLength(3 + 3);
+    expect(new Set(tablesOf).size).toBe(1);
+    // One more guest makes 7, more than any table: they're seated as separate parties instead.
+    await store.change('guests', setGuests(id, host, 4));
+    await store.change('arrange', arrangeSeats(id, true)); // the room is nearly full, so allow going over
+    expect(ev(id).seats.filter((s) => fam.includes(s.residentId))).toHaveLength(3 + 4);
+    await store.undoLast();
+    await store.undoLast();
+    // Undo takes the newcomer back off the event.
+    await store.undoLast(); // arrange
+    await store.undoLast(); // regular
+    await store.undoLast(); // newcomer
+    expect(ev(id).attendees.some((a) => a.residentId === newcomer)).toBe(false);
   });
 });
 

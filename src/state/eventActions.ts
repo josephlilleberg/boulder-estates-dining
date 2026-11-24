@@ -147,6 +147,33 @@ export const linkRelatives =
     return [...members].filter((r) => attendee(e, r)!.family !== family).map((r) => patch('event_attendee', key(eventId, r), { family }));
   };
 
+/**
+ * From an Additions row: `residentId` joins `hostId`'s family and goes on Additions with no guests
+ * (added to the event if they weren't on it, back from cancelled if they were).
+ */
+export const addRelative =
+  (eventId: string, hostId: string, residentId: string) =>
+  (data: AppData): Op[] => {
+    const e = event(data, eventId);
+    const host = attendee(e, hostId);
+    if (!host) throw new Error('Not on the guest list');
+    if (hostId === residentId) return [];
+    const r = attendee(e, residentId);
+    const family = host.family ?? r?.family ?? crypto.randomUUID();
+    if (!r) {
+      const mine = relativesOf(e, hostId).filter((m) => attendee(e, m)!.family !== family);
+      return [
+        put('event_attendee', { ...key(eventId, residentId), added: 1, status: 'coming', guests: 0, listed: 0, family }),
+        ...mine.map((m) => patch('event_attendee', key(eventId, m), { family })),
+      ];
+    }
+    const members = new Set([...relativesOf(e, hostId), ...relativesOf(e, residentId)]);
+    return [
+      ...addToAdditions(eventId, residentId)(data),
+      ...[...members].filter((m) => attendee(e, m)!.family !== family).map((m) => patch('event_attendee', key(eventId, m), { family })),
+    ];
+  };
+
 /** Takes someone out of their family; a family left with one person is no family. */
 export const unlinkRelative =
   (eventId: string, residentId: string) =>
@@ -252,7 +279,8 @@ export function tableLabel(data: AppData, e: DiningEvent, t: DiningTable): strin
 export function planSeats(data: AppData, e: DiningEvent, allowOver = false): ArrangeResult {
   const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t) }));
   const fixed = e.seats.filter((s) => s.pinned);
-  const { parties, slots } = withFamilies(e, eventParties(data, e), new Set(fixed.map((s) => s.residentId)));
+  const biggest = Math.max(0, ...tables.map((t) => t.seats));
+  const { parties, slots } = withFamilies(e, eventParties(data, e), new Set(fixed.map((s) => s.residentId)), biggest);
   const r = arrange(tables, parties, { allowOver, fixed });
   // A family's seats come back as one party's (its first member and "guests"); give each seat its person.
   return { ...r, seats: r.seats.map((s) => ({ ...s, ...(slots.get(s.residentId)?.[s.guest] ?? {}) })) };
@@ -261,10 +289,11 @@ export function planSeats(data: AppData, e: DiningEvent, allowOver = false): Arr
 /**
  * Relatives coming to the event become one party: the first of them (with an everyday seat, if any)
  * and everyone else, relatives and guests, as that party's "guests", in order, so they sit side by
- * side at one table. A family with anyone pinned is left to the pins. `slots` maps each merged
- * party's seats back to the real person: slots[first][g] = who sits in "guest" g's seat.
+ * side at one table. A family with anyone pinned is left to the pins, and one bigger than the
+ * biggest table is seated as separate parties. `slots` maps each merged party's seats back to the
+ * real person: slots[first][g] = who sits in "guest" g's seat.
  */
-function withFamilies(e: DiningEvent, parties: Party[], pinned: Set<string>) {
+function withFamilies(e: DiningEvent, parties: Party[], pinned: Set<string>, biggest: number) {
   const byId = new Map(parties.map((p) => [p.residentId, p]));
   const families = new Map<string, Party[]>();
   for (const a of e.attendees) {
@@ -275,7 +304,7 @@ function withFamilies(e: DiningEvent, parties: Party[], pinned: Set<string>) {
   const merged = new Set<string>();
   const out: Party[] = [];
   for (const ps of families.values()) {
-    if (ps.length < 2 || ps.some((p) => pinned.has(p.residentId))) continue;
+    if (ps.length < 2 || ps.some((p) => pinned.has(p.residentId)) || ps.reduce((n, p) => n + 1 + p.guests, 0) > biggest) continue;
     const members = [...ps].sort((a, b) => Number(!a.usualTable) - Number(!b.usualTable) || a.name.localeCompare(b.name));
     const first = members[0]!;
     slots.set(

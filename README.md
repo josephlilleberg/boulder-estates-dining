@@ -153,9 +153,10 @@ event for that meal, whatever its date; someone who stops coming stays on until 
 **Cancelled** (left) and **Additions** (right) each have a search: type a name and click its row,
 or press Enter when only one name matches (matches float over the list); × on a cancelled name
 puts them back. Picking a name in the Additions search puts them on that list with no guests (set them
-there), each row showing the party's **Total** (resident plus guests). On the **Seating** tab, a
-selected resident's **Relatives** links family members for that event, and **Arrange** seats each
-family at one table. The header shows **Total for meal** (residents coming
+there), each row showing the party's **Total** (resident plus guests). **+ Relative** on an Additions row adds a
+family member there too, grouped with a family total; on the **Seating** tab, a selected
+resident's **Relatives** does the same. **Arrange** seats each family at one table (a family
+bigger than the biggest table is seated as separate parties). The header shows **Total for meal** (residents coming
 plus guests) and **Total cancellations**, with two pop-ups that print: **Overview** (who's
 cancelled and who's added) and **Resident sheet** (everyone coming, A–Z, with guests and totals).
 

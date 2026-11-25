@@ -5,7 +5,9 @@ import type { Site, SiteId } from '../domain/sites';
 import { SCREENS } from './screens';
 import { Segmented } from './Segmented';
 import { installUpdate, useUpdateState } from '../state/updates';
-import { CheckIcon, MoreIcon, UndoIcon } from './icons';
+import { CheckIcon, EventsIcon, MoreIcon, UndoIcon } from './icons';
+import { useStore } from '../state/store';
+import type { DiningEvent } from '../domain/model';
 import { isTauri } from '../db/tauriDb';
 
 interface Props {
@@ -23,6 +25,7 @@ interface Props {
 
 export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, sites, site, onSite }: Props) {
   const enabledSites = sites.filter((s) => s.enabled);
+  const soon = upcomingEvent(useStore((s) => s.data.events), site.id);
   return (
     <header className="topbar">
       <div className="brand">
@@ -41,7 +44,14 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
             {s.label}
           </NavButton>
         ))}
-        <MoreMenu screen={screen} onNavigate={onNavigate} />
+        <span className="navsep" aria-hidden="true" />
+        {/* An event in the coming week brings Events out of More, with its date. */}
+        {soon && (
+          <NavButton on={screen === 'events'} onClick={() => onNavigate('events')} icon={<EventsIcon />}>
+            Events · {soon}
+          </NavButton>
+        )}
+        <MoreMenu screen={screen} onNavigate={onNavigate} hide={soon ? ['events'] : []} />
       </nav>
 
       <div className="topmeal">
@@ -122,11 +132,20 @@ function NavButton({ on, onClick, icon, expanded, children }: { on: boolean; onC
 }
 
 /** Events and Settings: used now and then, so they share one button. On one of them, it's named after it. */
-function MoreMenu({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: Screen) => void }) {
+function MoreMenu({ screen, onNavigate, hide }: { screen: Screen; onNavigate: (screen: Screen) => void; hide: Screen[] }) {
   const [open, setOpen] = useState(false);
-  const items = SCREENS.filter((s) => s.more);
+  const items = SCREENS.filter((s) => s.more && !hide.includes(s.id));
   // Room Designer opens from Settings, so it counts as Settings here.
   const current = items.find((s) => s.id === screen || (screen === 'designer' && s.id === 'settings'));
+  // Just one left (Events is out as a tab): no menu for a single choice.
+  if (items.length === 1) {
+    const only = items[0]!;
+    return (
+      <NavButton on={!!current} onClick={() => onNavigate(only.id)} icon={only.icon}>
+        {only.label}
+      </NavButton>
+    );
+  }
   return (
     <div style={{ position: 'relative' }}>
       <NavButton on={!!current} onClick={() => setOpen(!open)} icon={current?.icon ?? <MoreIcon />} expanded={open}>
@@ -160,4 +179,17 @@ function MoreMenu({ screen, onNavigate }: { screen: Screen; onNavigate: (screen:
       )}
     </div>
   );
+}
+
+const DAYS_AHEAD = 7;
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** "Dec 24" for the site's next event within a week (today included), else null. */
+export function upcomingEvent(events: DiningEvent[], siteId: string, now = new Date()): string | null {
+  const from = isoDay(now);
+  const to = isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + DAYS_AHEAD));
+  const next = events
+    .filter((e) => e.siteId === siteId && e.date >= from && e.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  return next ? new Date(`${next.date}T00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
 }

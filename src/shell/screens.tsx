@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { EventsIcon, MealPlanIcon, PrintIcon, ResidentsIcon, SeatingIcon, SettingsIcon } from './icons';
+import { EventsIcon, MealPlanIcon, ResidentsIcon, SeatingIcon, SettingsIcon, SetupIcon } from './icons';
 
 /** 'designer' (Room Designer) isn't in the bar: it opens from Settings. */
 export type Screen = 'seating' | 'residents' | 'mealplan' | 'designer' | 'view' | 'events' | 'settings';
@@ -19,7 +19,7 @@ export const SCREENS: ScreenDef[] = [
   { id: 'seating', label: 'Seating', icon: <SeatingIcon /> },
   { id: 'residents', label: 'Residents', icon: <ResidentsIcon /> },
   // The setup sheet and the server sheets: see them on screen, and print them from there.
-  { id: 'view', label: 'Setup & Drinks', icon: <PrintIcon /> },
+  { id: 'view', label: 'Setup & Drinks', icon: <SetupIcon /> },
   // The executive director's weekly sheet, every meal side by side.
   { id: 'mealplan', label: 'Meal Plan', icon: <MealPlanIcon /> },
   // Holidays: each event has its own meal.

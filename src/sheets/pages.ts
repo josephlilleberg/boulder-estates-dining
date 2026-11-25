@@ -172,12 +172,19 @@ export function buildPage(
   const base = { key: sheet.key, paper: sheet.paper, w, h, right };
 
   if (sheet.kind === 'combined') {
-    const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'both', area: areaFor(w, h, LEGEND_ROOM) });
+    // Like a server sheet, a room with space to spare is laid out for a smaller area (z) and drawn that
+    // much larger, to the room's true scale; a long notes list can then take some of it back.
+    const full = areaFor(w, h, LEGEND_ROOM);
+    const fits = (z: number) => serverRoom(tables, occupant, meal, data.beverages, { draw: 'both', probe: true, area: { w: full.w / z, h: full.h / z } }).scale >= 1;
+    const z = SERVER_GROW.find(fits) ?? 1;
+    const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'both', area: { w: full.w / z, h: full.h / z } });
     const notes = serverNotes(tables, occupant, meal);
+    const drawnH = room.h * z;
+    const shrink = Math.max(0.5, Math.min(1, (drawnH - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / drawnH));
     return {
       ...base,
       title: `${meal} · Setup & drinks`,
-      body: { kind: 'server', room, notes, legend: 'supper', notesShown: true, roomScale: Math.max(0.5, Math.min(1, (room.h - Math.max(0, notesHeight(notes) - NOTES_ROOM)) / room.h)) },
+      body: { kind: 'server', room, notes, legend: 'supper', notesShown: true, fit: z, roomScale: z * shrink },
     };
   }
   if (sheet.kind === 'server') {
@@ -200,10 +207,15 @@ export function buildPage(
   }
   // A one-section meal (Breakfast): its server sheet's layout (same tables in the same order, same
   // room per seat), laid out for the 11 × 17 page's shape and enlarged to fill it, so it uses the whole
-  // width: as tall as the Letter sheet's area, and as much wider as the page is.
+  // width: as tall as the Letter sheet's area, and as much wider as the page is. Like a server sheet,
+  // a room with space to spare is laid out for a smaller area first (z), so the tables, chips and
+  // words come out that much larger while the arrangement stays the same.
   if (sharedLayout(opening)) {
     const [PW, PH] = [drawW(w), h - PAGE_CHROME - KEY_ROOM];
-    const area = { w: (PW * LETTER_AREA.h) / PH, h: LETTER_AREA.h };
+    const full = { w: (PW * LETTER_AREA.h) / PH, h: LETTER_AREA.h };
+    const fits = (z: number) => serverRoom(tables, occupant, meal, data.beverages, { draw: 'setup', shared: true, probe: true, area: { w: full.w / z, h: full.h / z } }).scale >= 1;
+    const z = SERVER_GROW.find(fits) ?? 1;
+    const area = { w: full.w / z, h: full.h / z };
     const room = serverRoom(tables, occupant, meal, data.beverages, { draw: 'setup', shared: true, area });
     return {
       ...base,

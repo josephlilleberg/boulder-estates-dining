@@ -42,6 +42,10 @@ export const ViewIcon = () => (
 export const PrintIcon = ({ size = 19 }: { size?: number }) => (
   <Svg size={size}><path d="M6 9V3h12v6" /><rect x="3" y="9" width="18" height="8" rx="2" /><path d="M6 14h12v7H6z" /></Svg>
 );
+/** A place setting: fork, plate and a glass (setting the tables and pouring the drinks). */
+export const SetupIcon = () => (
+  <Svg><path d="M3.5 4v4.5a1.5 1.5 0 0 0 3 0V4M5 10v10" /><circle cx="12.5" cy="12.5" r="4.5" /><path d="M18.5 4h3l-.4 5.2a1.1 1.1 0 0 1-2.2 0z" /><path d="M20 10.5V20M18.5 20h3" /></Svg>
+);
 export const MealPlanIcon = () => (
   <Svg><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1" /><path d="M8.5 10l1.5 1.5 3-3M8.5 16l1.5 1.5 3-3" /><path d="M15 10.5h1.5M15 16.5h1.5" /></Svg>
 );

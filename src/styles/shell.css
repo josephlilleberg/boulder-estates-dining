@@ -13,6 +13,7 @@
 
 /* The dining-room picker (once there's more than one) lives in the top bar; the meal picker is in
    each screen's header. Narrow windows drop text before anything wraps. */
+.navsep { width: 1px; height: 22px; margin: 0 6px; background: #D1D5DB; }
 .topmeal { display: flex; align-items: center; gap: 8px; flex: none; }
 .topmeal .seg { height: 32px; font-size: 13px; }
 @media (max-width: 1499px) { .savedtxt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }

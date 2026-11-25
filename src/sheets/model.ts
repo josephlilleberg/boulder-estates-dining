@@ -732,8 +732,8 @@ export interface MugMark {
 export const CHAIR_TAG_W = 46;
 export const CHAIR_TAG_H = 16;
 export const ARM_TAG_H = 8;
-/** The arm chair's plain dark bar (someone sits here) is 90% of the length, a little shorter than the worded marks. */
-export const ARM_TAG_LEN = 0.9;
+/** The arm chair's plain dark bar (someone sits here) is 80% of the length, shorter than the worded marks. */
+export const ARM_TAG_LEN = 0.8;
 export const chairTagH = (chair: Chair) => (CHAIR_PILL[chair].text ? CHAIR_TAG_H : ARM_TAG_H);
 /** How much further out a seat's labels start than they would for a 7 px pill. */
 const tagLead = (chair: Chair) => chairTagH(chair) / 2 - 3.5;

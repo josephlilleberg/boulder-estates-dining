@@ -1,12 +1,11 @@
-import { Fragment, useSyncExternalStore, type ReactNode } from 'react';
-import { onStress, setStress, stressMode, STRESS_MODES } from '../state/stress';
+import { useState, type ReactNode } from 'react';
 import type { SaveStatus } from '../state/store';
 import type { Screen } from './screens';
-import type { MealName, Site, SiteId } from '../domain/sites';
+import type { Site, SiteId } from '../domain/sites';
 import { SCREENS } from './screens';
 import { Segmented } from './Segmented';
 import { installUpdate, useUpdateState } from '../state/updates';
-import { CheckIcon, UndoIcon } from './icons';
+import { CheckIcon, MoreIcon, UndoIcon } from './icons';
 import { isTauri } from '../db/tauriDb';
 
 interface Props {
@@ -19,14 +18,10 @@ interface Props {
   onUndo: () => void;
   sites: Site[];
   site: Site;
-  meal: MealName;
-  /** Room Designer and Settings don't depend on the meal. */
-  showMeals: boolean;
   onSite: (id: SiteId) => void;
-  onMeal: (meal: MealName) => void;
 }
 
-export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, sites, site, meal, showMeals, onSite, onMeal }: Props) {
+export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, sites, site, onSite }: Props) {
   const enabledSites = sites.filter((s) => s.enabled);
   return (
     <header className="topbar">
@@ -41,24 +36,20 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
       </div>
 
       <nav aria-label="Main" className="topnav">
-        {SCREENS.map((s, i) => (
-          <Fragment key={s.id}>
-            {s.setup && !SCREENS[i - 1]?.setup && <span className="navsep" aria-hidden="true" />}
-            <NavButton on={screen === s.id || (screen === 'designer' && s.id === 'settings')} onClick={() => onNavigate(s.id)} icon={s.icon}>
-              {s.label}
-            </NavButton>
-          </Fragment>
+        {SCREENS.filter((s) => !s.more).map((s) => (
+          <NavButton key={s.id} on={screen === s.id} onClick={() => onNavigate(s.id)} icon={s.icon}>
+            {s.label}
+          </NavButton>
         ))}
+        <MoreMenu screen={screen} onNavigate={onNavigate} />
       </nav>
 
       <div className="topmeal">
         {/* v1 has one dining room, so its picker only appears once there's a choice. */}
         {enabledSites.length > 1 && <Segmented label="Dining room" options={enabledSites.map((s) => ({ value: s.id, label: s.name }))} value={site.id} onChange={onSite} />}
-        {showMeals && <Segmented label="Meal" options={site.meals.map((m) => ({ value: m.meal, label: m.meal }))} value={meal} onChange={onMeal} />}
       </div>
 
       <div className="topbar-right">
-        {import.meta.env.DEV && <StressSwitch />}
         <UpdateButton />
         <SaveIndicator status={status} error={error} />
         <button
@@ -73,24 +64,6 @@ export function TopBar({ screen, onNavigate, status, error, undoLabel, onUndo, s
         </button>
       </div>
     </header>
-  );
-}
-
-// The test app only: each click moves Off → 2 drinks → 2 drinks + RO → Full.
-const STRESS_LABEL = { off: 'Stress test off', drinks: 'Stress: 2 drinks', ro: 'Stress: 2 drinks + RO', full: 'Stress: full' } as const;
-function StressSwitch() {
-  const mode = useSyncExternalStore(onStress, stressMode);
-  const next = STRESS_MODES[(STRESS_MODES.indexOf(mode) + 1) % STRESS_MODES.length]!;
-  return (
-    <button
-      type="button"
-      className={mode === 'off' ? 'btn sm' : 'btn sm primary'}
-      onClick={() => setStress(next)}
-      title="Test app only. Click to cycle: Off; 2 drinks (everyone seated has two drinks); 2 drinks + RO (and RO water); Full (every seat gets two drinks, RO water, three extras and a mix of chairs)"
-      style={mode === 'full' ? { background: '#B91C1C', borderColor: '#B91C1C' } : mode === 'drinks' || mode === 'ro' ? { background: '#B45309', borderColor: '#B45309' } : undefined}
-    >
-      {STRESS_LABEL[mode]}
-    </button>
   );
 }
 
@@ -131,11 +104,60 @@ function SaveIndicator({ status, error }: { status: SaveStatus; error: string | 
   );
 }
 
-function NavButton({ on, onClick, icon, children }: { on: boolean; onClick: () => void; icon: ReactNode; children: ReactNode }) {
+function NavButton({ on, onClick, icon, expanded, children }: { on: boolean; onClick: () => void; icon: ReactNode; expanded?: boolean; children: ReactNode }) {
   return (
-    <button type="button" className={on ? 'nav on' : 'nav'} aria-current={on ? 'page' : undefined} onClick={onClick} title={typeof children === 'string' ? children : undefined}>
+    <button
+      type="button"
+      className={on ? 'nav on' : 'nav'}
+      aria-current={on ? 'page' : undefined}
+      aria-haspopup={expanded === undefined ? undefined : 'menu'}
+      aria-expanded={expanded}
+      onClick={onClick}
+      title={typeof children === 'string' ? children : undefined}
+    >
       {icon}
       <span className="navlabel">{children}</span>
     </button>
+  );
+}
+
+/** Events and Settings: used now and then, so they share one button. On one of them, it's named after it. */
+function MoreMenu({ screen, onNavigate }: { screen: Screen; onNavigate: (screen: Screen) => void }) {
+  const [open, setOpen] = useState(false);
+  const items = SCREENS.filter((s) => s.more);
+  // Room Designer opens from Settings, so it counts as Settings here.
+  const current = items.find((s) => s.id === screen || (screen === 'designer' && s.id === 'settings'));
+  return (
+    <div style={{ position: 'relative' }}>
+      <NavButton on={!!current} onClick={() => setOpen(!open)} icon={current?.icon ?? <MoreIcon />} expanded={open}>
+        {current?.label ?? 'More'}
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginLeft: 4, verticalAlign: '-2px' }}>
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </NavButton>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          <div role="menu" style={{ position: 'absolute', top: 44, left: 0, zIndex: 41, minWidth: 180, padding: 6, background: '#FFFFFF', border: '1px solid var(--card-border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(17,24,39,.16)' }}>
+            {items.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                role="menuitem"
+                className={s === current ? 'nav on' : 'nav'}
+                style={{ width: '100%' }}
+                onClick={() => {
+                  setOpen(false);
+                  onNavigate(s.id);
+                }}
+              >
+                {s.icon}
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   );
 }

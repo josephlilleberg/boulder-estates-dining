@@ -1,8 +1,7 @@
-import { useMemo, useSyncExternalStore } from 'react';
-import { onStress, stressMode } from '../state/stress';
+import { useMemo } from 'react';
 import type { MealName, MealOpening, Site } from '../domain/sites';
 import { useStore } from '../state/store';
-import { printedDate, stressOccupant, twoDrinksOccupant } from './model';
+import { printedDate } from './model';
 import { SHEETS_UPDATED } from '../state/store';
 import { buildPage, occupantFor, sheetsFor, type PageData, type SheetRef } from './pages';
 
@@ -15,17 +14,8 @@ export function useSheets(site: Site, meal: MealName, opening: MealOpening, day:
   const weekday = day.getDay();
   const data = useStore((s) => s.data);
   const sheets = useMemo(() => sheetsFor(opening), [opening]);
-  // The test app's Stress test: every resident with two drinks (and RO water), or a worst-case resident at every seat.
-  const stress = useSyncExternalStore(onStress, stressMode);
-  const occupants = useMemo(() => {
-    const of = (day: number | 'all') => {
-      if (stress === 'full') return stressOccupant(meal, { heavy: true });
-      const real = occupantFor(data, site.id, meal, day);
-      return stress === 'off' ? real : twoDrinksOccupant(real, meal, data.beverages, { ro: stress === 'ro' });
-    };
-    // The setup sheet is printed once and reused: everyone seated, gone ones marked. Server sheets are for the day.
-    return { setup: of('all'), day: of(weekday) };
-  }, [stress, data, site.id, meal, weekday]);
+  // The setup sheet is printed once and reused: everyone seated, gone ones marked. Server sheets are for the day.
+  const occupants = useMemo(() => ({ setup: occupantFor(data, site.id, meal, 'all'), day: occupantFor(data, site.id, meal, weekday) }), [data, site.id, meal, weekday]);
   const stamp = data.settings[SHEETS_UPDATED];
   const updated = stamp ? printedDate(new Date(stamp)) : '';
   const forDay = sheetDay(day);

@@ -8,23 +8,21 @@ export interface ScreenDef {
   id: Screen;
   label: string;
   icon: ReactNode;
-  /** Whether the shared meal switch applies to this screen. */
-  usesMeal: boolean;
-  /** Setup screens (used now and then) sit after a divider, apart from the daily ones. */
-  setup?: boolean;
+  /** Used now and then (holidays, setup): under the bar's More menu rather than a tab of its own. */
+  more?: boolean;
 }
 
-// Left to right like a shift: seat people, adjust residents, check and print the sheets.
-// Then Settings (Room Designer opens from there).
+// Left to right like a shift: seat people, adjust residents, set the tables and pour the drinks;
+// then the executive director's meal plan. Events (holidays) and Settings (Room Designer opens
+// from there) sit under More.
 export const SCREENS: ScreenDef[] = [
-  { id: 'seating', label: 'Seating', icon: <SeatingIcon />, usesMeal: true },
-  // The resident card has its own meal tabs (with each meal's On/Off), so the bar's meal switch stays away here.
-  { id: 'residents', label: 'Residents', icon: <ResidentsIcon />, usesMeal: false },
-  // Every meal's plan switch for everyone, side by side, so the meal switch doesn't apply.
-  { id: 'mealplan', label: 'Meal Plan', icon: <MealPlanIcon />, usesMeal: false },
-  // Sheets: see them on screen, and print them from there.
-  { id: 'view', label: 'Sheets', icon: <PrintIcon />, usesMeal: true },
-  // Holidays: an event has its own meal, so the shared meal switch doesn't apply.
-  { id: 'events', label: 'Events', icon: <EventsIcon />, usesMeal: false },
-  { id: 'settings', label: 'Settings', icon: <SettingsIcon />, usesMeal: false, setup: true },
+  { id: 'seating', label: 'Seating', icon: <SeatingIcon /> },
+  { id: 'residents', label: 'Residents', icon: <ResidentsIcon /> },
+  // The setup sheet and the server sheets: see them on screen, and print them from there.
+  { id: 'view', label: 'Setup & Drinks', icon: <PrintIcon /> },
+  // The executive director's weekly sheet, every meal side by side.
+  { id: 'mealplan', label: 'Meal Plan', icon: <MealPlanIcon /> },
+  // Holidays: each event has its own meal.
+  { id: 'events', label: 'Events', icon: <EventsIcon />, more: true },
+  { id: 'settings', label: 'Settings', icon: <SettingsIcon />, more: true },
 ];

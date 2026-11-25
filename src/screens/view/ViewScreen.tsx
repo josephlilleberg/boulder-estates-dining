@@ -2,15 +2,16 @@ import { Fragment, useEffect, useState } from 'react';
 import { fitPage, PAGE } from '../../sheets/model';
 import { PrintDialog } from '../../sheets/PrintDialog';
 import { PrintIcon } from '../../shell/icons';
+import { Segmented } from '../../shell/Segmented';
 import { ScaledPage, SheetPage } from '../../sheets/SheetPage';
 import { sheetDay, useSheets } from '../../sheets/useSheets';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 
-/** Ctrl/⌘+P sends this so the Sheets screen opens its print panel. */
+/** Ctrl/⌘+P sends this so the Setup & Drinks screen opens its Print window. */
 export const OPEN_PRINT = 'be-open-print';
 
-export function ViewScreen({ site, meal, opening }: ScreenProps) {
+export function ViewScreen({ site, meal, opening, onMeal }: ScreenProps) {
   // The day the sheets are for: today, or one of the next six days. Anyone gone that weekday prints empty.
   const [dayOffset, setDayOffset] = useState(0);
   const today = new Date();
@@ -33,8 +34,9 @@ export function ViewScreen({ site, meal, opening }: ScreenProps) {
     <section className="card" style={{ padding: '10px 12px' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px', marginBottom: 8 }}>
         <h1 className="h1" style={{ marginRight: 4 }}>
-          Sheets · {meal}
+          Setup & Drinks
         </h1>
+        <Segmented label="Meal" options={site.meals.map((m) => ({ value: m.meal, label: m.meal }))} value={meal} onChange={onMeal} />
         {/* One row: Setup · Server 1 2 3, then how to show it. The server
             sheets share one "Server" label so the section numbers read like Seating's. */}
         <div className="segwrap" role="tablist" aria-label="Sheet" style={{ alignItems: 'center' }}>

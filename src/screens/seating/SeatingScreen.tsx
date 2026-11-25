@@ -12,7 +12,7 @@ import { cropOf, frameCrop, detailFacts, detailRows, mealRoster, parseSeatKey, p
 import { GoneTag, NotSeatedList } from './NotSeatedList';
 import { SeatRoomView } from './SeatRoomView';
 
-export function SeatingScreen({ site, meal, opening, onResident, navigate }: ScreenProps) {
+export function SeatingScreen({ site, meal, opening, onMeal, onResident, navigate }: ScreenProps) {
   const data = useStore((s) => s.data);
   // Card padding + page padding below the map.
   const [wrapRef, fit] = useFitBox<HTMLDivElement>(40);
@@ -109,7 +109,8 @@ export function SeatingScreen({ site, meal, opening, onResident, navigate }: Scr
       <section className="card" style={{ flex: '999 1 720px', minWidth: 0, padding: '16px 14px' }}>
         {/* One compact row (title, counts, section tabs) leaves the rest of the card to the map. */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 14px', marginBottom: 10 }}>
-          <h1 className="h1">Seating · {meal}</h1>
+          <h1 className="h1">Seating</h1>
+          <Segmented label="Meal" options={site.meals.map((m) => ({ value: m.meal, label: m.meal }))} value={meal} onChange={onMeal} />
           <span style={{ fontSize: 13, color: '#4B5563' }}>
             {nSeated} seated · {roster.waiting.length} not seated · {totalSeats - nSeated} empty seats
             {nAway > 0 && <span title="Gone until further notice: their seats are kept but print empty"> · {nAway} gone</span>}

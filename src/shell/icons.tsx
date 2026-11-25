@@ -51,6 +51,11 @@ export const SettingsIcon = () => (
     <circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" />
   </Svg>
 );
+export const MoreIcon = () => (
+  <Svg>
+    <circle cx="5" cy="12" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="19" cy="12" r="1.4" />
+  </Svg>
+);
 export const CheckIcon = () => (
   <Svg size={16} width={2}><path d="M5 12l5 5L20 7" /></Svg>
 );

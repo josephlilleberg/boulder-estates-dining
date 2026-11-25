@@ -3,7 +3,6 @@ import type { MealName, SiteId } from './domain/sites';
 import { DEFAULT_MEAL, DEFAULT_SITE, getOpening } from './domain/sites';
 import { TopBar } from './shell/TopBar';
 import type { Screen } from './shell/screens';
-import { SCREENS } from './shell/screens';
 import { EventsScreen } from './screens/events/EventsScreen';
 import { DesignerScreen } from './screens/designer/DesignerScreen';
 import { MealPlanScreen } from './screens/mealplan/MealPlanScreen';
@@ -38,7 +37,6 @@ export function App() {
 
   const site = sites.find((s) => s.id === siteId) ?? sites[0]!;
   const opening = getOpening(site, meal);
-  const usesMeal = SCREENS.find((s) => s.id === screen)?.usesMeal ?? false;
   const Active = SCREEN_COMPONENTS[screen];
 
   const changeSite = (id: SiteId) => {
@@ -63,7 +61,7 @@ export function App() {
       } else if (k === 'p') {
         e.preventDefault();
         setScreen('view');
-        // The Sheets screen opens its print panel when asked (it may be mounting just now).
+        // The Setup & Drinks screen opens its Print window when asked (it may be mounting just now).
         window.setTimeout(() => window.dispatchEvent(new Event(OPEN_PRINT)), 50);
       } else if (k === 'f') {
         e.preventDefault();
@@ -86,10 +84,7 @@ export function App() {
         onUndo={() => getStore().undoLast().catch(() => {})}
         sites={sites}
         site={site}
-        meal={opening.meal}
-        showMeals={usesMeal}
         onSite={changeSite}
-        onMeal={setMeal}
       />
       <div className="content">
         <main className="main">

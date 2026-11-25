@@ -215,22 +215,22 @@ function serverShapes(t: DiningTable, p: Spot, lh: SeatHeight, k: number, fullW 
  */
 export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: number, area: Area = LETTER_AREA, fullW = false): Map<string, Spot> {
   const { w: AW, h: AH } = area;
-  const lh = (t: DiningTable): SeatHeight => lhOf.get(t.id) ?? (() => 0);
+  // A table's shapes only ever move with it, so they're worked out once around its centre and then
+  // shifted: the fitting below asks for them thousands of times.
+  const rel = T.map((t) => serverShapes(t, { x: 0, y: 0 }, lhOf.get(t.id) ?? (() => 0), k, fullW));
+  const ext = rel.map(extentOf);
   const bbox = (spx: number, spy: number) => {
     let x0 = 1e9;
     let y0 = 1e9;
     let x1 = -1e9;
     let y1 = -1e9;
-    for (const t of T) {
-      for (const r of serverShapes(t, { x: t.x * spx, y: t.y * spy }, lh(t), k, fullW)) {
-        for (const [x, y] of corners(r)) {
-          x0 = Math.min(x0, x);
-          x1 = Math.max(x1, x);
-          y0 = Math.min(y0, y);
-          y1 = Math.max(y1, y);
-        }
-      }
-    }
+    T.forEach((t, i) => {
+      const e = ext[i]!;
+      x0 = Math.min(x0, t.x * spx + e.x0);
+      x1 = Math.max(x1, t.x * spx + e.x1);
+      y0 = Math.min(y0, t.y * spy + e.y0);
+      y1 = Math.max(y1, t.y * spy + e.y1);
+    });
     return { x0, y0, w: x1 - x0, h: y1 - y0 };
   };
   const maxScale = (axis: 'x' | 'y') => {
@@ -254,9 +254,11 @@ export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: nu
   const rowOf = new Map(rowsOf(T).flatMap((r, ri) => r.map((t) => [t.id, ri] as const)));
   for (let it = 0; it < 120; it++) {
     let moved = false;
-    const S = T.map((t, i) => serverShapes(t, pos[i]!, lh(t), k, fullW));
+    const S = rel.map((shapes, i) => shifted(shapes, pos[i]!));
     for (let i = 0; i < T.length; i++) {
       for (let j = i + 1; j < T.length; j++) {
+        // Tables too far apart for any of their shapes to come within the gap can't need nudging.
+        if (Math.hypot(pos[i]!.x - pos[j]!.x, pos[i]!.y - pos[j]!.y) > ext[i]!.r + ext[j]!.r + SERVER_GAP + 1) continue;
         for (const A of S[i]!) {
           for (const B of S[j]!) {
             if (A.body && B.body) continue;
@@ -275,35 +277,47 @@ export function serverFit(T: DiningTable[], lhOf: Map<string, SeatHeight>, k: nu
         }
       }
     }
-    T.forEach((t, i) => {
-      let x0 = 1e9;
-      let y0 = 1e9;
-      let x1 = -1e9;
-      let y1 = -1e9;
-      for (const r of serverShapes(t, pos[i]!, lh(t), k, fullW)) {
-        for (const [x, y] of corners(r)) {
-          x0 = Math.min(x0, x);
-          x1 = Math.max(x1, x);
-          y0 = Math.min(y0, y);
-          y1 = Math.max(y1, y);
-        }
-      }
-      if (x0 < EDGE) pos[i]!.x += EDGE - x0;
-      if (x1 > AW - EDGE) pos[i]!.x -= x1 - (AW - EDGE);
-      if (y0 < EDGE) pos[i]!.y += EDGE - y0;
-      if (y1 > AH - EDGE) pos[i]!.y -= y1 - (AH - EDGE);
+    T.forEach((_, i) => {
+      const e = ext[i]!;
+      const p = pos[i]!;
+      if (p.x + e.x0 < EDGE) p.x += EDGE - (p.x + e.x0);
+      if (p.x + e.x1 > AW - EDGE) p.x -= p.x + e.x1 - (AW - EDGE);
+      if (p.y + e.y0 < EDGE) p.y += EDGE - (p.y + e.y0);
+      if (p.y + e.y1 > AH - EDGE) p.y -= p.y + e.y1 - (AH - EDGE);
     });
     if (!moved) break;
   }
   return new Map(T.map((t, i) => [t.id, pos[i]!]));
 }
 
+type Shape = RotBox & { body?: boolean };
+/** A table's shapes moved to its spot. */
+const shifted = (shapes: Shape[], p: Spot): Shape[] => shapes.map((r) => ({ ...r, cx: r.cx + p.x, cy: r.cy + p.y }));
+/** How far a table's shapes reach from its centre: each side, and as a circle. */
+function extentOf(shapes: Shape[]) {
+  let [x0, y0, x1, y1, r] = [1e9, 1e9, -1e9, -1e9, 0];
+  for (const s of shapes)
+    for (const [x, y] of corners(s)) {
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+      r = Math.max(r, Math.hypot(x, y));
+    }
+  return { x0, y0, x1, y1, r };
+}
+
 /** Whether any two tables' labels (or a label and another table) come closer than the gap allows. */
 function crowded(T: DiningTable[], at: Map<string, Spot>, lhOf: Map<string, SeatHeight>, k: number, fullW = false): boolean {
-  const S = T.map((t) => serverShapes(t, at.get(t.id)!, lhOf.get(t.id) ?? (() => 0), k, fullW));
+  const rel = T.map((t) => serverShapes(t, { x: 0, y: 0 }, lhOf.get(t.id) ?? (() => 0), k, fullW));
+  const ext = rel.map(extentOf);
+  const P = T.map((t) => at.get(t.id)!);
+  const S = rel.map((shapes, i) => shifted(shapes, P[i]!));
   for (let i = 0; i < S.length; i++)
-    for (let j = i + 1; j < S.length; j++)
+    for (let j = i + 1; j < S.length; j++) {
+      if (Math.hypot(P[i]!.x - P[j]!.x, P[i]!.y - P[j]!.y) > ext[i]!.r + ext[j]!.r + SERVER_GAP) continue;
       for (const A of S[i]!) for (const B of S[j]!) if (!(A.body && B.body) && separation(A, B, SERVER_GAP - 2)) return true;
+    }
   return false;
 }
 

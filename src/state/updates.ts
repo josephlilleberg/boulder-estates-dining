@@ -22,7 +22,6 @@ function set(next: UpdateState) {
   listeners.forEach((l) => l());
 }
 
-export const updatesSupported = isTauri;
 export const getUpdateState = () => state;
 
 /** Calls `fn` now and on every change; returns an unsubscribe. */

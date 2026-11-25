@@ -36,4 +36,3 @@ export async function openDb(): Promise<Db> {
   });
 }
 
-export const resetDevDb = () => localStorage.removeItem(DEV_KEY);

@@ -71,7 +71,7 @@ The top bar runs in shift order: **Seating · Residents · Meal Plan · Sheets �
 beside them on Seating and Sheets. It fits on one line on a laptop; on narrower windows the
 screen names shrink to icons (hover for the name).
 
-**Shortcuts:** Ctrl+Z (⌘Z on Mac) undoes the last change, Ctrl+P opens Sheets with the print panel, and Ctrl+F
+**Shortcuts:** Ctrl+Z (⌘Z on Mac) undoes the last change, Ctrl+P opens Sheets with the Print window, and Ctrl+F
 jumps to resident search. Big changes (deleting or archiving a resident, closing a section,
 deleting a table) show a pop-up with an **Undo** button.
 
@@ -142,13 +142,13 @@ and **Print** opens the print dialog. Who's on the plan is set on each resident'
 
 - **For** a day (Server sheets): today (the default) or one of the next six days. Anyone not here
   that day prints as an empty seat; the day shows top right. The Setup sheet is for every day.
-- Every sheet for the meal, one tab each (Setup, Server 1 2 3). Two zooms: **Drawing** (the
-  default) crops to the tables and labels and fits them to the window, with the key beside the
-  setup sheet; **Whole page** shows the sheet exactly as
-  it prints.
-- **Print…** opens a panel to tick the sheets you want (all to start) and print them, or save
-  as PDF from the print dialog. The setup sheet prints on 11×17 and the others on Letter, so the
-  app opens one print dialog per paper size.
+- Every sheet for the meal, one tab each (Setup, Server 1 2 3), shown as the whole page, exactly
+  as it prints.
+- **Print…** opens the Print window: every page with a tick box (all ticked to start; All / None)
+  and a large preview of the one you click (‹ › to step through; an unticked page shows faded).
+  **Print** hands the ticked pages to the system print dialog, which also saves as PDF. The setup
+  sheet prints on 11×17 and the others on Letter, so the app opens one print dialog per paper
+  size. The Meal Plan's Print and an event's Overview and Resident sheet open the same window.
 
 ### Events
 

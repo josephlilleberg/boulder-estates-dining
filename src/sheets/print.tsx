@@ -1,52 +1,37 @@
 import type { ReactNode } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { PAGE, type Paper } from './model';
-import type { PageData } from './pages';
-import { SheetPage } from './SheetPage';
 
-// Printing renders the same SheetPage components at true size into a hidden
-// container, sets the paper with @page, and opens the system print dialog
-// (which also offers Save as PDF). One dialog per paper size: the setup sheet
-// is 11 × 17 and the others are Letter, and a single job can't reliably feed a
-// printer two paper sizes.
+// Printing renders the pages at true size into a hidden container, sets the paper with @page, and
+// opens the system print dialog (which also offers Save as PDF). The app's own Print window
+// (PrintDialog) picks the pages and calls this once per paper size.
 
-const PAPER_ORDER: Paper[] = ['tabloid', 'letter'];
+// Windows (WebView2) opens its print preview without waiting: window.print() returns at once and the
+// preview is drawn from the page afterwards, so the pages must stay until the window closes
+// (afterprint). On the Mac the print sheet is drawn before print() returns.
+const WINDOWS = /Windows/.test(navigator.userAgent);
+// If afterprint never comes, don't leave the Print buttons stuck.
+const GIVE_UP_MS = 10 * 60 * 1000;
 
 function waitForAfterPrint(): Promise<void> {
   return new Promise((resolve) => {
-    // Chromium's window.print() blocks until the dialog closes; afterprint covers webviews where it doesn't.
     let done = false;
+    let timer = 0;
     const finish = () => {
       if (done) return;
       done = true;
       window.removeEventListener('afterprint', finish);
+      clearTimeout(timer);
       resolve();
     };
     window.addEventListener('afterprint', finish);
     window.print();
-    setTimeout(finish, 0);
+    timer = window.setTimeout(finish, WINDOWS ? GIVE_UP_MS : 0);
   });
 }
 
-export async function printPages(pages: PageData[]): Promise<void> {
-  for (const paper of PAPER_ORDER) {
-    const group = pages.filter((p) => p.paper === paper);
-    if (!group.length) continue;
-    await printOn(
-      paper,
-      <>
-        {group.map((p) => (
-          <SheetPage key={p.key} page={p} shadow={false} />
-        ))}
-      </>,
-    );
-  }
-}
-
-/** One print dialog for pages of one paper size. Each page is a `.sheet-page` element at true size. */
-export async function printOn(paper: Paper, pages: ReactNode): Promise<void> {
-  const { w, h } = PAGE[paper];
+/** One print dialog for pages `w` × `h` (CSS px at 96/in; a portrait page is taller than wide). */
+export async function printSized(w: number, h: number, pages: ReactNode): Promise<void> {
   const style = document.createElement('style');
   style.textContent = `@page { size: ${w / 96}in ${h / 96}in; margin: 0; }`;
   const host = document.createElement('div');

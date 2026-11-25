@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { printOn } from '../../sheets/print';
+import { PrintDialog } from '../../sheets/PrintDialog';
 import { PAGE } from '../../sheets/model';
 import { useStore } from '../../state/store';
 import { useFitBox } from '../../ui/useFitBox';
@@ -11,7 +11,7 @@ import { addDays, chunk, planRows, weekDays, weekLabels, weekStart } from './pla
 export function MealPlanScreen({ site }: ScreenProps) {
   const residents = useStore((s) => s.data.residents);
   const [start, setStart] = useState(() => weekStart(new Date()));
-  const [busy, setBusy] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [boxRef, box] = useFitBox<HTMLDivElement>(28);
 
   const meals = site.meals.map((m) => m.meal);
@@ -23,15 +23,6 @@ export function MealPlanScreen({ site }: ScreenProps) {
 
   const sheets = (shadow: boolean) =>
     pages.map((p, i) => <MealPlanSheet key={i} title={`${site.name} Meal Plan`} month={month} week={week} days={days} meals={meals} rows={p} page={i + 1} pages={pages.length} shadow={shadow} />);
-
-  const print = async () => {
-    setBusy(true);
-    try {
-      await printOn('letter', <>{sheets(false)}</>);
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const { w, h } = PAGE.letter;
   const k = box.w ? Math.min(1, box.w / w) : 0;
@@ -58,9 +49,17 @@ export function MealPlanScreen({ site }: ScreenProps) {
         </div>
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 12, color: '#4B5563' }}>Turn the meal plan on or off on each resident’s card</span>
-        <button type="button" className="btn primary" onClick={() => void print()} disabled={busy || !rows.length} title="Opens the print dialog; choose Save as PDF there for a file">
-          Print{pages.length > 1 ? ` ${pages.length} pages` : ''}
+        <button type="button" className="btn primary" onClick={() => setPrinting(true)} disabled={!rows.length}>
+          Print…
         </button>
+        {printing && (
+          <PrintDialog
+            title="Print meal plan"
+            subtitle={`Week of ${week}`}
+            items={sheets(false).map((el, i) => ({ key: String(i), label: pages.length > 1 ? `Meal plan, page ${i + 1}` : 'Meal plan', sub: `${pages[i]![0]!.name} – ${pages[i]![pages[i]!.length - 1]!.name}`, w, h, render: () => el }))}
+            onClose={() => setPrinting(false)}
+          />
+        )}
       </div>
 
       <div ref={boxRef} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, paddingBottom: 12 }}>

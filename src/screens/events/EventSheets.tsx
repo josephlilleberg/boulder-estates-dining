@@ -1,9 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { DiningEvent } from '../../domain/model';
 import type { AppData } from '../../db/repo';
-import { printOn } from '../../sheets/print';
+import { PrintDialog } from '../../sheets/PrintDialog';
 import * as E from '../../state/eventActions';
-import { Dialog } from '../../ui/Dialog';
 import { chunk } from '../mealplan/plan';
 
 // The event's two printouts, each shown in a pop-up with Print:
@@ -42,59 +41,33 @@ export function eventLists(data: AppData, e: DiningEvent) {
 }
 
 export function EventSheetDialog({ kind, event: e, data, dateText, onClose }: { kind: EventSheet; event: DiningEvent; data: AppData; dateText: string; onClose: () => void }) {
-  const [busy, setBusy] = useState(false);
   const lists = eventLists(data, e);
   const total = mealTotal(lists.coming);
   const sub = `${dateText} · ${e.meal}`;
   const title = kind === 'overview' ? 'Overview' : 'Resident sheet';
+  const pages =
+    kind === 'overview'
+      ? overviewPages({ title: e.name, sub, total, cancelled: lists.cancelled, added: lists.added })
+      : residentPages({ title: e.name, sub, total, rows: lists.coming });
 
-  const pages = (shadow: boolean) =>
-    kind === 'overview' ? (
-      <OverviewPages title={e.name} sub={sub} total={total} cancelled={lists.cancelled} added={lists.added} shadow={shadow} />
-    ) : (
-      <ResidentPages title={e.name} sub={sub} total={total} rows={lists.coming} shadow={shadow} />
-    );
-
-  const print = async () => {
-    setBusy(true);
-    try {
-      await printOn('letter', pages(false));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const width = Math.min(760, window.innerWidth - 32);
-  const k = Math.min(1, (width - 40) / W);
   return (
-    <Dialog
+    <PrintDialog
       title={title}
       subtitle={`${e.name} · ${sub}`}
-      onClose={onClose}
-      width={width}
-      footer={
+      items={pages.map((el, i) => ({ key: String(i), label: pages.length > 1 ? `${title}, page ${i + 1}` : title, w: W, h: H, render: () => el }))}
+      note={
         <>
-          <span style={{ fontSize: 13, color: '#4B5563' }}>
-            Total for meal <b style={{ color: '#111827' }}>{total}</b> · Total cancellations <b style={{ color: '#111827' }}>{lists.cancelled.length}</b>
-          </span>
-          <span className="spacer" />
-          <button type="button" className="btn" onClick={onClose}>
-            Close
-          </button>
-          <button type="button" className="btn primary" disabled={busy} onClick={() => void print()} title="Opens the print dialog; choose Save as PDF there for a file">
-            Print
-          </button>
+          Total for meal <b style={{ color: '#111827' }}>{total}</b> · Total cancellations <b style={{ color: '#111827' }}>{lists.cancelled.length}</b>
         </>
       }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '4px 0 8px', zoom: k }}>{pages(true)}</div>
-    </Dialog>
+      onClose={onClose}
+    />
   );
 }
 
-function Page({ title, sub, heading, page, pages, shadow, children }: { title: string; sub: string; heading: string; page: number; pages: number; shadow: boolean; children: ReactNode }) {
+function Page({ title, sub, heading, page, pages, children }: { title: string; sub: string; heading: string; page: number; pages: number; children: ReactNode }) {
   return (
-    <div className="sheet-page" style={{ width: W, height: H, boxSizing: 'border-box', padding: `${PAD - 8}px ${PAD}px`, background: '#FFFFFF', color: '#111827', boxShadow: shadow ? '0 2px 10px rgba(0,0,0,.18)' : undefined, position: 'relative', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="sheet-page" style={{ width: W, height: H, boxSizing: 'border-box', padding: `${PAD - 8}px ${PAD}px`, background: '#FFFFFF', color: '#111827', position: 'relative', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, paddingBottom: 10, borderBottom: '2px solid #111827' }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>{title}</div>
@@ -152,46 +125,39 @@ function RowTable({ rows, withParty = true }: { rows: Row[]; withParty?: boolean
   );
 }
 
-function ResidentPages({ title, sub, total, rows, shadow }: { title: string; sub: string; total: number; rows: Row[]; shadow: boolean }) {
-  const pages = chunk(rows, SHEET_ROWS * 2);
-  return (
-    <>
-      {pages.map((p, i) => (
-        <Page key={i} title={title} sub={sub} heading={`Residents coming (${rows.length})`} page={i + 1} pages={pages.length} shadow={shadow}>
-          {i === 0 && <Totals total={total} />}
-          <div style={COLUMNS}>
-            {chunk(p, SHEET_ROWS).map((col, ci) => (
-              <RowTable key={ci} rows={col} />
-            ))}
-          </div>
-        </Page>
-      ))}
-    </>
-  );
+function residentPages({ title, sub, total, rows }: { title: string; sub: string; total: number; rows: Row[] }) {
+  const chunks = chunk(rows, SHEET_ROWS * 2);
+  const pages = chunks.length ? chunks : [[]];
+  return pages.map((p, i) => (
+    <Page key={i} title={title} sub={sub} heading={`Residents coming (${rows.length})`} page={i + 1} pages={pages.length}>
+      {i === 0 && <Totals total={total} />}
+      <div style={COLUMNS}>
+        {chunk(p, SHEET_ROWS).map((col, ci) => (
+          <RowTable key={ci} rows={col} />
+        ))}
+      </div>
+    </Page>
+  ));
 }
 
-function OverviewPages({ title, sub, total, cancelled, added, shadow }: { title: string; sub: string; total: number; cancelled: Row[]; added: Row[]; shadow: boolean }) {
+function overviewPages({ title, sub, total, cancelled, added }: { title: string; sub: string; total: number; cancelled: Row[]; added: Row[] }) {
   const c = chunk(cancelled, OVERVIEW_ROWS);
   const a = chunk(added, OVERVIEW_ROWS);
-  const n = Math.max(c.length, a.length);
+  const n = Math.max(1, c.length, a.length);
   const none = (text: string) => <p style={{ fontSize: 13, color: '#4B5563', margin: 0 }}>{text}</p>;
-  return (
-    <>
-      {Array.from({ length: n }, (_, i) => (
-        <Page key={i} title={title} sub={sub} heading="Overview" page={i + 1} pages={n} shadow={shadow}>
-          {i === 0 && <Totals total={total} cancelled={cancelled.length} />}
-          <div style={COLUMNS}>
-            <div>
-              {i === 0 && <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Cancelled ({cancelled.length})</h3>}
-              {c[i]?.length ? <RowTable rows={c[i]!} withParty={false} /> : i === 0 && none('No one has cancelled.')}
-            </div>
-            <div>
-              {i === 0 && <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Added ({added.length})</h3>}
-              {a[i]?.length ? <RowTable rows={a[i]!} /> : i === 0 && none('No additions or guests.')}
-            </div>
-          </div>
-        </Page>
-      ))}
-    </>
-  );
+  return Array.from({ length: n }, (_, i) => (
+    <Page key={i} title={title} sub={sub} heading="Overview" page={i + 1} pages={n}>
+      {i === 0 && <Totals total={total} cancelled={cancelled.length} />}
+      <div style={COLUMNS}>
+        <div>
+          {i === 0 && <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Cancelled ({cancelled.length})</h3>}
+          {c[i]?.length ? <RowTable rows={c[i]!} withParty={false} /> : i === 0 && none('No one has cancelled.')}
+        </div>
+        <div>
+          {i === 0 && <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>Added ({added.length})</h3>}
+          {a[i]?.length ? <RowTable rows={a[i]!} /> : i === 0 && none('No additions or guests.')}
+        </div>
+      </div>
+    </Page>
+  ));
 }

@@ -4,7 +4,7 @@ import type { MealName, MealOpening, Site } from '../domain/sites';
 import { useStore } from '../state/store';
 import { printedDate, stressOccupant, twoDrinksOccupant } from './model';
 import { SHEETS_UPDATED } from '../state/store';
-import { buildPage, occupantFor, sheetsFor, type SheetRef } from './pages';
+import { buildPage, occupantFor, sheetsFor, type PageData, type SheetRef } from './pages';
 
 /** The meal's sheets and a page builder over the live data. */
 /** "Tue, Nov 24": the day on the sheets. */
@@ -29,7 +29,16 @@ export function useSheets(site: Site, meal: MealName, opening: MealOpening, day:
   const stamp = data.settings[SHEETS_UPDATED];
   const updated = stamp ? printedDate(new Date(stamp)) : '';
   const forDay = sheetDay(day);
-  const page = (sheet: SheetRef) =>
-    sheet.kind === 'setup' ? buildPage(data, site, meal, opening, sheet, occupants.setup, updated) : buildPage(data, site, meal, opening, sheet, occupants.day, updated, forDay);
+  // Building a page lays out every label (up to a second for a full server sheet), so each is built
+  // once and kept until something on it changes; the Sheets tab and the Print window share them.
+  const built = useMemo(() => new Map<string, PageData>(), [data, site, meal, opening, occupants, updated, forDay]);
+  const page = (sheet: SheetRef) => {
+    let p = built.get(sheet.key);
+    if (!p) {
+      p = sheet.kind === 'setup' ? buildPage(data, site, meal, opening, sheet, occupants.setup, updated) : buildPage(data, site, meal, opening, sheet, occupants.day, updated, forDay);
+      built.set(sheet.key, p);
+    }
+    return p;
+  };
   return { sheets, page };
 }

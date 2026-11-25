@@ -168,6 +168,8 @@ export interface DiningTable {
   x: number;
   y: number;
   rotation: number;
+  /** Seated last: Arrange fills every other table first. */
+  seatLast?: boolean;
 }
 
 export interface Layout {

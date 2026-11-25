@@ -1,6 +1,6 @@
 import { extraText } from '../../domain/labels';
 import type { Beverage, DiningTable, MealPrefs, Resident, SeatAssignment } from '../../domain/model';
-import { CHAIR_LABEL, fullName, pouredInto, pouredTogether, shortName } from '../../domain/model';
+import { CHAIR_LABEL, fullName, isGone, pouredInto, pouredTogether, shortName } from '../../domain/model';
 import { footprint, seatPoints } from '../../domain/room';
 import { seatGeom } from '../../domain/tables';
 
@@ -63,6 +63,8 @@ export interface TableBox {
   rotation: number;
   radius: string;
   fontSize: number;
+  /** Seat last (set in the designer). */
+  last: boolean;
 }
 
 export interface SeatLabel {
@@ -88,6 +90,21 @@ export interface SeatRoom {
   h: number;
   tables: TableBox[];
   labels: SeatLabel[];
+}
+
+let ctx: CanvasRenderingContext2D | null | undefined;
+/** A name's width in px at 12 px semibold, measured in the app's font (estimated where there's no canvas, as in tests). */
+function nameWidth(text: string): number {
+  if (ctx === undefined) {
+    try {
+      ctx = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
+      if (ctx) ctx.font = `600 12px ${getComputedStyle(document.body).fontFamily}`;
+    } catch {
+      ctx = null;
+    }
+  }
+  if (!ctx) return text.length * 12 * 0.6;
+  return ctx.measureText(text).width;
 }
 
 /**
@@ -128,6 +145,7 @@ export function seatRoom(
       rotation: t.rotation,
       radius: round ? '50%' : `${Math.max(3, Math.round(8 * sc))}px`,
       fontSize: Math.round(22 * sc),
+      last: !!t.seatLast,
     });
 
     const geom = seatGeom(t.shape);
@@ -164,13 +182,25 @@ export function seatRoom(
           h: h2 * 2,
           angle: ang,
           // 12 px; only a name that wouldn't fit gets a little smaller (never below 9.5).
-          fontSize: Math.max(9.5, Math.min(12, (hwX * 2 - 6) / (name.length * 0.62))),
+          fontSize: Math.max(9.5, Math.min(12, ((hwX * 2 - 12) * 12) / Math.max(nameWidth(name), of ? nameWidth(of) : 0))),
         });
       } else {
         const D = picking ? 20 : 16;
         out.labels.push({ ...base, resident: null, name: '', l: lx - D / 2, t: ly - D / 2, w: D, h: D, angle: 0, fontSize: 11 });
       }
     });
+  }
+  // Every name the same size: the size the longest needs.
+  const named = out.labels.filter((l) => l.resident);
+  const size = Math.min(12, ...named.map((l) => l.fontSize));
+  for (const l of named) {
+    l.fontSize = size;
+    // Someone gone has a dashed box: only as wide as their name, so it doesn't run into the next seat.
+    if (isGone(l.resident!)) {
+      const w = Math.min(l.w, (nameWidth(l.name) * size) / 12 + 12);
+      l.l += (l.w - w) / 2;
+      l.w = w;
+    }
   }
   return out;
 }

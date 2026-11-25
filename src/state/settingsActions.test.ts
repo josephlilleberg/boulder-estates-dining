@@ -32,6 +32,7 @@ const someone = () => data().residents.find((r) => r.attends.includes('Dinner') 
 const PRE_V10 = [
   ...['apt', 'diabetic', 'status', 'away_until', 'gone_days'].map((c) => ({ sql: `ALTER TABLE resident DROP COLUMN ${c}` })),
   ...['listed', 'family'].map((c) => ({ sql: `ALTER TABLE event_attendee DROP COLUMN ${c}` })),
+  { sql: 'ALTER TABLE dining_table DROP COLUMN seat_last' },
 ];
 
 describe('Drinks: a new drink works without code changes', () => {

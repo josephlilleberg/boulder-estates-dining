@@ -7,6 +7,7 @@ import * as T from '../../state/tableActions';
 import { Dialog } from '../../ui/Dialog';
 import { useFitBox } from '../../ui/useFitBox';
 import { Segmented } from '../../shell/Segmented';
+import { SwitchMark } from '../../ui/Switch';
 import type { ScreenProps } from '../types';
 import { DesignRoom } from './DesignRoom';
 
@@ -211,6 +212,21 @@ export function DesignerScreen({ site, navigate }: ScreenProps) {
               <span />
               <button type="button" className="btn" style={{ padding: 0, justifyContent: 'center' }} aria-label="Move down" onClick={() => nudge(sel, 0, NUDGE_STEP)}>↓</button>
               <span />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: '#111827' }}>Seat last</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2, lineHeight: 1.4 }}>Arranging event seats fills every other table first</div>
+              </div>
+              <button
+                type="button"
+                className="swbtn"
+                aria-pressed={!!sel.seatLast}
+                aria-label="Seat last"
+                onClick={() => act(`Table ${sel.number}: ${sel.seatLast ? 'seat as usual' : 'seat last'}`, T.setSeatLast(sel.id, !sel.seatLast))}
+              >
+                <SwitchMark on={!!sel.seatLast} />
+              </button>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <button type="button" className="btn sm" onClick={() => duplicate(sel)}>Duplicate</button>

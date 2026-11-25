@@ -190,4 +190,29 @@ describe('arrange', () => {
     expect(run).toBe(true);
     expect(new Set(r.seats.map((s) => s.seat)).size).toBe(5);
   });
+
+  it('a seat-last table is used only when every other table is full', () => {
+    const last = { ...round(1), last: true };
+    // An empty seat-last table and a 4-top with 2: two added residents join the 4-top.
+    const r = arrange([last, round(2)], [p('a', 'T2', 0), p('b', 'T2', 1), p('n1', null, null, 0, true), p('n2', null, null, 0, true)]);
+    expect(['n1', 'n2'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2']);
+    // A third has nowhere else to go.
+    const r2 = arrange([last, round(2)], [p('a', 'T2', 0), p('b', 'T2', 1), p('n1', null, null, 0, true), p('n2', null, null, 0, true), p('n3', null, null, 0, true)]);
+    expect(tableOf(r2, 'n3')).toBe('T1');
+    // A party that outgrows its table doesn't move there while another table has room.
+    const r3 = arrange([{ ...rect(1), last: true }, round(2), rect(3)], [p('h', 'T2', 0, 2), p('x', 'T2', 1), p('y', 'T2', 2)]);
+    expect(tableOf(r3, 'h')).toBe('T3');
+  });
+
+  it('guests sit either side of their resident, not all on one side', () => {
+    // Host at seat 0 of a 6-top with 2 guests: seats 5 and 1.
+    const r = arrange([rect(1)], [p('a', 'T1', 0, 2)]);
+    expect(where(r, 'a')!.seat).toBe(0);
+    expect([where(r, 'a', 1)!.seat, where(r, 'a', 2)!.seat].sort()).toEqual([1, 5]);
+    // A party that moved has the host in the middle of its seats.
+    const m = arrange([round(1), rect(2)], [p('h', 'T1', 0, 2), p('x', 'T1', 1), p('y', 'T1', 2)]);
+    const host = where(m, 'h')!.seat;
+    const guests = [1, 2].map((g) => where(m, 'h', g)!.seat);
+    expect(guests.every((g) => adjacent(g, host, 6))).toBe(true);
+  });
 });

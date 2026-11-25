@@ -105,6 +105,7 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
             <div style={{ transform: `rotate(${-t.rotation}deg)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1, pointerEvents: 'none' }}>
               <span style={{ fontSize: t.fontSize, fontWeight: 700, color: info?.dim ? '#9CA3AF' : '#1F2937' }}>{t.number}</span>
               {info && <span style={{ fontSize: Math.max(9, Math.round(t.fontSize * 0.7)), fontWeight: 600, color: info.dim ? '#9CA3AF' : '#4B5563' }}>{info.text}</span>}
+              {t.last && <span style={{ fontSize: Math.max(9, Math.round(t.fontSize * 0.5)), fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.3 }}>Seat last</span>}
             </div>
           </div>
         );
@@ -169,7 +170,7 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
                 {hasAlert(r) && <AlertBadge size={Math.max(10, lab.fontSize - 1)} />}
                 {lab.of ? (
                   <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, lineHeight: 1.1 }}>
-                    <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: Math.max(9, lab.fontSize - 2.5), fontWeight: 500, color: '#4B5563' }}>{lab.of}</span>
+                    <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', color: '#4B5563' }}>{lab.of}</span>
                     <span>{lab.name}</span>
                   </span>
                 ) : (

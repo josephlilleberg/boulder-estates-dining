@@ -286,7 +286,7 @@ export function planSeats(data: AppData, e: DiningEvent, allowOver = false): Arr
   // Everyday seats at this meal held by residents still here, so a table someone usually has to themselves isn't "sparse".
   const here = new Set(data.residents.filter((r) => !r.archived && !isGone(r)).map((r) => r.id));
   const usual = (tableId: string) => data.seating.filter((s) => s.siteId === e.siteId && s.meal === e.meal && s.tableId === tableId && here.has(s.residentId)).length;
-  const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t), usual: usual(t.id) }));
+  const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t), usual: usual(t.id), last: !!t.seatLast }));
   const fixed = e.seats.filter((s) => s.pinned);
   const biggest = Math.max(0, ...tables.map((t) => t.seats));
   const { parties, slots } = withFamilies(e, eventParties(data, e), new Set(fixed.map((s) => s.residentId)), biggest);

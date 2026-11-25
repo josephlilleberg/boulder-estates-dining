@@ -26,7 +26,7 @@ export async function loadAll(db: Db): Promise<AppData> {
     db.select<{ site_id: SiteId; meal: MealName }>(`SELECT * FROM site_meal ORDER BY site_id, sort`),
     db.select<{ site_id: SiteId; meal: MealName; section: number; label: string }>(`SELECT * FROM meal_section ORDER BY site_id, meal, sort`),
     db.select<{ id: string; site_id: SiteId; name: string; active: number }>(`SELECT * FROM layout`),
-    db.select<{ id: string; layout_id: string; section: number; number: number; shape: Shape; x: number; y: number; rotation: number }>(
+    db.select<{ id: string; layout_id: string; section: number; number: number; shape: Shape; x: number; y: number; rotation: number; seat_last: number }>(
       `SELECT t.* FROM dining_table t JOIN layout l ON l.id = t.layout_id WHERE l.active = 1 ORDER BY t.section, t.number`,
     ),
     db.select<{ site_id: SiteId; name: string; kind: BeverageKind; short_label: string; color: string | null; text_color: string; default_drinkware: string; sort: number }>(
@@ -50,7 +50,7 @@ export async function loadAll(db: Db): Promise<AppData> {
     db.select<{ event_id: string; table_id: string; seat: number; resident_id: string; guest: number; pinned: number }>(`SELECT * FROM event_seat ORDER BY event_id, table_id, seat`),
   ]);
 
-  const activeTables = tables.map((t): DiningTable => ({ id: t.id, layoutId: t.layout_id, section: t.section, number: t.number, shape: t.shape, x: t.x, y: t.y, rotation: t.rotation }));
+  const activeTables = tables.map((t): DiningTable => ({ id: t.id, layoutId: t.layout_id, section: t.section, number: t.number, shape: t.shape, x: t.x, y: t.y, rotation: t.rotation, seatLast: !!t.seat_last }));
   const layoutSite = new Map(layouts.map((l) => [l.id, l.site_id]));
 
   const siteList: Site[] = sites.map((s) => ({

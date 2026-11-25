@@ -25,7 +25,7 @@ function activeLayout(data: AppData, siteId: SiteId) {
 const inSection = (data: AppData, layoutId: string, section: number) => data.tables.filter((t) => t.layoutId === layoutId && t.section === section);
 const nextNumber = (tables: DiningTable[]) => tables.reduce((m, t) => Math.max(m, t.number), 0) + 1;
 
-const tableRow = (t: DiningTable) => ({ id: t.id, layout_id: t.layoutId, section: t.section, number: t.number, shape: t.shape, x: t.x, y: t.y, rotation: t.rotation });
+const tableRow = (t: DiningTable) => ({ id: t.id, layout_id: t.layoutId, section: t.section, number: t.number, shape: t.shape, x: t.x, y: t.y, rotation: t.rotation, seat_last: t.seatLast ? 1 : 0 });
 
 export const moveTable = (id: string, x: number, y: number) => (data: AppData): Op[] => {
   const t = table(data, id);
@@ -38,6 +38,12 @@ export const moveTable = (id: string, x: number, y: number) => (data: AppData): 
 export const rotateTable = (id: string, steps: number) => (data: AppData): Op[] => {
   const t = table(data, id);
   return [patch('dining_table', { id }, { rotation: (((t.rotation + steps * 45) % 360) + 360) % 360 })];
+};
+
+/** Seat this table last: Arrange fills every other table first. */
+export const setSeatLast = (id: string, on: boolean) => (data: AppData): Op[] => {
+  const t = table(data, id);
+  return !!t.seatLast === on ? [] : [patch('dining_table', { id }, { seat_last: on ? 1 : 0 })];
 };
 
 /** New table in the first free spot of the section, numbered after the highest. */
@@ -62,7 +68,7 @@ export function duplicateTable(sourceId: string): { id: string; ops: (data: AppD
     ops: (data) => {
       const t = table(data, sourceId);
       const number = nextNumber(inSection(data, t.layoutId, t.section));
-      return [put('dining_table', tableRow({ ...t, id, number, x: clampX(t.x + 60), y: clampY(t.y + 60) }))];
+      return [put('dining_table', tableRow({ ...t, id, number, x: clampX(t.x + 60), y: clampY(t.y + 60), seatLast: false }))];
     },
   };
 }

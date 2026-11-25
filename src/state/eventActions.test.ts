@@ -293,9 +293,9 @@ describe('moving by hand', () => {
     return id;
   }
   const seatOf = (id: string, rid: string, guest = 0) => ev(id).seats.find((s) => s.residentId === rid && s.guest === guest);
-  const emptySeat = (id: string, minFree = 1) => {
+  const emptySeat = (id: string, minFree = 1, not?: string) => {
     const e = ev(id);
-    for (const t of eventTables(data(), e)) {
+    for (const t of eventTables(data(), e).filter((x) => x.id !== not)) {
       const n = t.shape === 'round' ? 4 : 6;
       const used = new Set(e.seats.filter((s) => s.tableId === t.id).map((s) => s.seat));
       if (n - used.size >= minFree) for (let k = 0; k < n; k++) if (!used.has(k)) return { tableId: t.id, seat: k };
@@ -375,15 +375,14 @@ describe('moving by hand', () => {
     const rid = data().seating.find((s) => s.meal === 'Dinner')!.residentId;
     await store.change('g', setGuests(id, rid, 1));
     await store.change('arrange', arrangeSeats(id));
-    const to = emptySeat(id, 2);
-    expect(to.tableId).not.toBe(seatOf(id, rid)!.tableId);
+    const to = emptySeat(id, 2, seatOf(id, rid)!.tableId);
     await store.change('table', moveToTable(id, { residentId: rid, guest: 0 }, to.tableId));
     const [h, g] = [seatOf(id, rid)!, seatOf(id, rid, 1)!];
     expect(h.tableId).toBe(to.tableId);
     expect(g.tableId).toBe(to.tableId);
     expect(h.pinned).toBe(true);
     const e = ev(id);
-    const full = eventTables(data(), e).find((t) => e.seats.filter((s) => s.tableId === t.id).length >= (t.shape === 'round' ? 4 : 6));
+    const full = eventTables(data(), e).find((t) => t.id !== to.tableId && e.seats.filter((s) => s.tableId === t.id).length >= (t.shape === 'round' ? 4 : 6));
     if (full) expect(planMoveToTable(data(), e, { residentId: rid, guest: 0 }, full.id)).toHaveProperty('error');
     // The live changes list shows the move from their everyday table.
     const usual = data().seating.find((s) => s.meal === 'Dinner' && s.residentId === rid)!.tableId;

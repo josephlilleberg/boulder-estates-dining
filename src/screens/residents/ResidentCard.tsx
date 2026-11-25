@@ -36,16 +36,21 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
   const [extra, setExtra] = useState<ExtraTarget | null>(null);
   // "Gone certain days" picked before any day is: show the day buttons anyway.
   const [daysOpen, setDaysOpen] = useState(false);
+  // Just switched to "Here certain days": every day starts off, so the first click picks the one day they're here.
+  const [unpicked, setUnpicked] = useState(false);
   const choice: StatusChoice = r.status === 'gone' ? 'gone' : r.goneDays.length || daysOpen ? 'days' : 'active';
   const setChoice = (c: StatusChoice) => {
     setDaysOpen(c === 'days');
+    setUnpicked(c === 'days' && !r.goneDays.length);
     if (c === 'days') return; // nothing changes until a day is picked
     void act(`${name}: ${STATUS_CHOICES.find((x) => x.value === c)!.label}`, A.setStatus(r.id, c === 'gone' ? 'gone' : 'here'));
   };
   // The buttons are the days they're here; what's saved is the days they're gone (the rest).
+  const hereOn = (d: number) => !unpicked && !r.goneDays.includes(d);
   const toggleDay = (d: number) => {
-    const here = !r.goneDays.includes(d);
-    const days = here ? [...r.goneDays, d] : r.goneDays.filter((x) => x !== d);
+    const here = hereOn(d);
+    setUnpicked(false);
+    const days = unpicked ? [0, 1, 2, 3, 4, 5, 6].filter((x) => x !== d) : here ? [...r.goneDays, d] : r.goneDays.filter((x) => x !== d);
     void act(`${name}: ${here ? 'not here' : 'here'} ${WEEKDAYS[d]}`, A.setStatus(r.id, 'here', days));
   };
 
@@ -158,7 +163,7 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                 <span style={{ flex: '1 1 160px', fontSize: 14, color: '#111827' }}>Here on</span>
                 <div className="segwrap" role="group" aria-label="Here on">
                   {WEEKDAYS.map((d, i) => (
-                    <button key={d} type="button" className={!r.goneDays.includes(i) ? 'seg on' : 'seg'} aria-pressed={!r.goneDays.includes(i)} onClick={() => toggleDay(i)} style={{ padding: '0 10px' }}>
+                    <button key={d} type="button" className={hereOn(i) ? 'seg on' : 'seg'} aria-pressed={hereOn(i)} onClick={() => toggleDay(i)} style={{ padding: '0 10px' }}>
                       {d}
                     </button>
                   ))}

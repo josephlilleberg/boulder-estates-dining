@@ -290,11 +290,7 @@ function GuestList({ event: e, site }: { event: DiningEvent; site: Site }) {
         results={
           !qCancel.trim() ? null : cancellable.length ? (
             cancellable.map((a) => (
-              <Line key={a.residentId} name={fullName(a.resident)} onRow={() => void cancel(a)}>
-                <button type="button" className="btn sm">
-                  Cancel
-                </button>
-              </Line>
+              <Line key={a.residentId} name={fullName(a.resident)} onRow={() => void cancel(a)} />
             ))
           ) : (
             <Hint text="No one coming by that name." />
@@ -446,7 +442,7 @@ function Column({
       <div style={{ flex: '1 1 0', minHeight: 0, position: 'relative' }}>
         <div style={{ height: '100%', overflowY: 'auto' }}>{children}</div>
         {results && (
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, maxHeight: '85%', overflowY: 'auto', background: '#EFF6FF', borderBottom: '1px solid #BFDBFE', boxShadow: '0 10px 24px rgba(17,24,39,.16)' }}>
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, maxHeight: '85%', overflowY: 'auto', background: '#FFFFFF', borderBottom: '1px solid #E5E7EB', boxShadow: '0 10px 24px rgba(17,24,39,.16)' }}>
             {results}
           </div>
         )}

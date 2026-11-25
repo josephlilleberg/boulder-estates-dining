@@ -1,6 +1,6 @@
 import type { AppData } from '../db/repo';
 import { arrange, type ArrangeResult, type ArrangeTable, type Party } from '../domain/arrange';
-import { goneOn, shortName, type AttendeeStatus, type DiningEvent, type DiningTable, type EventAttendee, type EventSeat, type Resident } from '../domain/model';
+import { goneOn, isGone, shortName, type AttendeeStatus, type DiningEvent, type DiningTable, type EventAttendee, type EventSeat, type Resident } from '../domain/model';
 import type { MealName, SiteId } from '../domain/sites';
 import { seatCount } from '../domain/tables';
 import { del, patch, put, type Op } from './ops';
@@ -283,7 +283,10 @@ export function tableLabel(data: AppData, e: DiningEvent, t: DiningTable): strin
 
 /** What arranging would do, without saving (the screen asks before going over). Pinned seats stay. */
 export function planSeats(data: AppData, e: DiningEvent, allowOver = false): ArrangeResult {
-  const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t) }));
+  // Everyday seats at this meal held by residents still here, so a table someone usually has to themselves isn't "sparse".
+  const here = new Set(data.residents.filter((r) => !r.archived && !isGone(r)).map((r) => r.id));
+  const usual = (tableId: string) => data.seating.filter((s) => s.siteId === e.siteId && s.meal === e.meal && s.tableId === tableId && here.has(s.residentId)).length;
+  const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t), usual: usual(t.id) }));
   const fixed = e.seats.filter((s) => s.pinned);
   const biggest = Math.max(0, ...tables.map((t) => t.seats));
   const { parties, slots } = withFamilies(e, eventParties(data, e), new Set(fixed.map((s) => s.residentId)), biggest);

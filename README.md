@@ -162,7 +162,12 @@ puts them back. Picking a name in the Additions search puts them on that list wi
 there), each row showing the party's **Total** (resident plus guests). **+ Relative** on an Additions row adds a
 family member there too, grouped with a family total; on the **Seating** tab, a selected
 resident's **Relatives** does the same. **Arrange** seats each family at one table (a family
-bigger than the biggest table is seated as separate parties). The header shows **Total for meal** (residents coming
+bigger than the biggest table is seated as separate parties). Arrange keeps everyone in their own
+seat, else their own table, else their own section. When guests make a table too full, the party with
+guests moves (to an empty table if there is one) and the tablemates stay. Someone who moves joins other
+residents rather than another family. A table cancellations leave a third full or less (1 of 4, 2 of 6)
+joins residents nearby, in its section first, choosing whatever fills a table best (2 + 2 at a 4-top);
+someone who usually sits alone stays put, and half-empty tables are left as they are. The header shows **Total for meal** (residents coming
 plus guests) and **Total cancellations**, with two pop-ups that print: **Overview** (who's
 cancelled and who's added) and **Resident sheet** (everyone coming, A–Z, with guests and totals).
 

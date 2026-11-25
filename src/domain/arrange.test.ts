@@ -28,11 +28,25 @@ describe('arrange', () => {
     expect(where(r, 'b')!.seat).toBe(3);
   });
 
-  it('moves a group that outgrew its table to another table, together', () => {
-    // Tim, Paul and Kim (Table 1, 4 seats) bring 2 guests: 5 people. Table 2 (6 seats) is free.
+  it('the party that brings guests moves; its tablemates keep their seats', () => {
+    // Tim, Paul and Kim (Table 1, 4 seats) and Tim brings 2 guests: 5 people. Table 2 (6 seats) is free.
     const r = arrange([round(1), rect(2)], [p('tim', 'T1', 0, 2), p('paul', 'T1', 1), p('kim', 'T1', 2)]);
-    expect(['tim', 'paul', 'kim'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2']);
-    expect(r.notes[0]).toMatch(/moved from Table 1 to Table 2 together/);
+    expect(['tim', 'paul', 'kim'].map((id) => tableOf(r, id))).toEqual(['T2', 'T1', 'T1']);
+    expect(where(r, 'paul')!.seat).toBe(1);
+    expect(where(r, 'kim')!.seat).toBe(2);
+    expect(r.notes[0]).toMatch(/tim \(\+2\) moved from Table 1 to Table 2/);
+  });
+
+  it('a party with guests that has to move takes an empty table rather than join residents', () => {
+    const r = arrange([round(1), rect(2), round(3)], [p('tim', 'T1', 0, 2), p('paul', 'T1', 1), p('kim', 'T1', 2), ...['d', 'e', 'f'].map((id, i) => p(id, 'T2', i))]);
+    expect(tableOf(r, 'tim')).toBe('T3');
+    expect(['d', 'e', 'f'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2']);
+  });
+
+  it('a resident on their own joins residents, not someone else’s family', () => {
+    // Table 1 has a host and 2 guests (1 seat left); Table 2 has 3 residents (3 left).
+    const r = arrange([round(1), rect(2)], [p('a', 'T1', 0, 2), ...['d', 'e', 'f'].map((id, i) => p(id, 'T2', i)), p('new', null, null, 0, true)]);
+    expect(tableOf(r, 'new')).toBe('T2');
   });
 
   it('fills the space left with added residents, biggest party first, best fit', () => {
@@ -52,11 +66,12 @@ describe('arrange', () => {
     expect(ok.notes.join(' ')).toMatch(/2 over/);
   });
 
-  it('splits a group only when no table seats them all, keeping parties whole', () => {
+  it('moves as few people as will do, keeping parties whole', () => {
     const r = arrange([round(1), round(2)], [p('a', 'T1', 0, 1), p('b', 'T1', 1, 1), p('c', 'T1', 2)]);
     expect(r.unplaced).toEqual([]);
+    expect(tableOf(r, 'c')).toBe('T1');
+    expect([tableOf(r, 'a'), tableOf(r, 'b')].sort()).toEqual(['T1', 'T2']);
     for (const id of ['a', 'b', 'c']) expect(r.seats.filter((s) => s.residentId === id).every((s) => s.tableId === tableOf(r, id))).toBe(true);
-    expect(r.notes.join(' ')).toMatch(/had to split/);
   });
 
   it('a party never splits across tables', () => {
@@ -70,16 +85,41 @@ describe('arrange', () => {
     const g = where(r, 'a', 1)!;
     expect(g.tableId).toBe('T2');
     expect(adjacent(g.seat, 2, 4)).toBe(true);
-    expect(tableOf(r, 'b')).toBe('T2'); // alone at Table 1, so joins the pinned table rather than leave gaps
+    expect(tableOf(r, 'b')).toBe('T1'); // the only other table has a's guest, so b keeps their seat
   });
 
-  it('merges half-empty tables: the smaller group joins the bigger one', () => {
+  it('a resident left alone by cancellations joins residents in their section', () => {
     // After cancellations Table 1 has 1 person and Table 2 has 2.
     const r = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T2', 0), p('c', 'T2', 2)]);
     expect(['a', 'b', 'c'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2']);
     expect(where(r, 'b')!.seat).toBe(0); // the group that stays keeps its seats
     expect(where(r, 'c')!.seat).toBe(2);
-    expect(r.notes).toEqual(['a joined Table 2 so Table 1 isn’t needed.']);
+    expect(r.notes).toEqual(['a moved from Table 1 to join Table 2, so no one is at a near-empty table.']);
+  });
+
+  it('someone who usually sits alone stays put', () => {
+    const r = arrange([{ ...round(1), usual: 1 }, round(2)], [p('a', 'T1', 0), p('b', 'T2', 0), p('c', 'T2', 2)]);
+    expect(tableOf(r, 'a')).toBe('T1');
+    expect(r.notes).toEqual([]);
+  });
+
+  it('half-empty is fine: only a third full or less is combined', () => {
+    const r = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T1', 1), p('c', 'T2', 0), p('d', 'T2', 1)]);
+    expect(r.notes).toEqual([]);
+  });
+
+  it('combines sparse tables into whatever fills a table best', () => {
+    const five = { ...rect(3), seats: 5 };
+    // 2 + 2 from two 6-tops: an empty 4-top beats either 6-top.
+    const a = arrange([rect(1), rect(2), round(3)], [p('a', 'T1', 0), p('b', 'T1', 1), p('c', 'T2', 0), p('d', 'T2', 1)]);
+    expect(['a', 'b', 'c', 'd'].map((id) => tableOf(a, id))).toEqual(['T3', 'T3', 'T3', 'T3']);
+    // 2 + 3: an empty 5-top.
+    const b = arrange([rect(1), rect(2), five], [p('a', 'T1', 0), p('b', 'T1', 1), p('c', 'T2', 0), p('d', 'T2', 1), p('e', 'T2', 2)]);
+    expect(['a', 'b', 'c', 'd', 'e'].map((id) => tableOf(b, id))).toEqual(['T3', 'T3', 'T3', 'T3', 'T3']);
+    // 1 + 3: the one joins the three at their 4-top.
+    const c = arrange([round(1), round(2)], [p('a', 'T1', 0), p('b', 'T2', 0), p('c', 'T2', 1), p('d', 'T2', 2)]);
+    expect(['a', 'b', 'c', 'd'].map((id) => tableOf(c, id))).toEqual(['T2', 'T2', 'T2', 'T2']);
+    expect(where(c, 'b')!.seat).toBe(0);
   });
 
   it('leaves tables more than half full alone, and never opens an empty table to merge', () => {
@@ -98,21 +138,21 @@ describe('arrange', () => {
     expect(['x', 'y', 'z'].map((id) => tableOf(r, id))).toEqual(['T3', 'T3', 'T3']);
   });
 
-  it('merging never crosses sections: a half-empty table stays rather than send people to another section', () => {
-    const t1 = { ...round(1, 1), id: 'S1T1' };
-    const t2 = { ...round(1, 2), id: 'S2T1' };
-    const r = arrange([t1, t2], [p('a', 'S1T1', 0), p('b', 'S2T1', 0), p('c', 'S2T1', 1)]);
-    expect(tableOf(r, 'a')).toBe('S1T1');
-    expect(r.notes).toEqual([]);
+  it('combines in their own section first, and crosses the room only when it must', () => {
+    const t = (n: number, sec: number) => ({ ...round(n, sec), id: `S${sec}T${n}` });
+    const near = arrange([t(1, 1), t(2, 1), t(1, 2)], [p('a', 'S1T1', 0), p('b', 'S1T2', 0), p('c', 'S1T2', 1), p('x', 'S2T1', 0), p('y', 'S2T1', 1), p('z', 'S2T1', 2)]);
+    expect(tableOf(near, 'a')).toBe('S1T2'); // 3 of 4 here beats 4 of 4 across the room
+    const far = arrange([t(1, 1), t(1, 2)], [p('a', 'S1T1', 0), p('b', 'S2T1', 0), p('c', 'S2T1', 1)]);
+    expect(tableOf(far, 'a')).toBe('S2T1'); // no one else in section 1: company beats staying
   });
 
-  it('a group that outgrows its table moves within its section, even if another section fits tighter', () => {
+  it('a party that outgrows its table moves within its section, even if another section fits tighter', () => {
     // Section 1: Table 1 (4 seats, 5 coming) and Table 2 (6 seats, empty). Section 2's empty 5-seat table would fit them more tightly.
     const r = arrange(
       [round(1, 1), rect(2, 1), { ...rect(3, 2), seats: 5 }],
       [p('a', 'T1', 0, 2), p('b', 'T1', 1), p('c', 'T1', 2)],
     );
-    expect(['a', 'b', 'c'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2']);
+    expect(['a', 'b', 'c'].map((id) => tableOf(r, id))).toEqual(['T2', 'T1', 'T1']);
   });
 
   it('seated over, it’s the emptiest table in their own section', () => {

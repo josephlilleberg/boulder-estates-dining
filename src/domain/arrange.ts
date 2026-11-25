@@ -143,16 +143,78 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
   // ---- Those who moved, then everyone else, biggest party first ----
   for (const p of loose) queue.push({ p, from: null });
   queue.sort((a, b) => size(b.p) - size(a.p) || Number(!a.from) - Number(!b.from) || a.p.name.localeCompare(b.p.name));
+  /**
+   * No table has room for a party: residents sitting on their own give up their seats at a table
+   * big enough (its section first, the smallest such table, as few of them as will do) and move,
+   * together if a table has room for them all, else each like anyone who moves. A party is never squeezed in while that works.
+   */
+  const makeRoom = (p: Party, near: ArrangeTable | null) => {
+    const need = size(p);
+    const away = (t: ArrangeTable) => (near && t.section !== near.section ? 1 : 0);
+    const candidates = tables
+      .filter((t) => t.seats >= need && !pinnedTable(t) && !withGuests(at.get(t.id)!))
+      .sort(
+        (a, b) =>
+          away(a) - away(b) ||
+          a.seats - b.seats ||
+          people(a) - people(b) ||
+          (near ? Math.abs(a.number - near.number) - Math.abs(b.number - near.number) : 0) ||
+          a.section - b.section ||
+          a.number - b.number,
+      );
+    for (const t of candidates) {
+      const before = new Map([...at].map(([k, v]) => [k, [...v]]));
+      const here = at.get(t.id)!;
+      // Who gives up their seat: anyone not at their own table first, then those added, then regulars.
+      const order = [...here].sort((a, b) => Number(a.usualTable === t.id) - Number(b.usualTable === t.id) || Number(b.added) - Number(a.added) || a.name.localeCompare(b.name));
+      const leave: Party[] = [];
+      while (free(t) < need) {
+        const x = order.shift()!;
+        here.splice(here.indexOf(x), 1);
+        leave.push(x);
+      }
+      here.push(p);
+      // Tablemates who give up their seats move together if a table has room for them all.
+      const together = leave.length > 1 ? place(leave, t) : undefined;
+      if (together) at.get(together.id)!.push(...leave);
+      const dests = together
+        ? leave.map(() => together)
+        : leave.map((x) => {
+            const d = place([x], t);
+            if (d) at.get(d.id)!.push(x);
+            return d;
+          });
+      if (dests.every(Boolean)) return { to: t, moved: leave };
+      for (const [k, v] of before) at.set(k, v);
+    }
+    return null;
+  };
+
   const unplaced: Party[] = [];
   for (const { p, from } of queue) {
-    const to = place([p], from);
-    if (!to) {
-      unplaced.push(p);
-      continue;
+    let to = place([p], from);
+    let made: Party[] = [];
+    if (to) at.get(to.id)!.push(p);
+    else {
+      const room = makeRoom(p, from);
+      if (!room) {
+        unplaced.push(p);
+        continue;
+      }
+      to = room.to;
+      made = room.moved;
     }
-    at.get(to.id)!.push(p);
     if (from) notes.push(() => `${names([p])} moved from ${label(from)} to ${label(tableOf(p))}: ${label(from)} has ${from.seats} seats.`);
     else notes.push(() => `${names([p])} ${p.added ? 'added' : 'seated'} at ${label(tableOf(p))}.`);
+    const into = to;
+    // One line per table they went to: "A, B and C moved from Table 2 to Table 1 to make room for X (+5)."
+    if (made.length)
+      notes.push(() =>
+        [...new Set(made.map(tableOf))]
+          .filter((d) => d !== into)
+          .map((d) => `${names(made.filter((x) => tableOf(x) === d))} moved from ${label(into)} to ${label(d)} to make room for ${names([p])}.`)
+          .join(' '),
+      );
   }
 
   // ---- Sparse tables (rule 6) ----
@@ -260,29 +322,64 @@ function seatTable(t: ArrangeTable, ps: Party[], fixed: Placed[]): Placed[] {
   }
 
   const staying = ps.filter((p) => !pinned.has(p) && p.usualTable === t.id && p.usualSeat !== null && p.usualSeat < n);
-  const hosts = new Map<Party, number>();
-  for (const p of staying) {
-    if (taken.has(p.usualSeat!)) continue;
-    take(p.usualSeat!, p, 0);
-    hosts.set(p, p.usualSeat!);
-  }
-  // Bigger parties first, so their guests get the neighbouring seats.
-  for (const [p, host] of [...hosts].sort((a, b) => b[0].guests - a[0].guests)) guestsBeside(p, host);
+  // Seats the residents staying on their own will want back, so a party sits elsewhere if it can.
+  const wanted = new Set(staying.filter((p) => p.guests === 0).map((p) => p.usualSeat!));
 
-  for (const p of [...ps].filter((x) => !hosts.has(x) && !pinned.has(x)).sort((a, b) => size(b) - size(a))) {
-    const start = runStart(n, taken, size(p));
-    const host = start ?? nearestFree(0);
-    if (host < 0) {
-      take(extra++, p, 0);
-      guestsBeside(p, extra - 1);
+  // A party with guests sits side by side, biggest first: around the host's own seat when they're
+  // home, else where it takes the fewest seats others want.
+  for (const p of ps.filter((x) => !pinned.has(x) && x.guests > 0).sort((a, b) => size(b) - size(a))) {
+    const anchor = staying.includes(p) && !taken.has(p.usualSeat!) ? p.usualSeat! : null;
+    const start = bestRun(n, taken, size(p), anchor, wanted);
+    if (start === null) {
+      const host = anchor ?? nearestFree(0);
+      const h = host >= 0 ? host : extra++;
+      take(h, p, 0);
+      guestsBeside(p, h);
       continue;
     }
+    const run = Array.from({ length: size(p) }, (_, k) => (start + k) % n);
+    const host = anchor !== null && run.includes(anchor) ? anchor : run[0]!;
     take(host, p, 0);
-    if (start !== null) for (let g = 1; g <= p.guests; g++) take((host + g) % n, p, g);
-    else guestsBeside(p, host);
+    run.filter((x) => x !== host).forEach((x, g) => take(x, p, g + 1));
+  }
+
+  // Residents on their own: their own seat if it's free, else the nearest free one.
+  const alone = ps.filter((p) => !pinned.has(p) && p.guests === 0);
+  const later: Party[] = [];
+  for (const p of alone) {
+    if (staying.includes(p) && !taken.has(p.usualSeat!)) take(p.usualSeat!, p, 0);
+    else later.push(p);
+  }
+  for (const p of later) {
+    const from = staying.includes(p) ? p.usualSeat! : null;
+    const s = from !== null ? nearestFree(from) : runStart(n, taken, 1) ?? -1;
+    take(s >= 0 ? s : extra++, p, 0);
   }
   return out;
 }
+
+/**
+ * Where `len` free seats in a row (wrapping) should start: one that includes `anchor` (the host's
+ * own seat) if any does, then one covering the fewest `wanted` seats, then the nearest the anchor.
+ */
+function bestRun(n: number, taken: Set<number>, len: number, anchor: number | null, wanted: Set<number>): number | null {
+  if (len > n) return null;
+  const dist = (a: number, b: number) => Math.min((a - b + n) % n, (b - a + n) % n);
+  let best: { s: number; key: number[] } | null = null;
+  for (let s = 0; s < n; s++) {
+    const run = Array.from({ length: len }, (_, k) => (s + k) % n);
+    if (run.some((x) => taken.has(x))) continue;
+    const key = [anchor !== null && !run.includes(anchor) ? 1 : 0, run.filter((x) => wanted.has(x)).length, anchor !== null ? Math.min(...run.map((x) => dist(x, anchor))) : 0];
+    if (!best || before(key, best.key)) best = { s, key };
+  }
+  return best?.s ?? null;
+}
+
+/** a sorts before b, comparing entry by entry. */
+const before = (a: number[], b: number[]) => {
+  const i = a.findIndex((v, k) => v !== b[k]);
+  return i >= 0 && a[i]! < b[i]!;
+};
 
 /** First seat of `len` free seats in a row (wrapping), or null. */
 function runStart(n: number, taken: Set<number>, len: number): number | null {

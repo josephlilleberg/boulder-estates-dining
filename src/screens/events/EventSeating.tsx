@@ -15,7 +15,7 @@ import { dropTargetAt, SeatRoomView } from '../seating/SeatRoomView';
 // An event's seating map, with a side panel: who's selected, who isn't seated yet, and what's
 // changed from everyday seating. "Arrange seats" lays everyone out (see domain/arrange.ts). Drag a
 // name onto a seat (or a table, to sit wherever there's room); moved people are pinned, so arranging
-// again works around them. Guests show as "Guest" beside their host.
+// again works around them. Guests show as "Guest" beside their host, with the host's name above.
 
 const GUEST = 'guest:';
 const guestOf = (host: Resident, g: number): Resident => ({ ...host, id: `${GUEST}${host.id}:${g}`, first: 'Guest', last: `of ${fullName(host)}`, nickname: null, notes: [] });
@@ -80,7 +80,12 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
   const sc = seatingScale(crop, fit.w, fit.h);
   const view = crop && fit.w ? frameCrop(crop, sc, fit.w, fit.h) : crop;
   const placing = !!pick || !!drag;
-  const room = seatRoom(tables, sc, view, (k) => bySeat.get(k) ?? null, placing, nameOf);
+  const ownerOf = (r: Resident) => {
+    if (!r.id.startsWith(GUEST)) return null;
+    const host = byId.get(whoOf(r.id).residentId);
+    return host ? shortName(host) : null;
+  };
+  const room = seatRoom(tables, sc, view, (k) => bySeat.get(k) ?? null, placing, nameOf, ownerOf);
   const seatedIn = (n: number) => e.seats.filter((s) => all.find((t) => t.id === s.tableId)?.section === n).length;
 
   const nameOfWho = (w: E.Who) => {

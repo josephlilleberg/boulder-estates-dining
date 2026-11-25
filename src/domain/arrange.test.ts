@@ -169,4 +169,25 @@ describe('arrange', () => {
     expect(tableOf(r, 'new')).toBe('T2');
     expect(r.notes).toEqual(['new added at Table 2.']);
   });
+
+  it('a party with no table free moves residents out of one big enough, rather than squeezing in', () => {
+    // A host and 5 guests (6) at a 4-top; the only 6-top has 3 residents, and the other 4-top has room for them.
+    const r = arrange([round(1), rect(2), round(3)], [p('host', 'T1', 0, 5), ...['d', 'e', 'f'].map((id, i) => p(id, 'T2', i)), p('g', 'T3', 0)]);
+    expect(tableOf(r, 'host')).toBe('T2');
+    expect([1, 2, 3, 4, 5].every((g) => where(r, 'host', g)!.tableId === 'T2')).toBe(true);
+    expect(r.unplaced).toEqual([]);
+    // They go to tables with room, and stay together where they can.
+    for (const id of ['d', 'e', 'f']) expect(tableOf(r, id)).not.toBe('T2');
+    expect(r.seats.filter((s) => s.seat >= 4 && s.tableId !== 'T2')).toEqual([]);
+    expect(r.notes.some((n) => /to make room for host \(\+5\)/.test(n))).toBe(true);
+  });
+
+  it('a host whose neighbours stay still sits with all their guests side by side', () => {
+    // 6-top: the host at seat 0 brings 2; residents at seats 1 and 5 (both neighbours) stay.
+    const r = arrange([rect(1)], [p('a', 'T1', 0, 2), p('b', 'T1', 1), p('c', 'T1', 5)]);
+    const seats = [0, 1, 2].map((g) => where(r, 'a', g)!.seat).sort((x, y) => x - y);
+    const run = seats.every((s) => seats.some((o) => o !== s && adjacent(s, o, 6)));
+    expect(run).toBe(true);
+    expect(new Set(r.seats.map((s) => s.seat)).size).toBe(5);
+  });
 });

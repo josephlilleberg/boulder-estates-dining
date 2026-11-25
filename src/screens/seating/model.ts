@@ -70,6 +70,8 @@ export interface SeatLabel {
   tableNumber: number;
   resident: Resident | null;
   name: string;
+  /** Small, above the name: whose guest this is ("Tim A."). */
+  of?: string;
   l: number;
   t: number;
   w: number;
@@ -100,6 +102,8 @@ export function seatRoom(
   picking: boolean,
   /** The name shown at a seat (event seating shows "Guest" for a guest). */
   nameOf: (r: Resident) => string = shortName,
+  /** Whose guest sits here, shown small above the name (event seating). */
+  ownerOf: (r: Resident) => string | null = () => null,
 ): SeatRoom {
   const ox = crop?.x0 ?? 0;
   const oy = crop?.y0 ?? 0;
@@ -144,14 +148,20 @@ export function seatRoom(
       const base = { key, tableNumber: t.number, nx: p.nx, ny: p.ny };
       if (r) {
         const name = nameOf(r);
+        const of = ownerOf(r) ?? undefined;
+        // A guest's label is two lines, grown away from the table so it still sits against the edge.
+        const h2 = of ? hh + 6 : hh;
+        const cx = lx + p.nx * (h2 - hh);
+        const cy = ly + p.ny * (h2 - hh);
         out.labels.push({
           ...base,
           resident: r,
           name,
-          l: lx - hwX,
-          t: ly - hh,
+          of,
+          l: cx - hwX,
+          t: cy - h2,
           w: hwX * 2,
-          h: hh * 2,
+          h: h2 * 2,
           angle: ang,
           // 12 px; only a name that wouldn't fit gets a little smaller (never below 9.5).
           fontSize: Math.max(9.5, Math.min(12, (hwX * 2 - 6) / (name.length * 0.62))),

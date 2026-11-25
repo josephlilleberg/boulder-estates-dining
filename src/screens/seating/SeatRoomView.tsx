@@ -167,7 +167,14 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
                   </svg>
                 )}
                 {hasAlert(r) && <AlertBadge size={Math.max(10, lab.fontSize - 1)} />}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: hasAlert(r) ? 3 : 0 }}>{lab.name}</span>
+                {lab.of ? (
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, lineHeight: 1.1 }}>
+                    <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: Math.max(9, lab.fontSize - 2.5), fontWeight: 500, color: '#4B5563' }}>{lab.of}</span>
+                    <span>{lab.name}</span>
+                  </span>
+                ) : (
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: hasAlert(r) ? 3 : 0 }}>{lab.name}</span>
+                )}
               </>
             ) : (
               <svg viewBox="0 0 10 10" width={placing ? 10 : 8} height={placing ? 10 : 8} aria-hidden="true" style={{ display: 'block' }}>

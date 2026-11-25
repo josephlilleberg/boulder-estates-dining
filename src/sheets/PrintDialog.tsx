@@ -14,13 +14,30 @@ export interface PrintItem {
   w: number;
   h: number;
   render: () => ReactNode;
+  /** Pages with a group ("Breakfast") are listed under its heading, which ticks or unticks them all. */
+  group?: string;
 }
 
 const LIST_W = 250;
 
-export function PrintDialog({ title, subtitle, items, note, onClose }: { title: string; subtitle?: string; items: PrintItem[]; note?: ReactNode; onClose: () => void }) {
-  const [off, setOff] = useState<Set<string>>(new Set());
-  const [shown, setShown] = useState(items[0]?.key ?? '');
+export function PrintDialog({
+  title,
+  subtitle,
+  items,
+  note,
+  startOn = () => true,
+  onClose,
+}: {
+  title: string;
+  subtitle?: string;
+  items: PrintItem[];
+  note?: ReactNode;
+  /** Which pages start ticked (all, unless said otherwise). */
+  startOn?: (i: PrintItem) => boolean;
+  onClose: () => void;
+}) {
+  const [off, setOff] = useState<Set<string>>(() => new Set(items.filter((i) => !startOn(i)).map((i) => i.key)));
+  const [shown, setShown] = useState((items.find(startOn) ?? items[0])?.key ?? '');
   const [busy, setBusy] = useState(false);
   // A page is built the first time it's shown (or printed) and kept, so ticking boxes and stepping
   // back and forth doesn't build it again; pages never looked at are built only to print.
@@ -30,8 +47,9 @@ export function PrintDialog({ title, subtitle, items, note, onClose }: { title: 
     return built.current.get(i.key);
   };
   // The rest are built in the background, one at a time, so they're ready when clicked or printed.
+  // Ticked pages first.
   const latest = useRef(items);
-  latest.current = items;
+  latest.current = [...items.filter((i) => !off.has(i.key)), ...items.filter((i) => off.has(i.key))];
   useEffect(() => {
     let timer = 0;
     const next = () => {
@@ -53,6 +71,17 @@ export function PrintDialog({ title, subtitle, items, note, onClose }: { title: 
     const next = new Set(off);
     if (next.has(key)) next.delete(key);
     else next.add(key);
+    setOff(next);
+  };
+  /** A group's heading: ticks the whole group, or unticks it when it's all ticked. */
+  const toggleGroup = (group: string) => {
+    const keys = items.filter((i) => i.group === group).map((i) => i.key);
+    const allOn = keys.every((k) => !off.has(k));
+    const next = new Set(off);
+    for (const k of keys) {
+      if (allOn) next.add(k);
+      else next.delete(k);
+    }
     setOff(next);
   };
 
@@ -120,8 +149,30 @@ export function PrintDialog({ title, subtitle, items, note, onClose }: { title: 
             {items.map((i, n) => {
               const on = !off.has(i.key);
               const here = i.key === cur?.key;
+              const heading = i.group && i.group !== items[n - 1]?.group ? i.group : null;
+              const members = heading ? items.filter((x) => x.group === heading) : [];
+              const nOn = members.filter((x) => !off.has(x.key)).length;
               return (
-                <div key={i.key} onClick={() => setShown(i.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${here ? '#2563EB' : '#E5E7EB'}`, background: here ? '#EFF6FF' : '#FFFFFF' }}>
+                <Fragment key={i.key}>
+                {heading && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: n ? '10px 10px 2px' : '2px 10px 2px', borderTop: n ? '1px solid #E5E7EB' : undefined, marginTop: n ? 4 : 0 }}>
+                    <button
+                      type="button"
+                      className={nOn ? 'box on' : 'box'}
+                      aria-pressed={nOn === members.length ? true : nOn ? 'mixed' : false}
+                      aria-label={`Print all of ${heading}`}
+                      onClick={() => toggleGroup(heading)}
+                      style={{ cursor: 'pointer', padding: 0 }}
+                    >
+                      {nOn === members.length ? <Tick /> : nOn ? <Dash /> : <Tick />}
+                    </button>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#111827', textTransform: 'uppercase', letterSpacing: 0.5 }}>{heading}</span>
+                    <span style={{ fontSize: 12, color: '#6B7280' }}>
+                      {nOn} of {members.length}
+                    </span>
+                  </div>
+                )}
+                <div onClick={() => setShown(i.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, cursor: 'pointer', border: `1px solid ${here ? '#2563EB' : '#E5E7EB'}`, background: here ? '#EFF6FF' : '#FFFFFF' }}>
                   <button
                     type="button"
                     className={on ? 'box on' : 'box'}
@@ -143,6 +194,7 @@ export function PrintDialog({ title, subtitle, items, note, onClose }: { title: 
                     {i.sub && <span style={{ display: 'block', fontSize: 12, color: '#4B5563', marginTop: 2 }}>{i.sub}</span>}
                   </span>
                 </div>
+                </Fragment>
               );
             })}
           </div>
@@ -166,7 +218,7 @@ export function PrintDialog({ title, subtitle, items, note, onClose }: { title: 
                   </button>
                 )}
                 <span>
-                  Page {at + 1} of {items.length}
+                  {cur.group ? `${cur.group} · ` : ''}Page {at + 1} of {items.length}
                 </span>
                 {items.length > 1 && (
                   <button type="button" className="btn sm" aria-label="Next page" onClick={() => step(1)}>
@@ -185,5 +237,12 @@ export function PrintDialog({ title, subtitle, items, note, onClose }: { title: 
 const Tick = () => (
   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M5 12l5 5L20 7" />
+  </svg>
+);
+
+/** Part of a group ticked. */
+const Dash = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round" aria-hidden="true">
+    <path d="M6 12h12" />
   </svg>
 );

@@ -4,19 +4,20 @@ import { PrintDialog } from '../../sheets/PrintDialog';
 import { PrintIcon } from '../../shell/icons';
 import { Segmented } from '../../shell/Segmented';
 import { ScaledPage, SheetPage } from '../../sheets/SheetPage';
-import { sheetDay, useSheets } from '../../sheets/useSheets';
+import { sheetDay, useAllSheets } from '../../sheets/useSheets';
 import { useFitBox } from '../../ui/useFitBox';
 import type { ScreenProps } from '../types';
 
 /** Ctrl/⌘+P sends this so the Setup & Drinks screen opens its Print window. */
 export const OPEN_PRINT = 'be-open-print';
 
-export function ViewScreen({ site, meal, opening, onMeal }: ScreenProps) {
+export function ViewScreen({ site, meal, onMeal }: ScreenProps) {
   // The day the sheets are for: today, or one of the next six days. Anyone gone that weekday prints empty.
   const [dayOffset, setDayOffset] = useState(0);
   const today = new Date();
   const day = new Date(today.getFullYear(), today.getMonth(), today.getDate() + dayOffset);
-  const { sheets, page } = useSheets(site, meal, opening, day);
+  const all = useAllSheets(site, day);
+  const { sheets, page } = all.find((m) => m.meal === meal) ?? all[0]!;
   const [printing, setPrinting] = useState(false);
   useEffect(() => {
     const open = () => setPrinting(true);
@@ -95,8 +96,10 @@ export function ViewScreen({ site, meal, opening, onMeal }: ScreenProps) {
         {printing && (
           <PrintDialog
             title="Print"
-            subtitle={`${meal} · server sheets for ${sheetDay(day)}`}
-            items={sheets.map((s) => ({ key: s.key, label: s.printLabel, sub: s.sub, ...PAGE[s.paper], render: () => <SheetPage page={page(s)} shadow={false} /> }))}
+            subtitle={`Server sheets for ${sheetDay(day)}`}
+            // Every meal's pages, grouped by meal; the meal on screen starts ticked.
+            items={all.flatMap((m) => m.sheets.map((s) => ({ key: `${m.meal}-${s.key}`, group: m.meal, label: s.printLabel, sub: s.sub, ...PAGE[s.paper], render: () => <SheetPage page={m.page(s)} shadow={false} /> })))}
+            startOn={(i) => i.group === meal}
             onClose={() => setPrinting(false)}
           />
         )}

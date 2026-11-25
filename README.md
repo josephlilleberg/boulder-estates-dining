@@ -146,8 +146,9 @@ and **Print** opens the print dialog. Who's on the plan is set on each resident'
   that day prints as an empty seat; the day shows top right. The Setup sheet is for every day.
 - Every sheet for the meal, one tab each (Setup, Server 1 2 3), shown as the whole page, exactly
   as it prints.
-- **Print…** opens the Print window: every page with a tick box (all ticked to start; All / None)
-  and a large preview of the one you click (‹ › to step through; an unticked page shows faded).
+- **Print…** opens the Print window: every meal's pages, grouped under Breakfast, Dinner and
+  Supper, each with a tick box (the meal on screen starts ticked; a meal's heading ticks or
+  unticks all of it, and All / None covers every meal) and a large preview of the one you click (‹ › to step through; an unticked page shows faded).
   **Print** hands the ticked pages to the system print dialog, which also saves as PDF. The setup
   sheet prints on 11×17 and the others on Letter, so the app opens one print dialog per paper
   size. The Meal Plan's Print and an event's Overview and Resident sheet open the same window.

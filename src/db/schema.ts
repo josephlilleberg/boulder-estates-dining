@@ -7,7 +7,7 @@ import type { Stmt } from './types';
 // Foreign keys deliberately have no ON DELETE CASCADE: every delete is explicit,
 // so the undo log sees it.
 
-export const SCHEMA_VERSION = 14;
+export const SCHEMA_VERSION = 15;
 
 export const DDL: string[] = [
   `CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -199,6 +199,8 @@ export const MIGRATIONS: Record<number, string[]> = {
   ],
   // v14: a table to seat last: Arrange fills every other table first (set in the designer).
   14: [`ALTER TABLE dining_table ADD COLUMN seat_last INTEGER NOT NULL DEFAULT 0`],
+  // v15: a closed table (Arrange seats nobody there) and residents who keep their seat at events.
+  15: [`ALTER TABLE dining_table ADD COLUMN closed INTEGER NOT NULL DEFAULT 0`, `ALTER TABLE resident ADD COLUMN stays INTEGER NOT NULL DEFAULT 0`],
 };
 
 /** Primary key columns per table; the undo log needs them to build inverse operations. */

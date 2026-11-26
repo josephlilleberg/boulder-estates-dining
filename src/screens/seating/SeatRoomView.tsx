@@ -85,6 +85,7 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
     <div style={{ position: 'relative', width: room.w, height: room.h, background: '#FFFFFF', border: '1.5px solid #9CA3AF', borderRadius: 10, flex: 'none', userSelect: 'none' }}>
       {room.tables.map((t) => {
         const info = tableInfo?.get(t.id);
+        const dim = info?.dim || t.closed;
         return (
           <div
             key={t.id}
@@ -98,14 +99,16 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
               height: t.h,
               borderRadius: t.radius,
               transform: `rotate(${t.rotation}deg)`,
-              background: info?.dim ? '#F9FAFB' : '#FFFFFF',
-              border: `1.5px ${info?.dim ? 'dashed #D1D5DB' : 'solid #4B5563'}`,
+              background: dim ? '#F3F4F6' : '#FFFFFF',
+              border: `1.5px ${dim ? 'dashed #9CA3AF' : 'solid #4B5563'}`,
             }}
           >
             <div style={{ transform: `rotate(${-t.rotation}deg)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, lineHeight: 1, pointerEvents: 'none' }}>
-              <span style={{ fontSize: t.fontSize, fontWeight: 700, color: info?.dim ? '#9CA3AF' : '#1F2937' }}>{t.number}</span>
+              <span style={{ fontSize: t.fontSize, fontWeight: 700, color: dim ? '#9CA3AF' : '#1F2937' }}>{t.number}</span>
               {info && <span style={{ fontSize: Math.max(9, Math.round(t.fontSize * 0.7)), fontWeight: 600, color: info.dim ? '#9CA3AF' : '#4B5563' }}>{info.text}</span>}
-              {t.last && <span style={{ fontSize: Math.max(9, Math.round(t.fontSize * 0.5)), fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.3 }}>Seat last</span>}
+              {t.closed ? (
+                <span style={{ fontSize: Math.max(9, Math.round(t.fontSize * 0.5)), fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.3 }}>Closed</span>
+              ) : t.last && <span style={{ fontSize: Math.max(9, Math.round(t.fontSize * 0.5)), fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.3 }}>Seat last</span>}
             </div>
           </div>
         );

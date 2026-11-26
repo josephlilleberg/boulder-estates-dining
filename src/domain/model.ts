@@ -145,6 +145,8 @@ export interface Resident {
   apt: string | null;
   /** Diabetic diet: their row is highlighted on the meal plan sheet. */
   diabetic: boolean;
+  /** Keeps their own seat when event seats are arranged: nobody moves them to make room. */
+  stays?: boolean;
   /** Gone until further notice: they keep their seats, which print empty. */
   status: ResidentStatus;
   /** Weekdays they're always gone (0 = Sunday), e.g. [0] for Sundays; their seat prints empty then. */
@@ -170,6 +172,8 @@ export interface DiningTable {
   rotation: number;
   /** Seated last: Arrange fills every other table first. */
   seatLast?: boolean;
+  /** Closed: Arrange seats nobody here; anyone whose seat it is moves. */
+  closed?: boolean;
 }
 
 export interface Layout {

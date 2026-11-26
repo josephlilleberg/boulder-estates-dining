@@ -17,6 +17,10 @@
 //      2 of 6) joins residents elsewhere, in its section first, choosing whatever fills a table
 //      best (2 + 2 at a 4-top, 2 + 3 at a 5-top). A table that's usually that empty (someone who
 //      sits alone) is left as it is, and we don't try to use fewer tables otherwise.
+//   8. A closed table seats nobody (hand-placed seats aside): anyone whose seat is there moves,
+//      like a party that no longer fits (rule 4), staying in their section if it has room.
+//   9. A resident who keeps their seat is never moved to make room or to combine tables: their
+//      tablemates move instead. Only a closed table (or no other way to fit) moves them.
 // Everyone else (added residents, regulars without a seat) fills what's left, biggest party first.
 
 export interface ArrangeTable {
@@ -30,6 +34,8 @@ export interface ArrangeTable {
   usual?: number;
   /** Seat last: used only when no other table has room. */
   last?: boolean;
+  /** Closed: nobody is seated here (pinned seats aside). */
+  closed?: boolean;
 }
 
 export interface Party {
@@ -44,6 +50,8 @@ export interface Party {
   added: boolean;
   /** For the notes, in place of "name (+guests)": a family seated as one party ("X A. and Y A."). */
   label?: string;
+  /** Keeps their own seat: never moved to make room or to combine tables. */
+  stays?: boolean;
 }
 
 export interface Placed {
@@ -94,6 +102,8 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
   const withGuests = (ps: Party[]) => ps.some((p) => p.guests > 0);
   const pinnedTable = (t: ArrangeTable) => fixed.some((s) => s.tableId === t.id);
   const last = (t: ArrangeTable) => (t.last ? 1 : 0);
+  /** Keeps their seat and is at it. */
+  const stuck = (p: Party, t: ArrangeTable) => !!p.stays && p.usualTable === t.id;
   // Notes that name a table are written at the end, so a group moved later shows where it ended up.
   const notes: (string | (() => string))[] = [];
   const tableOf = (p: Party) => tables.find((t) => at.get(t.id)!.includes(p))!;
@@ -108,7 +118,7 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
     const mixed = (t: ArrangeTable) => (people(t) > 0 && (withGuests(ps) || withGuests(at.get(t.id)!)) ? 1 : 0);
     const away = (t: ArrangeTable) => (near && t.section !== near.section ? 1 : 0);
     return tables
-      .filter((t) => free(t) >= need)
+      .filter((t) => !t.closed && free(t) >= need)
       .sort(
         (a, b) =>
           last(a) - last(b) ||
@@ -133,11 +143,18 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
   const queue: { p: Party; from: ArrangeTable | null }[] = [];
   for (const [tid, ps] of home) {
     const t = byId.get(tid)!;
+    // A closed table: everyone whose seat it is moves.
+    if (t.closed) {
+      for (const p of ps) queue.push({ p, from: t });
+      continue;
+    }
     const stay = [...ps];
     while (total(stay) > free(t)) {
       const over = total(stay) - free(t);
       // Parties with guests first; only if that's not enough, residents too (added ones before regulars).
-      const pool = withGuests(stay) ? stay.filter((p) => p.guests > 0) : [...stay].sort((a, b) => Number(b.added) - Number(a.added));
+      // Those who keep their seat move only if nobody else can.
+      const movable = stay.some((p) => !p.stays) ? stay.filter((p) => !p.stays) : stay;
+      const pool = withGuests(movable) ? movable.filter((p) => p.guests > 0) : [...movable].sort((a, b) => Number(b.added) - Number(a.added));
       const enough = pool.filter((p) => size(p) >= over).sort((a, b) => size(a) - size(b))[0];
       const go = enough ?? [...pool].sort((a, b) => size(b) - size(a))[0]!;
       stay.splice(stay.indexOf(go), 1);
@@ -158,7 +175,7 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
     const need = size(p);
     const away = (t: ArrangeTable) => (near && t.section !== near.section ? 1 : 0);
     const candidates = tables
-      .filter((t) => t.seats >= need && !pinnedTable(t) && !withGuests(at.get(t.id)!))
+      .filter((t) => !t.closed && t.seats >= need && !pinnedTable(t) && !withGuests(at.get(t.id)!))
       .sort(
         (a, b) =>
           last(a) - last(b) ||
@@ -173,7 +190,9 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
       const before = new Map([...at].map(([k, v]) => [k, [...v]]));
       const here = at.get(t.id)!;
       // Who gives up their seat: anyone not at their own table first, then those added, then regulars.
-      const order = [...here].sort((a, b) => Number(a.usualTable === t.id) - Number(b.usualTable === t.id) || Number(b.added) - Number(a.added) || a.name.localeCompare(b.name));
+      // Those who keep their seat stay put; if that leaves too little room, try the next table.
+      const order = here.filter((x) => !stuck(x, t)).sort((a, b) => Number(a.usualTable === t.id) - Number(b.usualTable === t.id) || Number(b.added) - Number(a.added) || a.name.localeCompare(b.name));
+      if (t.seats - total(here.filter((x) => stuck(x, t))) < need) continue;
       const leave: Party[] = [];
       while (free(t) < need) {
         const x = order.shift()!;
@@ -211,7 +230,7 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
       to = room.to;
       made = room.moved;
     }
-    if (from) notes.push(() => `${names([p])} moved from ${label(from)} to ${label(tableOf(p))}: ${label(from)} has ${from.seats} seats.`);
+    if (from) notes.push(() => `${names([p])} moved from ${label(from)} to ${label(tableOf(p))}: ${label(from)} ${from.closed ? 'is closed' : `has ${from.seats} seats`}.`);
     else notes.push(() => `${names([p])} ${p.added ? 'added' : 'seated'} at ${label(tableOf(p))}.`);
     const into = to;
     // One line per table they went to: "A, B and C moved from Table 2 to Table 1 to make room for X (+5)."
@@ -227,8 +246,10 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
   // ---- Sparse tables (rule 7) ----
   // A table takes part in one combining at most, so nobody is moved twice.
   const settled = new Set<string>();
-  const residentsOnly = (t: ArrangeTable) => people(t) > 0 && !withGuests(at.get(t.id)!) && !pinnedTable(t) && !settled.has(t.id);
-  const sparse = (t: ArrangeTable) => residentsOnly(t) && people(t) * 3 <= t.seats && (t.usual ?? t.seats) * 3 > t.seats;
+  const residentsOnly = (t: ArrangeTable) => !t.closed && people(t) > 0 && !withGuests(at.get(t.id)!) && !pinnedTable(t) && !settled.has(t.id);
+  // A table with someone keeping their seat is joined, never emptied.
+  const anchored = (t: ArrangeTable) => at.get(t.id)!.some((p) => stuck(p, t));
+  const sparse = (t: ArrangeTable) => residentsOnly(t) && !anchored(t) && people(t) * 3 <= t.seats && (t.usual ?? t.seats) * 3 > t.seats;
   for (;;) {
     type Option = { from: ArrangeTable[]; to: ArrangeTable; away: number; fill: number; moved: number };
     const options: Option[] = [];
@@ -239,7 +260,7 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
         // They join b's table...
         if (free(b) >= people(a)) options.push({ from: [a], to: b, away: same, fill: n / b.seats, moved: people(a) });
         // ...or both go to an empty table they fill better.
-        for (const e of tables.filter((t) => people(t) === 0 && t.seats >= n && !t.last))
+        if (!anchored(b)) for (const e of tables.filter((t) => people(t) === 0 && t.seats >= n && !t.last && !t.closed))
           options.push({ from: [a, b], to: e, away: e.section === a.section && e.section === b.section ? 0 : 1, fill: n / e.seats, moved: n });
       }
     }
@@ -264,7 +285,7 @@ export function arrange(tables: ArrangeTable[], parties: Party[], opts: ArrangeO
       // The table with the most room left, in their own section first.
       const sec = p.usualTable ? byId.get(p.usualTable)?.section : undefined;
       const mine = (t: ArrangeTable) => (t.section === sec ? 0 : 1);
-      const to = [...tables].sort((a, b) => last(a) - last(b) || mine(a) - mine(b) || free(b) - free(a) || a.section - b.section || a.number - b.number)[0];
+      const to = tables.filter((t) => !t.closed).sort((a, b) => last(a) - last(b) || mine(a) - mine(b) || free(b) - free(a) || a.section - b.section || a.number - b.number)[0];
       if (!to) {
         unplaced.push(p);
         continue;
@@ -331,6 +352,8 @@ function seatTable(t: ArrangeTable, ps: Party[], fixed: Placed[]): Placed[] {
   const staying = ps.filter((p) => !pinned.has(p) && p.usualTable === t.id && p.usualSeat !== null && p.usualSeat < n);
   // Seats the residents staying on their own will want back, so a party sits elsewhere if it can.
   const wanted = new Set(staying.filter((p) => p.guests === 0).map((p) => p.usualSeat!));
+  // Those who keep their seat take it before any party is laid out around them.
+  for (const p of staying) if (p.stays && p.guests === 0 && !taken.has(p.usualSeat!)) take(p.usualSeat!, p, 0);
 
   // A party with guests sits side by side with the host in the middle, guests either side, biggest
   // party first: around the host's own seat when they're home, else where it takes the fewest seats
@@ -355,6 +378,7 @@ function seatTable(t: ArrangeTable, ps: Party[], fixed: Placed[]): Placed[] {
   const alone = ps.filter((p) => !pinned.has(p) && p.guests === 0);
   const later: Party[] = [];
   for (const p of alone) {
+    if (out.some((s) => s.residentId === p.residentId && s.guest === 0)) continue;
     if (staying.includes(p) && !taken.has(p.usualSeat!)) take(p.usualSeat!, p, 0);
     else later.push(p);
   }

@@ -65,6 +65,8 @@ export interface TableBox {
   fontSize: number;
   /** Seat last (set in the designer). */
   last: boolean;
+  /** Closed (set in the designer). */
+  closed: boolean;
 }
 
 export interface SeatLabel {
@@ -146,6 +148,7 @@ export function seatRoom(
       radius: round ? '50%' : `${Math.max(3, Math.round(8 * sc))}px`,
       fontSize: Math.round(22 * sc),
       last: !!t.seatLast,
+      closed: !!t.closed,
     });
 
     const geom = seatGeom(t.shape);

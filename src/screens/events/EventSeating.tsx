@@ -7,6 +7,8 @@ import { Segmented } from '../../shell/Segmented';
 import { act } from '../../state/act';
 import * as E from '../../state/eventActions';
 import { getStore, useStore } from '../../state/store';
+import { PrintDialog } from '../../sheets/PrintDialog';
+import { sheetDay } from '../../sheets/useSheets';
 import { Dialog } from '../../ui/Dialog';
 import { useSize } from '../../ui/useSize';
 import { cropOf, frameCrop, parseSeatKey, seatKey, seatingScale, seatRoom, type SeatKey, type SeatLabel } from '../seating/model';
@@ -16,8 +18,13 @@ import { dropTargetAt, SeatRoomView } from '../seating/SeatRoomView';
 // changed from everyday seating. "Arrange seats" lays everyone out (see domain/arrange.ts). Drag a
 // name onto a seat (or a table, to sit wherever there's room); moved people are pinned, so arranging
 // again works around them. Guests show as "Guest" beside their host, with the host's name above.
+// Print… prints the map, one landscape Letter page per section.
 
 const GUEST = 'guest:';
+// The printed map: Letter, landscape.
+const PRINT_W = 1056;
+const PRINT_H = 816;
+const PRINT_PAD = 36;
 const guestOf = (host: Resident, g: number): Resident => ({ ...host, id: `${GUEST}${host.id}:${g}`, first: 'Guest', last: `of ${fullName(host)}`, nickname: null, notes: [] });
 const nameOf = (r: Resident) => (r.id.startsWith(GUEST) ? 'Guest' : shortName(r));
 /** The map's ids back to a person: a resident's id, or "guest:<host id>:<n>". */
@@ -42,6 +49,7 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
   const [drag, setDrag] = useState<{ who: E.Who; name: string; x: number; y: number; over: SeatKey | null } | null>(null);
   const dragStart = useRef<{ who: E.Who; name: string; pointer: number; sx: number; sy: number; moved: boolean } | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     if (!pick && !sel) return;
@@ -86,6 +94,35 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
     return host ? shortName(host) : null;
   };
   const room = seatRoom(tables, sc, view, (k) => bySeat.get(k) ?? null, placing, nameOf, ownerOf);
+
+  /** A section's map as a printed page: as large as fits, with anyone in extra places listed under it. */
+  const printPage = (n: number) => {
+    const T = all.filter((t) => t.section === n);
+    const more = T.filter((t) => extras.has(t.id)).map((t) => `Table ${t.number}: ${extras.get(t.id)!.join(', ')}`);
+    const mw = PRINT_W - 2 * PRINT_PAD;
+    const mh = PRINT_H - 2 * PRINT_PAD - 48 - (more.length ? 24 : 0);
+    const c = cropOf(T);
+    const s = c ? Math.min(2, mw / c.w, mh / c.h) : 1;
+    const r = seatRoom(T, s, c ? frameCrop(c, s, mw, mh) : c, (k) => bySeat.get(k) ?? null, false, nameOf, ownerOf);
+    const label = sections.find((x) => x.section === n)?.label ?? '';
+    return (
+      <div className="sheet-page" style={{ width: PRINT_W, height: PRINT_H, boxSizing: 'border-box', padding: PRINT_PAD, background: '#FFFFFF', color: '#111827', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '2px solid #111827', paddingBottom: 6 }}>
+          <span style={{ fontSize: 20, fontWeight: 700 }}>
+            {e.name}
+            {sections.length > 1 ? ` · ${label}` : ''}
+          </span>
+          <span style={{ fontSize: 13, color: '#4B5563' }}>
+            {sheetDay(new Date(`${e.date}T00:00`))} · {e.meal}
+          </span>
+        </div>
+        <div style={{ display: 'grid', justifyContent: 'center' }}>
+          <SeatRoomView room={r} selectedKey={null} picking={false} tableInfo={tableInfo} onSeatClick={() => {}} onDrop={() => {}} />
+        </div>
+        {more.length > 0 && <div style={{ fontSize: 12, color: '#374151' }}>Extra places · {more.join(' · ')}</div>}
+      </div>
+    );
+  };
   const seatedIn = (n: number) => e.seats.filter((s) => all.find((t) => t.id === s.tableId)?.section === n).length;
 
   const nameOfWho = (w: E.Who) => {
@@ -330,6 +367,9 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
           {` · ${used} of ${all.length} tables`}
         </span>
         <div style={{ flex: '1 1 0' }} />
+        <button type="button" className="btn sm" disabled={!e.seats.length} aria-haspopup="dialog" onClick={() => setPrinting(true)} title={e.seats.length ? 'The seating map, one page per section' : 'Arrange seats first'}>
+          Print…
+        </button>
         {sections.length > 1 && (
           <Segmented
             label="Section"
@@ -385,6 +425,15 @@ export function EventSeating({ event: e, site }: { event: DiningEvent; site: Sit
         </div>
         {panel}
       </div>
+
+      {printing && (
+        <PrintDialog
+          title="Print seating"
+          subtitle={`${e.name} · ${e.meal}`}
+          items={sections.map((s) => ({ key: String(s.section), label: `Seating · ${s.label}`, sub: `${seatedIn(s.section)} seated`, w: PRINT_W, h: PRINT_H, render: () => printPage(s.section) }))}
+          onClose={() => setPrinting(false)}
+        />
+      )}
 
       {drag && (
         <div

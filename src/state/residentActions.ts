@@ -152,6 +152,10 @@ export const setStatus = (id: string, status: ResidentStatus, goneDays: number[]
 export const setDiabetic = (id: string, on: boolean) => (data: AppData): Op[] =>
   resident(data, id).diabetic === on ? [] : [patch('resident', { id }, { diabetic: on ? 1 : 0 })];
 
+/** Keeps their own seat when event seats are arranged. */
+export const setStays = (id: string, on: boolean) => (data: AppData): Op[] =>
+  !!resident(data, id).stays === on ? [] : [patch('resident', { id }, { stays: on ? 1 : 0 })];
+
 /** Hides them everywhere and frees their seats. History (drinks, notes, attendance) stays. */
 export const archiveResident = (id: string) => (data: AppData): Op[] => {
   const r = resident(data, id);

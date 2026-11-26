@@ -1,13 +1,19 @@
 import type { ReactNode } from 'react';
 import type { DiningEvent } from '../../domain/model';
 import type { AppData } from '../../db/repo';
+import type { Site } from '../../domain/sites';
+import { eventSheets } from '../../sheets/eventSheets';
+import { PAGE } from '../../sheets/model';
 import { PrintDialog } from '../../sheets/PrintDialog';
+import { SheetPage } from '../../sheets/SheetPage';
+import { sheetDay } from '../../sheets/useSheets';
 import * as E from '../../state/eventActions';
 import { chunk } from '../mealplan/plan';
 
 // The event's two printouts, each shown in a pop-up with Print:
 // - Overview: who's cancelled and who's added (with guests and totals).
 // - Resident sheet: everyone coming, A–Z, with guests and each party's total.
+// And the Setup and Server sheets, from the arranged seats (see sheets/eventSheets.ts).
 
 const W = 816; // Letter, portrait
 const H = 1056;
@@ -60,6 +66,22 @@ export function EventSheetDialog({ kind, event: e, data, dateText, onClose }: { 
           Total for meal <b style={{ color: '#111827' }}>{total}</b> · Total cancellations <b style={{ color: '#111827' }}>{lists.cancelled.length}</b>
         </>
       }
+      onClose={onClose}
+    />
+  );
+}
+
+/** The Setup and Server sheets for the event's arranged seats. */
+export function EventServerSheetsDialog({ event: e, site, data, onClose }: { event: DiningEvent; site: Site; data: AppData; onClose: () => void }) {
+  const day = sheetDay(new Date(`${e.date}T00:00`));
+  const ev = eventSheets(data, site, e, day);
+  if (!ev) return null;
+  return (
+    <PrintDialog
+      title="Setup & server sheets"
+      subtitle={`${e.name} · ${day} · ${e.meal}`}
+      items={ev.sheets.map((s) => ({ key: s.key, label: s.printLabel, sub: s.sub, ...PAGE[s.paper], render: () => <SheetPage page={ev.page(s)} shadow={false} /> }))}
+      note={ev.extra ? `${ev.extra} in extra places past a table's seats aren't on the sheets` : 'From the arranged seats; a guest prints as “+ Kim A.” beside Kim A.'}
       onClose={onClose}
     />
   );

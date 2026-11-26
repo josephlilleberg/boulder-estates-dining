@@ -10,7 +10,7 @@ import { Segmented } from '../../shell/Segmented';
 import { useSize } from '../../ui/useSize';
 import type { ScreenProps } from '../types';
 import { EventSeating } from './EventSeating';
-import { EventSheetDialog, type EventSheet } from './EventSheets';
+import { EventServerSheetsDialog, EventSheetDialog, type EventSheet } from './EventSheets';
 
 // Special events (Thanksgiving Dinner): a guest list of their own, made from whoever comes
 // to that meal today. Everyday seating and residents' cards are never changed here.
@@ -87,7 +87,7 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
   const [menuOpen, setMenuOpen] = useState(false);
   const [tab, setTab] = useState<'list' | 'seats'>('list');
   const t = E.eventTotals(data, e);
-  const [sheet, setSheet] = useState<EventSheet | null>(null);
+  const [sheet, setSheet] = useState<EventSheet | 'servers' | null>(null);
 
   return (
     <section className="card" style={{ height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -180,6 +180,9 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
           <button type="button" className="btn sm" onClick={() => setSheet('residents')} title="Everyone coming, A–Z, with guests, to view or print">
             Resident sheet
           </button>
+          <button type="button" className="btn sm" disabled={!e.seats.length} onClick={() => setSheet('servers')} title={e.seats.length ? 'The setup sheet and each section’s server sheet, from the arranged seats' : 'Arrange seats first'}>
+            Setup &amp; server sheets
+          </button>
           <Stat big label="Total for meal" value={t.people} />
           <Stat label="Total cancellations" value={t.cancelled} />
           <span style={{ flex: '1 1 0' }} />
@@ -197,7 +200,8 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
       </div>
 
       {tab === 'seats' ? <EventSeating event={e} site={site} /> : <GuestList event={e} site={site} />}
-      {sheet && <EventSheetDialog kind={sheet} event={e} data={data} dateText={eventDate(e.date)} onClose={() => setSheet(null)} />}
+      {sheet === 'servers' && <EventServerSheetsDialog event={e} site={site} data={data} onClose={() => setSheet(null)} />}
+      {sheet && sheet !== 'servers' && <EventSheetDialog kind={sheet} event={e} data={data} dateText={eventDate(e.date)} onClose={() => setSheet(null)} />}
     </section>
   );
 }

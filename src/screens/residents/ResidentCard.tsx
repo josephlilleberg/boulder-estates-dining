@@ -183,6 +183,15 @@ export function ResidentCard({ resident: r, height, site, meal, onMeal }: Props)
                 <SwitchMark on={r.diabetic} />
               </button>
             </div>
+            <div className="grow" style={{ cursor: 'default' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: '#111827' }}>Keeps their seat</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>Arranging event seats never moves them; tablemates move instead</div>
+              </div>
+              <button type="button" className="swbtn" aria-pressed={!!r.stays} aria-label="Keeps their seat" onClick={() => act(r.stays ? 'Can move at events' : 'Keeps their seat', A.setStays(r.id, !r.stays))}>
+                <SwitchMark on={!!r.stays} />
+              </button>
+            </div>
             <div className="grow" style={{ cursor: 'default', flexWrap: 'wrap' }}>
               <span style={{ flex: '1 1 120px', fontSize: 14, color: '#111827' }}>Chair</span>
               <div className="segwrap" role="group" aria-label="Chair">

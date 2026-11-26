@@ -257,7 +257,7 @@ export function eventTotals(data: AppData, e: DiningEvent): EventTotals {
   const list = guestList(data, e);
   const coming = list.filter((a) => a.status === 'coming');
   const guests = coming.reduce((n, a) => n + a.guests, 0);
-  const seats = eventTables(data, e).reduce((n, t) => n + seatCount(t.shape), 0);
+  const seats = eventTables(data, e).filter((t) => !t.closed).reduce((n, t) => n + seatCount(t.shape), 0);
   return { residents: coming.length, guests, people: coming.length + guests, cancelled: list.length - coming.length, seats };
 }
 
@@ -270,7 +270,7 @@ export function eventParties(data: AppData, e: DiningEvent): Party[] {
     .filter((a) => a.status === 'coming')
     .map((a) => {
       const usual = data.seating.find((s) => s.siteId === e.siteId && s.meal === e.meal && s.residentId === a.residentId && open.has(s.tableId));
-      return { residentId: a.residentId, name: shortName(a.resident), guests: a.guests, usualTable: usual?.tableId ?? null, usualSeat: usual?.seat ?? null, added: a.added };
+      return { residentId: a.residentId, name: shortName(a.resident), guests: a.guests, usualTable: usual?.tableId ?? null, usualSeat: usual?.seat ?? null, added: a.added, stays: !!a.resident.stays };
     });
 }
 
@@ -286,7 +286,7 @@ export function planSeats(data: AppData, e: DiningEvent, allowOver = false): Arr
   // Everyday seats at this meal held by residents still here, so a table someone usually has to themselves isn't "sparse".
   const here = new Set(data.residents.filter((r) => !r.archived && !isGone(r)).map((r) => r.id));
   const usual = (tableId: string) => data.seating.filter((s) => s.siteId === e.siteId && s.meal === e.meal && s.tableId === tableId && here.has(s.residentId)).length;
-  const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t), usual: usual(t.id), last: !!t.seatLast }));
+  const tables: ArrangeTable[] = eventTables(data, e).map((t) => ({ id: t.id, section: t.section, number: t.number, seats: seatCount(t.shape), label: tableLabel(data, e, t), usual: usual(t.id), last: !!t.seatLast, closed: !!t.closed }));
   const fixed = e.seats.filter((s) => s.pinned);
   const biggest = Math.max(0, ...tables.map((t) => t.seats));
   const { parties, slots } = withFamilies(e, eventParties(data, e), new Set(fixed.map((s) => s.residentId)), biggest);
@@ -314,7 +314,8 @@ function withFamilies(e: DiningEvent, parties: Party[], pinned: Set<string>, big
   const out: Party[] = [];
   for (const ps of families.values()) {
     if (ps.length < 2 || ps.some((p) => pinned.has(p.residentId)) || ps.reduce((n, p) => n + 1 + p.guests, 0) > biggest) continue;
-    const members = [...ps].sort((a, b) => Number(!a.usualTable) - Number(!b.usualTable) || a.name.localeCompare(b.name));
+    // The one the family sits around: someone who keeps their seat, else anyone with a seat.
+    const members = [...ps].sort((a, b) => Number(!(a.stays && a.usualTable)) - Number(!(b.stays && b.usualTable)) || Number(!a.usualTable) - Number(!b.usualTable) || a.name.localeCompare(b.name));
     const first = members[0]!;
     slots.set(
       first.residentId,

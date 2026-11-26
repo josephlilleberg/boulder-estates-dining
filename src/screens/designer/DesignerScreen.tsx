@@ -228,6 +228,21 @@ export function DesignerScreen({ site, navigate }: ScreenProps) {
                 <SwitchMark on={!!sel.seatLast} />
               </button>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, color: '#111827' }}>Closed</div>
+                <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2, lineHeight: 1.4 }}>Arranging event seats puts nobody here; anyone whose seat it is moves</div>
+              </div>
+              <button
+                type="button"
+                className="swbtn"
+                aria-pressed={!!sel.closed}
+                aria-label="Closed"
+                onClick={() => act(`Table ${sel.number}: ${sel.closed ? 'open' : 'closed'}`, T.setClosed(sel.id, !sel.closed))}
+              >
+                <SwitchMark on={!!sel.closed} />
+              </button>
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <button type="button" className="btn sm" onClick={() => duplicate(sel)}>Duplicate</button>
               <button type="button" className="btn sm warn" onClick={() => remove(sel)}>Delete table</button>

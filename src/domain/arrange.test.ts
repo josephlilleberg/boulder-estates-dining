@@ -215,4 +215,32 @@ describe('arrange', () => {
     const guests = [1, 2].map((g) => where(m, 'h', g)!.seat);
     expect(guests.every((g) => adjacent(g, host, 6))).toBe(true);
   });
+
+  it('a closed table seats nobody; those whose seat it is move, in their section', () => {
+    const shut = { ...round(1), closed: true };
+    const r = arrange([shut, round(2), round(3, 2)], [p('a', 'T1', 0), p('b', 'T1', 1), p('c', 'T2', 0), p('n', null, null, 0, true)]);
+    expect(['a', 'b', 'c', 'n'].map((id) => tableOf(r, id))).toEqual(['T2', 'T2', 'T2', 'T2']);
+    expect(r.notes.join(' ')).toMatch(/a moved from Table 1 to Table 2: Table 1 is closed/);
+    // Not even when it would mean going over.
+    const over = arrange([shut, round(2)], [p('a', 'T2', 0), p('b', 'T2', 1), p('c', 'T2', 2), p('d', 'T2', 3), p('e', null, null, 0, true)], { allowOver: true });
+    expect(tableOf(over, 'e')).toBe('T2');
+    // A seat placed there by hand stays.
+    const pinned = arrange([shut, round(2)], [p('a', 'T2', 0)], { fixed: [{ tableId: 'T1', seat: 2, residentId: 'a', guest: 0 }] });
+    expect(pinned.seats.some((s) => s.residentId === 'a')).toBe(false);
+  });
+
+  it('a resident who keeps their seat stays put; tablemates move instead', () => {
+    const keep = (x: Party): Party => ({ ...x, stays: true });
+    // Kim keeps her seat and brings 2 guests to a 4-top she shares with two others: one of them moves, she stays.
+    const r = arrange([round(1), rect(2)], [keep(p('kim', 'T1', 0, 2)), p('paul', 'T1', 1), p('tim', 'T1', 2)]);
+    expect(where(r, 'kim')).toMatchObject({ tableId: 'T1', seat: 0 });
+    expect(['paul', 'tim'].map((id) => tableOf(r, id)).sort()).toEqual(['T1', 'T2']);
+    // Making room for a big party skips the table where someone keeps their seat.
+    const m = arrange([rect(1), rect(2), round(3)], [keep(p('a', 'T1', 0)), p('b', 'T2', 0), p('big', null, null, 5, true)]);
+    expect(where(m, 'a')).toMatchObject({ tableId: 'T1', seat: 0 });
+    expect(tableOf(m, 'big')).toBe('T2');
+    // A sparse table isn't emptied when its one resident keeps their seat.
+    const s = arrange([{ ...rect(1), usual: 6 }, rect(2)], [keep(p('a', 'T1', 0)), p('b', 'T2', 0), p('c', 'T2', 1)]);
+    expect(where(s, 'a')).toMatchObject({ tableId: 'T1', seat: 0 });
+  });
 });

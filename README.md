@@ -151,7 +151,7 @@ and **Print** opens the print dialog. Who's on the plan is set on each resident'
   unticks all of it, and All / None covers every meal) and a large preview of the one you click (‹ › to step through; an unticked page shows faded).
   **Print** hands the ticked pages to the system print dialog, which also saves as PDF. The setup
   sheet prints on 11×17 and the others on Letter, so the app opens one print dialog per paper
-  size. The Meal Plan's Print and an event's Overview and Resident sheet open the same window.
+  size. The Meal Plan's Print and an event's Overview, Resident sheet and Setup & server sheets open the same window.
 
 ### Events
 
@@ -173,12 +173,20 @@ for them all) rather than the party being squeezed in. A party sits side by side
 middle and guests either side, around the host's own seat when they stay at their table, and on the map
 each guest shows their resident's name above **Guest**. A table switched to **Seat last** in the Room
 Designer (it shows SEAT LAST on the seating maps) gets nobody moved or added to it while any other table
-has room; those whose own seat is there keep it.
+has room; those whose own seat is there keep it. A table switched to **Closed** (greyed, CLOSED on the maps)
+gets nobody at all, except someone placed there by hand, and those whose seat is there move within their section.
+A resident switched to **Keeps their seat** (on their card) is never moved to make room or to combine
+tables; their tablemates move instead, and only a closed table moves them.
 Someone who moves joins other residents rather than another family. A table cancellations leave a third full or less (1 of 4, 2 of 6)
 joins residents nearby, in its section first, choosing whatever fills a table best (2 + 2 at a 4-top);
 someone who usually sits alone stays put, and half-empty tables are left as they are. The header shows **Total for meal** (residents coming
 plus guests) and **Total cancellations**, with two pop-ups that print: **Overview** (who's
 cancelled and who's added) and **Resident sheet** (everyone coming, A–Z, with guests and totals).
+**Setup & server sheets** (once seats are arranged) prints the meal's everyday Setup and Server sheets
+from the event's seats: residents with their own chair and drinks, each guest as "+ Kim A." with blank
+drinks. People in extra places past a table's seats aren't on the sheets; the window says how many.
+On the **Seating** tab, **Print…** prints the seating map itself, one landscape Letter page per
+section, with names at every seat (guests under their resident's name) and anyone in extra places listed under it.
 
 ### Room Designer
 

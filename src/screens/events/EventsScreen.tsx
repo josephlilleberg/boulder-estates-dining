@@ -175,7 +175,7 @@ function EventCard({ event: e, events, site, onPick, onNew, onEdit, onDeleted }:
 
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           <button type="button" className="btn sm" onClick={() => setSheet('overview')} title="Who's cancelled and who's added, to view or print">
-            Overview
+            Cancellations &amp; additions
           </button>
           <button type="button" className="btn sm" onClick={() => setSheet('residents')} title="Everyone coming, A–Z, with guests, to view or print">
             Resident sheet

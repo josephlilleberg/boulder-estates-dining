@@ -173,8 +173,9 @@ export function SeatRoomView({ room, selectedKey, picking, onSeatClick, onDrop, 
                 {hasAlert(r) && <AlertBadge size={Math.max(10, lab.fontSize - 1)} />}
                 {lab.of ? (
                   <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 0, lineHeight: 1.1 }}>
-                    <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', color: '#4B5563' }}>{lab.of}</span>
-                    <span>{lab.name}</span>
+                    {/* A guest: "Guest" small and grey on top, whose guest under it, so it reads "Guest · Alma A." */}
+                    <span style={{ color: '#6B7280', fontWeight: 500 }}>{lab.name}</span>
+                    <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lab.of}</span>
                   </span>
                 ) : (
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', marginLeft: hasAlert(r) ? 3 : 0 }}>{lab.name}</span>

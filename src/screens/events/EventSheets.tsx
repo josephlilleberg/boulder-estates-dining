@@ -11,7 +11,7 @@ import * as E from '../../state/eventActions';
 import { chunk } from '../mealplan/plan';
 
 // The event's two printouts, each shown in a pop-up with Print:
-// - Overview: who's cancelled and who's added (with guests and totals).
+// - Cancellations & additions: who's cancelled and who's added (with guests and totals).
 // - Resident sheet: everyone coming, A–Z, with guests and each party's total.
 // And the Setup and Server sheets, from the arranged seats (see sheets/eventSheets.ts).
 
@@ -50,7 +50,7 @@ export function EventSheetDialog({ kind, event: e, data, dateText, onClose }: { 
   const lists = eventLists(data, e);
   const total = mealTotal(lists.coming);
   const sub = `${dateText} · ${e.meal}`;
-  const title = kind === 'overview' ? 'Overview' : 'Resident sheet';
+  const title = kind === 'overview' ? 'Cancellations & additions' : 'Resident sheet';
   const pages =
     kind === 'overview'
       ? overviewPages({ title: e.name, sub, total, cancelled: lists.cancelled, added: lists.added })
@@ -168,7 +168,7 @@ function overviewPages({ title, sub, total, cancelled, added }: { title: string;
   const n = Math.max(1, c.length, a.length);
   const none = (text: string) => <p style={{ fontSize: 13, color: '#4B5563', margin: 0 }}>{text}</p>;
   return Array.from({ length: n }, (_, i) => (
-    <Page key={i} title={title} sub={sub} heading="Overview" page={i + 1} pages={n}>
+    <Page key={i} title={title} sub={sub} heading="Cancellations & additions" page={i + 1} pages={n}>
       {i === 0 && <Totals total={total} cancelled={cancelled.length} />}
       <div style={COLUMNS}>
         <div>
